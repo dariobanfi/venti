@@ -14,7 +14,12 @@
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { placeHref } from '#lib/app/routes.ts';
-	import type { FlightAnalysis, FlightView, GroundUnderFlight } from '#lib/core/index.ts';
+	import type {
+		FlightAirspace,
+		FlightAnalysis,
+		FlightView,
+		GroundUnderFlight
+	} from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Menu, { type MenuItem } from '#lib/design/Menu.svelte';
@@ -59,6 +64,13 @@
 		social?: Snippet;
 		socialLine?: string;
 		socialTitle?: string;
+		/**
+		 * Checks the flight against the airspace the app has: for a flight
+		 * of the pilot's own, from its file. Another pilot's is not checked.
+		 */
+		checkAirspace?: () => Promise<FlightAirspace>;
+		/** Hands the flight to a league: for a flight of the pilot's own. */
+		onleague?: () => void;
 	}
 
 	let {
@@ -73,7 +85,9 @@
 		onendbeside,
 		social,
 		socialLine = '',
-		socialTitle = ''
+		socialTitle = '',
+		checkAirspace,
+		onleague
 	}: Props = $props();
 
 	/** Whether the sheet of cheers and comments is open, on a narrow screen. */
@@ -89,6 +103,29 @@
 			lat: (flight.bounds.south + flight.bounds.north) / 2,
 			lon: (flight.bounds.west + flight.bounds.east) / 2
 		});
+	});
+
+	/**
+	 * The flight checked against the airspace the app has: asked for when
+	 * the flight opens and again whenever that airspace changes, as when the
+	 * server's arrives. Without it the details are shorter, not wrong.
+	 */
+	let airspaceCheck = $state.raw<FlightAirspace>();
+	$effect(() => {
+		const airspace = app.airspace;
+		if (!checkAirspace || airspace?.revision === undefined) return;
+		// Only the answer to the latest question counts.
+		let current = true;
+		checkAirspace().then(
+			(checked) => {
+				if (current) airspaceCheck = checked;
+			},
+			// Still fetching some of the airspace: asked again when it is there.
+			() => {}
+		);
+		return () => {
+			current = false;
+		};
 	});
 
 	/**
@@ -325,6 +362,7 @@
 					{beside}
 					onbeside={() => (sideBySide = true)}
 					score={analysis?.score}
+					{onleague}
 					ondetails={wide ? undefined : () => (showingDetails = true)}
 					chart={!wide}
 				/>
@@ -341,6 +379,7 @@
 				<FlightDetails
 					{flight}
 					{analysis}
+					airspace={airspaceCheck}
 					onselect={mark}
 					{fromHere}
 					takeoffName={takeoffSite?.name}
@@ -352,7 +391,14 @@
 
 {#if !wide}
 	<Sheet open={showingDetails} title="Flight details" onclose={() => (showingDetails = false)}>
-		<FlightDetails {flight} {analysis} onselect={mark} {fromHere} takeoffName={takeoffSite?.name} />
+		<FlightDetails
+			{flight}
+			{analysis}
+			airspace={airspaceCheck}
+			onselect={mark}
+			{fromHere}
+			takeoffName={takeoffSite?.name}
+		/>
 	</Sheet>
 {/if}
 

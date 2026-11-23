@@ -73,6 +73,7 @@ describe('the pilot’s own flights on the server', () => {
 		expect(await source.list()).toBeUndefined();
 		expect(await source.open('5t1eshypdtvrq7rxw39a18vsrg')).toBeUndefined();
 		expect(await source.upload(new ArrayBuffer(0))).toBeUndefined();
+		expect(await source.statistics()).toBeUndefined();
 		expect(server.asked).toEqual([]);
 	});
 
@@ -90,19 +91,47 @@ describe('the pilot’s own flights on the server', () => {
 		expect(opened?.analysis?.thermals.length).toBeGreaterThan(0);
 		expect(opened?.sharing.visibility).toBe('public');
 		expect(server.asked.map((asked) => asked.token)).toEqual([TOKEN, TOKEN]);
-		const file = await source.file(id);
-		expect(file?.name).toBe('venti-2026-08-15-5t1eshyp.igc');
+		// The name the logbook gives it, from the file itself.
+		expect(opened?.name).toBe('2026-07-04-XVE-000-01.igc');
+		expect(opened?.text).toBe(sampleFlight());
 	});
 
-	it('take a file in as an upload, and say when the account had it', async () => {
-		const server = played({ 'POST /v1/flights': () => ok(recorded('flight.json'), 200) });
+	it('take a file in as an upload, and say whether the account had it', async () => {
+		const server = played({ 'POST /v1/flights': () => ok(recorded('upload.json'), 201) });
 		const source = new OwnFlightsSource(async () => TOKEN, server.send, 'https://venti.example');
 		const bytes = new TextEncoder().encode(sampleFlight());
 
 		const uploaded = await source.upload(bytes.buffer as ArrayBuffer);
 
-		expect(uploaded?.alreadyThere).toBe(true);
+		expect(uploaded?.alreadyThere).toBe(false);
+		expect(uploaded?.flight.sharing.visibility).toBe('public');
 		expect(server.asked[0]).toMatchObject({ token: TOKEN, body: sampleFlight() });
+	});
+
+	it('say of a flight that was taken down that it was', async () => {
+		const id = '5t1eshypdtvrq7rxw39a18vsrg';
+		const server = played({
+			[`PATCH /v1/flights/${id}`]: () => ok(recorded('flight_taken_down.json'))
+		});
+		const source = new OwnFlightsSource(async () => TOKEN, server.send, 'https://venti.example');
+
+		const flight = await source.setGliderClass(id, 'b');
+
+		expect(flight.takenDown).toBe(true);
+		expect(flight.sharing.visibility).toBe('private');
+		expect(JSON.parse(server.asked[0].body!)).toMatchObject({ glider_class: expect.anything() });
+	});
+
+	it('add up all the account’s flights, the private ones too, as a pilot’s statistics', async () => {
+		const server = played({
+			'GET /v1/account/statistics': () => ok(recorded('account_statistics.json'))
+		});
+		const source = new OwnFlightsSource(async () => TOKEN, server.send, 'https://venti.example');
+
+		const statistics = await source.statistics();
+
+		expect(statistics?.overall.rows.length).toBeGreaterThan(0);
+		expect(server.asked).toEqual([{ line: 'GET /v1/account/statistics', token: TOKEN }]);
 	});
 
 	it('hear the server’s refusal in the core’s words', async () => {
@@ -114,5 +143,6 @@ describe('the pilot’s own flights on the server', () => {
 		const source = new OwnFlightsSource(async () => TOKEN, server.send, 'https://venti.example');
 
 		await expect(source.delete(id)).rejects.toMatchObject({ name: 'Server' });
+		expect(server.asked).toEqual([{ line: `DELETE /v1/flights/${id}`, token: TOKEN }]);
 	});
 });

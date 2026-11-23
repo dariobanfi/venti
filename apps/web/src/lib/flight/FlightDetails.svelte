@@ -30,9 +30,9 @@
 		/** What happened in the flight, once it has been worked out. */
 		analysis: FlightAnalysis | undefined;
 		/**
-		 * The flight checked against the airspace the app has. None on the
-		 * website for now: the core checks a flight of its own store only,
-		 * and the web keeps none (owner decision 20).
+		 * The flight checked against the airspace the app has, once that is
+		 * done: a flight of the pilot's own, from its file. None for another
+		 * pilot's.
 		 */
 		airspace?: FlightAirspace;
 		/** Called with a position in the flight's track to mark. */

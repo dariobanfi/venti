@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
 	import { pilotHref, publicFlightHref } from '#lib/app/routes.ts';
+	import Flag from '#lib/community/Flag.svelte';
 	import { distance, shape } from '#lib/community/words.ts';
 	import type { FeedRow } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
@@ -27,11 +28,15 @@
 
 <li class="flight">
 	<span class="thumb"><TrackThumbnail outline={flight.outline} large /></span>
-	<a class="pilot" href={pilotHref(flight.handle)}>{flight.pilot}</a>
+	<span class="pilot-line">
+		<a class="pilot" href={pilotHref(flight.handle)}>{flight.pilot}</a>
+		<Flag code={flight.pilotCountry} />
+	</span>
 	<!-- The flight's link is stretched over the whole card. -->
 	<a class="open where" href={publicFlightHref(flight.id)}>
 		<span class="sign"><Icon name="takeoff" /></span>
 		<span class="name">{where ?? text.day(flight.startUnixS)}</span>
+		<Flag code={flight.takeoffCountry} />
 	</a>
 	<span class="day">{text.day(flight.startUnixS)}</span>
 	<span class="numbers">
@@ -79,8 +84,16 @@
 		grid-area: thumb;
 	}
 
-	.pilot {
+	/* The pilot's name with their country's flag after it. */
+	.pilot-line {
 		grid-area: pilot;
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-1);
+		min-width: 0;
+	}
+
+	.pilot {
 		position: relative;
 		z-index: 1;
 		justify-self: start;

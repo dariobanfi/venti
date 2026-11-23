@@ -12,7 +12,9 @@
 -->
 <script lang="ts">
 	import { myFlightHref } from '#lib/app/routes.ts';
-	import { distance, shape } from '#lib/community/words.ts';
+	import { getApp } from '#lib/app/app.svelte.ts';
+	import Flag from '#lib/community/Flag.svelte';
+	import { className, distance, shape } from '#lib/community/words.ts';
 	import type { OwnFlight } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -27,16 +29,20 @@
 	const text = format();
 	const row = $derived(flight.row);
 	const triangle = $derived(shape(row));
+	/** The class of its glider, in the core's name ("EN B"). */
+	const gliderClass = $derived(className(row.gliderClass, getApp().said?.gliderClasses));
 	const where = $derived(
 		row.takeoffName ?? (row.takeoff ? text.place(row.takeoff.lat, row.takeoff.lon) : undefined)
 	);
 	/** Who sees it, where anyone but the pilot does. */
 	const seen = $derived(
-		flight.sharing.visibility === 'public'
-			? 'Public'
-			: flight.sharing.visibility === 'unlisted'
-				? 'With a link'
-				: undefined
+		flight.takenDown
+			? 'Taken down'
+			: flight.sharing.visibility === 'public'
+				? 'Public'
+				: flight.sharing.visibility === 'unlisted'
+					? 'With a link'
+					: undefined
 	);
 </script>
 
@@ -50,11 +56,17 @@
 	<a class="flight where" href={myFlightHref(row.id)}>
 		<span class="sign"><Icon name="takeoff" /></span>
 		<span class="name">{where ?? text.day(row.startUnixS)}</span>
+		<Flag code={row.takeoffCountry} />
 	</a>
 	<span class="glider">
-		{#if row.glider}
+		{#if row.glider || gliderClass}
 			<span class="sign"><Icon name="glider" /></span>
+		{/if}
+		{#if row.glider}
 			<span class="name">{row.glider}</span>
+		{/if}
+		{#if gliderClass}
+			<span class="class">{gliderClass}</span>
 		{/if}
 		{#if seen}
 			<span class="seen">{seen}</span>
@@ -157,6 +169,12 @@
 		display: inline-flex;
 		color: var(--icon-quiet);
 		font-size: 0.875em;
+	}
+
+	/* The glider's class, after its name: "EN B". */
+	.class {
+		flex: none;
+		font-weight: 600;
 	}
 
 	.seen {

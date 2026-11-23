@@ -3,7 +3,7 @@
  * the list is the iPhone app's, from `CommunityScreens.swift`.
  */
 
-import type { PublicFlight } from '#lib/core/index.ts';
+import type { GliderClassKind, PublicFlight } from '#lib/core/index.ts';
 import type { Format } from '#lib/design/format.ts';
 import type { Asked, ListState } from './pages';
 
@@ -16,9 +16,29 @@ export const PILOTS_RECKONING =
 	'The flights this pilot shares with everyone on Venti. Distances and points are Venti’s own reckoning by the World XContest’s rules, not a league’s.';
 
 /** When a flight was and with what: "Sat, 15 Aug 2026 · Sample Wing". */
-export function detail(flight: PublicFlight, text: Format): string {
+export function detail(flight: PublicFlight, text: Format, classes?: GliderClasses): string {
 	const day = text.day(flight.startUnixS);
-	return flight.glider ? `${day} · ${flight.glider}` : day;
+	const glider = gliderLine(flight, classes);
+	return glider ? `${day} · ${glider}` : day;
+}
+
+/** The glider classes as the core names them (`ScreenWords.gliderClasses`). */
+export type GliderClasses = readonly { kind: GliderClassKind | undefined; name: string }[];
+
+/** A class's name, the core's ("EN B"); nothing without a class or the core's names. */
+export function className(
+	kind: GliderClassKind | undefined,
+	classes: GliderClasses | undefined
+): string | undefined {
+	if (!kind) return undefined;
+	return classes?.find((one) => one.kind === kind)?.name;
+}
+
+/** The glider as its pilot's file names it, with its class beside it: "Sample Wing · EN B". */
+export function gliderLine(flight: PublicFlight, classes?: GliderClasses): string | undefined {
+	const known = className(flight.gliderClass, classes);
+	if (flight.glider && known) return `${flight.glider} · ${known}`;
+	return flight.glider ?? known;
 }
 
 /** The scored distance, or the length of the track of a flight too short to score, in kilometres. */

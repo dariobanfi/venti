@@ -10,7 +10,7 @@
  */
 
 import type { Page } from '@playwright/test';
-import { asUpload, expect, metric, SAMPLE_FLIGHT, test } from './helpers';
+import { asUpload, expect, metric, SAMPLE_FLIGHT, signUp, test } from './helpers';
 import { readFileSync } from 'node:fs';
 
 const DEMO = { handle: 'demo', password: 'demo-pilot-password' };
@@ -353,4 +353,54 @@ test('a site without a server has no account to sign in to, and says so', async 
 	).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeHidden();
 	await keep('32-account-no-server');
+});
+
+test('the pilot’s country and glider class are the account’s, and shown with the flights', async ({
+	page,
+	keep,
+	problems
+}) => {
+	const handle = await signUp(page);
+	await page.goto('/settings/account/');
+	const profile = page.getByRole('region', { name: 'Shown with your flights' });
+	const country = profile.getByRole('combobox', { name: 'Country' });
+	const gliderClass = profile.getByRole('combobox', { name: 'Glider class' });
+	await expect(country).toHaveValue('');
+	await expect(gliderClass).toHaveValue('');
+
+	// The country is chosen by its name, and its flag stands beside it.
+	await country.selectOption({ label: 'Germany' });
+	await expect(profile.getByRole('img', { name: 'Germany' })).toBeVisible();
+	await gliderClass.selectOption({ label: 'EN B' });
+	await expect(gliderClass).toHaveValue('b');
+	await keep('110-account-profile');
+
+	// Both are the server's: there after a reload.
+	await page.reload();
+	await expect(country).toHaveValue('DE');
+	await expect(gliderClass).toHaveValue('b');
+
+	// A flight brought in now takes the class; its row says it beside the glider.
+	await page.goto('/settings/account/flights/');
+	await page
+		.locator('input[type=file]')
+		.setInputFiles(asUpload('sample.igc', readFileSync(SAMPLE_FLIGHT, 'utf8')));
+	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+	await page.goto('/settings/account/flights/');
+	const row = page.getByRole('main').locator('section.day li').first();
+	await expect(row.locator('.glider')).toContainText('Sample Wing');
+	await expect(row.locator('.glider')).toContainText('EN B');
+	await keep('111-account-profile-flight');
+
+	// On the pilot's public page the flight has the class too.
+	await page.goto(`/logbook/everyone/pilot/?handle=${handle}`);
+	await expect(page.getByRole('main')).toContainText('Sample Wing · EN B');
+
+	// Cleared again: none.
+	await page.goto('/settings/account/');
+	await country.selectOption({ label: 'None' });
+	await expect(profile.getByRole('img', { name: 'Germany' })).toBeHidden();
+	await page.reload();
+	await expect(country).toHaveValue('');
+	expect(problems).toEqual([]);
 });

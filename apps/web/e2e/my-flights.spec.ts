@@ -4,10 +4,20 @@
  * picker or by dropping them on the page are uploads to the account, several
  * at once, with files among them that are not flights or are there already;
  * the list is by day; and My flights is reached from the account and from
- * Flights, and from the logbook's old address.
+ * Flights, and from the logbook's old address. The statistics of all the
+ * pilot's flights, the private ones too, are the server's, read by the core.
  */
 
-import { asUpload, dropFiles, expect, mapTabDrawn, sampleFlightOn, signUp, test } from './helpers';
+import {
+	addSampleFlight,
+	asUpload,
+	dropFiles,
+	expect,
+	mapTabDrawn,
+	sampleFlightOn,
+	signUp,
+	test
+} from './helpers';
 
 /** The files a pilot might select together: three flights of July 2026 and a text file. */
 const mixed = [
@@ -168,5 +178,35 @@ test('flights are brought in by dropping files on the page, and found from Fligh
 	await expect(notice).toContainText('notes.txt: ');
 	await notice.getByRole('button', { name: 'OK' }).click();
 
+	expect(problems).toEqual([]);
+});
+
+test('the statistics add up all the pilot’s flights, the private ones too', async ({
+	page,
+	keep,
+	problems
+}) => {
+	await addSampleFlight(page);
+	// Only the pilot sees it now; it still counts.
+	await page.getByRole('button', { name: 'More' }).click();
+	await page.getByRole('menuitem', { name: 'Share with a link' }).click();
+	const sheet = page.getByRole('dialog', { name: 'Share flight' });
+	await sheet.getByRole('radio', { name: 'Only me' }).check();
+	await expect(sheet.getByRole('radio', { name: 'Only me' })).toBeChecked();
+	await sheet.getByRole('button', { name: 'Done' }).click();
+
+	await page.goto('/settings/account/flights/');
+	await page.getByRole('main').getByRole('link', { name: 'Statistics', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'Statistics', level: 1 })).toBeVisible();
+	const totals = page.getByRole('region', { name: 'Totals' });
+	const flights = totals.locator('dl .row').filter({ hasText: /^Flights/ });
+	await expect(flights.locator('dd')).toHaveText('1');
+	await expect(totals.locator('dl .row').filter({ hasText: /^Airtime/ })).toBeVisible();
+	await keep('09-my-statistics');
+
+	// The logbook's old address of its statistics leads here.
+	await page.goto('/logbook/statistics/');
+	await expect(page).toHaveURL(/\/settings\/account\/flights\/statistics\/$/);
+	await expect(flights.locator('dd')).toHaveText('1');
 	expect(problems).toEqual([]);
 });

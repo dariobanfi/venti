@@ -106,6 +106,8 @@ export type {
 	ForecastView,
 	ForecastWind,
 	GliderStatistics,
+	GliderClassKind,
+	GliderWords,
 	CableLine,
 	CablesMap,
 	ClimbView,

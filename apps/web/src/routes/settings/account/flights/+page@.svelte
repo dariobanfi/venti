@@ -10,7 +10,7 @@
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { accountHref, pilotHref } from '#lib/app/routes.ts';
+	import { accountHref, myStatisticsHref, pilotHref } from '#lib/app/routes.ts';
 	import { queryOf } from '#lib/community/pages.ts';
 	import WhoseFlights from '#lib/community/WhoseFlights.svelte';
 	import type { OwnFlight } from '#lib/core/index.ts';
@@ -122,11 +122,12 @@
 			</div>
 		</div>
 	{:else}
-		{#if handle}
-			<p class="totals">
-				<a href={pilotHref(handle)}>Your page and statistics</a>
-			</p>
-		{/if}
+		<p class="totals">
+			<a href={myStatisticsHref()}>Statistics</a>
+			{#if handle}
+				<a href={pilotHref(handle)}>Your public page</a>
+			{/if}
+		</p>
 		{#each days as day (day.day)}
 			<section class="day" aria-labelledby="day-{day.flights[0].row.id}">
 				<h2 id="day-{day.flights[0].row.id}">
@@ -227,6 +228,9 @@
 	}
 
 	.totals {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2) var(--space-4);
 		margin-bottom: var(--space-2);
 	}
 

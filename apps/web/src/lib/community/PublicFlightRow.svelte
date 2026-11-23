@@ -11,8 +11,10 @@
 	import type { PublicFlight } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import TrackThumbnail from '#lib/logbook/TrackThumbnail.svelte';
-	import { detail, distance, shape } from './words';
+	import Flag from './Flag.svelte';
+	import { detail, distance, gliderLine, shape } from './words';
 
 	interface Props {
 		flight: PublicFlight;
@@ -26,6 +28,9 @@
 
 	const text = format();
 	const triangle = $derived(shape(flight));
+	/** The glider classes in the core's names. */
+	const classes = $derived(getApp().said?.gliderClasses);
+	const glider = $derived(gliderLine(flight, classes));
 </script>
 
 <li>
@@ -33,14 +38,23 @@
 	<span class="who">
 		<!-- The flight's link is stretched over the whole row. -->
 		{#if named}
-			<a class="pilot" href={pilotHref(flight.handle)}>{flight.pilot}</a>
-			<a class="flight" href={publicFlightHref(flight.id)}>{detail(flight, text)}</a>
+			<span class="named">
+				<a class="pilot" href={pilotHref(flight.handle)}>{flight.pilot}</a>
+				<Flag code={flight.pilotCountry} />
+			</span>
+			<a class="flight" href={publicFlightHref(flight.id)}>
+				<Flag code={flight.takeoffCountry} />
+				{detail(flight, text, classes)}
+			</a>
 		{:else}
 			<!-- Among one pilot's flights the day leads, as in the logbook. -->
 			<a class="flight leads" href={publicFlightHref(flight.id)}>
-				<span class="day">{text.day(flight.startUnixS)}</span>
-				{#if flight.glider}
-					<span class="glider">{flight.glider}</span>
+				<span class="day">
+					<Flag code={flight.takeoffCountry} />
+					{text.day(flight.startUnixS)}
+				</span>
+				{#if glider}
+					<span class="glider">{glider}</span>
 				{/if}
 			</a>
 		{/if}
@@ -109,6 +123,14 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	/* The pilot's name with their country's flag after it. */
+	.named {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-1);
+		max-width: 100%;
 	}
 
 	/* Above the flight's link, which covers the row: a target of its own. */

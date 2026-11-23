@@ -235,6 +235,35 @@ test('what another pilot wrote is shown as text, never as markup', async ({ cont
 	await expect(page).toHaveTitle('Everyone’s flights · Venti');
 });
 
+test('a take-off’s country and its pilot’s are flags, and a glider’s class stands beside it', async ({
+	context,
+	page,
+	keep
+}) => {
+	// Made up: the development mode's flights take off in Germany, where the
+	// server has no outline of a country, and its pilots set no country or
+	// class. Every flight is said to take off in Austria, from a pilot of
+	// Germany, on a glider of EN B.
+	await context.route('**/v1/flights/public**', async (route) => {
+		const response = await route.fetch();
+		const answer = await response.json();
+		for (const flight of answer.flights) {
+			flight.takeoff_country = 'AT';
+			flight.pilot.country = 'DE';
+			flight.glider_class = 'en_b';
+		}
+		await route.fulfill({ response, json: answer });
+	});
+	await page.goto('/logbook/everyone/');
+
+	const first = rows(page).first();
+	await expect(first).toContainText('Jonas Beispiel');
+	await expect(first.getByRole('img', { name: 'Germany' })).toBeVisible();
+	await expect(first.getByRole('img', { name: 'Austria' })).toBeVisible();
+	await expect(first).toContainText('Sample Wing · EN B');
+	await keep('92-everyone-countries');
+});
+
 test('a flight its pilot took back says so, in the core’s words', async ({ page, keep }) => {
 	await page.goto('/logbook/everyone/flight/?id=00000000000000000000000000');
 

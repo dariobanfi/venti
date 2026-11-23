@@ -16,7 +16,9 @@
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { alertsHref, myFlightsHref, notificationsHref, programsHref } from '#lib/app/routes.ts';
-	import type { AccountView } from '#lib/core/index.ts';
+	import { countries } from '#lib/community/country.ts';
+	import Flag from '#lib/community/Flag.svelte';
+	import type { AccountView, GliderClassKind } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import Dialog from '#lib/design/Dialog.svelte';
 	import Icon from '#lib/design/Icon.svelte';
@@ -48,6 +50,23 @@
 		} catch {
 			return address;
 		}
+	}
+
+	/** Every country, by name, for the picker. */
+	const everyCountry = countries();
+	/** The glider classes in the core's names, "None" first. */
+	const classes = $derived(app.said?.gliderClasses ?? []);
+	/** Why the country or the class was not set, in words. */
+	let profileRefusal = $state.raw<string>();
+
+	async function chooseCountry(code: string) {
+		profileRefusal = await account.setCountry(code || undefined);
+	}
+
+	async function chooseClass(kind: string) {
+		profileRefusal = await account.setGliderClass(
+			(kind || undefined) as GliderClassKind | undefined
+		);
 	}
 
 	let confirmingSignOut = $state(false);
@@ -102,6 +121,48 @@
 			<dd>{host}</dd>
 		</div>
 	</dl>
+</section>
+
+<!-- What is shown with the pilot's name and flights, and what new flights take. -->
+<section class="group" aria-labelledby="account-profile">
+	<h2 class="group-title" id="account-profile">Shown with your flights</h2>
+	<div class="group-card">
+		<label class="group-row setting">
+			<span>Country</span>
+			<span class="picked">
+				<Flag code={signedIn.country} />
+				<select
+					value={signedIn.country ?? ''}
+					disabled={account.working || signedIn.needsSignIn}
+					onchange={(event) => chooseCountry(event.currentTarget.value)}
+				>
+					<option value="">{classes[0]?.name ?? 'None'}</option>
+					{#each everyCountry as country (country.code)}
+						<option value={country.code}>{country.name}</option>
+					{/each}
+				</select>
+			</span>
+		</label>
+		<label class="group-row setting">
+			<span>{app.said?.glider.classTitle ?? 'Glider class'}</span>
+			<select
+				value={signedIn.gliderClass ?? ''}
+				disabled={account.working || signedIn.needsSignIn}
+				onchange={(event) => chooseClass(event.currentTarget.value)}
+			>
+				{#each classes as one (one.kind ?? '')}
+					<option value={one.kind ?? ''}>{one.name}</option>
+				{/each}
+			</select>
+		</label>
+	</div>
+	<p class="group-note">
+		Your country’s flag stands beside your name on your public flights and your page. Flights you
+		bring in from now on take the glider’s class.
+	</p>
+	{#if profileRefusal}
+		<p class="group-note refusal" role="alert">{profileRefusal}</p>
+	{/if}
 </section>
 
 {#if account.googleWords && (signedIn.googleEmail || account.googleSignIn)}
@@ -320,6 +381,30 @@
 		background: var(--background);
 		color: var(--text);
 		font: inherit;
+	}
+
+	/* A choice in a row: the menu at the row's end. */
+	.setting select {
+		max-width: 60%;
+		padding: var(--space-1) var(--space-2);
+		border: 0;
+		border-radius: var(--radius-control);
+		background: var(--fill);
+		color: var(--text);
+		font: inherit;
+	}
+
+	.picked {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: var(--space-2);
+		min-width: 0;
+		max-width: 60%;
+	}
+
+	.picked select {
+		max-width: 100%;
 	}
 
 	.google-email {

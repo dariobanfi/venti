@@ -12,6 +12,7 @@ import {
 	type AccessWanted,
 	type AccountView,
 	type CoreClient,
+	type GliderClassKind,
 	type GoogleSignUp,
 	type GoogleWords,
 	isInWords,
@@ -205,6 +206,16 @@ export class AccountModel {
 	/** Unlinks the account from its Google account. Returns why not, in words. */
 	unlinkGoogle(): Promise<string | undefined> {
 		return this.#changeAccount(() => this.#core.unlinkGoogle());
+	}
+
+	/** Sets the pilot's country, two letters, or clears it. Returns why not, in words. */
+	setCountry(country: string | undefined): Promise<string | undefined> {
+		return this.#changeAccount(() => this.#core.setCountry(country));
+	}
+
+	/** Sets the class of the glider the pilot flies now, or clears it. Returns why not, in words. */
+	setGliderClass(gliderClass: GliderClassKind | undefined): Promise<string | undefined> {
+		return this.#changeAccount(() => this.#core.setGliderClass(gliderClass));
 	}
 
 	async #changeAccount(ask: () => Promise<AccountView | undefined>): Promise<string | undefined> {

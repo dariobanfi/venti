@@ -20,10 +20,15 @@
 		flight: string;
 		/** Who may see it, and its link, as the server last said. */
 		shared: FlightSharing;
+		/**
+		 * Whether whoever runs the server took it down: it is private then,
+		 * and who may see it is not offered (`OwnFlight.takenDown`).
+		 */
+		takenDown?: boolean;
 		onclose: () => void;
 	}
 
-	let { open, flight, shared, onclose }: Props = $props();
+	let { open, flight, shared, takenDown = false, onclose }: Props = $props();
 
 	const app = getApp();
 	const account = $derived(app.account);
@@ -127,6 +132,13 @@
 		<div class="group-card words">
 			<p>To share a flight with a link, sign in to Venti under Settings, Account.</p>
 			<a class="button-plain" href={accountHref()}>Account</a>
+		</div>
+	{:else if takenDown}
+		<div class="group-card words" role="status">
+			<p>
+				Whoever runs this Venti took the flight down. It is private, and who can see it cannot be
+				changed.
+			</p>
 		</div>
 	{:else if sharing}
 		<section class="group first" aria-labelledby="share-who">

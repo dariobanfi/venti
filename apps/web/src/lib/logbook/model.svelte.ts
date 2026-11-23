@@ -11,7 +11,10 @@
 
 import {
 	type CoreClient,
+	type FlightAirspace,
 	type FlightVisibility,
+	type LeagueHandover,
+	type PilotStatistics,
 	isCoreError,
 	isInWords,
 	type OpenedOwnFlight,
@@ -140,11 +143,21 @@ export class MyFlightsModel {
 		return opened;
 	}
 
-	/** A flight's file as it was uploaded, with a name to save it under. */
-	async file(id: string): Promise<{ name: string; text: string }> {
-		const file = await this.#core.ownFlightFile(id);
-		if (!file) throw new Error(SIGN_IN);
-		return file;
+	/** What all the pilot's flights add up to, the private ones too, as the core reads it. */
+	async statistics(): Promise<PilotStatistics> {
+		const statistics = await this.#core.ownStatistics();
+		if (!statistics) throw new Error(SIGN_IN);
+		return statistics;
+	}
+
+	/** One of the pilot's flights checked against the airspace the app has, from its file's text. */
+	airspace(text: string): Promise<FlightAirspace> {
+		return this.#core.ownFlightAirspace(text);
+	}
+
+	/** What the pilot is told before a flight goes to a league, from its file's text. */
+	leagueHandover(text: string): Promise<LeagueHandover> {
+		return this.#core.leagueHandover(text);
 	}
 
 	/** Changes who may see a flight; the list follows. */

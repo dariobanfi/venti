@@ -19,6 +19,8 @@
 
 import {
 	type AccountView,
+	type Core,
+	type GliderClassKind,
 	type GoogleSignUp,
 	type GoogleWords,
 	googleWords,
@@ -213,6 +215,30 @@ export class AccountSource {
 			// Out of reach, or an answer the core cannot read: what is stored stays.
 			return this.account();
 		}
+	}
+
+	/**
+	 * Sets the pilot's country, two letters such as `DE`, or clears it
+	 * without one. The account as the server then says it is. Throws, in
+	 * the core's words, when the server refuses.
+	 */
+	setCountry(country: string | undefined): Promise<AccountView | undefined> {
+		return this.#changeSetting((core) => core.countryRequest(country));
+	}
+
+	/**
+	 * Sets the class of the glider the pilot flies now, or clears it
+	 * without one: flights sent from then on take it.
+	 */
+	setGliderClass(gliderClass: GliderClassKind | undefined): Promise<AccountView | undefined> {
+		return this.#changeSetting((core) => core.gliderClassRequest(gliderClass));
+	}
+
+	/** Sends a setting of the account's that the core wrote, and keeps the account it answers with. */
+	async #changeSetting(write: (core: Core) => ServerRequest): Promise<AccountView | undefined> {
+		const request = await this.#session.ask(write);
+		const answer = await this.#send(request, await this.#session.token());
+		return this.#session.change((core) => core.accountRead(answer.status, answer.body));
 	}
 
 	/** Signs in. Throws, in the core's words, when the server refuses. */

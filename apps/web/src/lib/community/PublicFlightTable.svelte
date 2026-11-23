@@ -29,7 +29,9 @@
 	import Icon from '#lib/design/Icon.svelte';
 	import SortHeading from '#lib/design/SortHeading.svelte';
 	import { type Sort, sortBy, sorted } from '#lib/design/sort.ts';
-	import { distance, kindOf, shape } from './words';
+	import { getApp } from '#lib/app/app.svelte.ts';
+	import Flag from './Flag.svelte';
+	import { distance, gliderLine, kindOf, shape } from './words';
 
 	interface Props {
 		/** What the table is called, for a screen reader. */
@@ -48,6 +50,8 @@
 	let { label, flights, named, said }: Props = $props();
 
 	const text = format();
+	/** The glider classes in the core's names. */
+	const classes = $derived(getApp().said?.gliderClasses);
 
 	type Key =
 		'date' | 'pilot' | 'glider' | 'kind' | 'distance' | 'airtime' | 'points' | 'highest' | 'climb';
@@ -57,7 +61,7 @@
 	const VALUE: Record<Key, (flight: PublicFlight) => number | string> = {
 		date: (flight) => flight.startUnixS,
 		pilot: (flight) => flight.pilot,
-		glider: (flight) => flight.glider ?? '',
+		glider: (flight) => gliderLine(flight, classes) ?? '',
 		kind: (flight) => kindOf(flight),
 		distance: (flight) => flight.score?.distanceM ?? flight.trackLengthM,
 		airtime: (flight) => flight.airtimeS,
@@ -101,12 +105,16 @@
 			{@const triangle = shape(flight)}
 			<tr onclick={(event) => open(event, flight)}>
 				{#if named}
-					<td class="words"><a class="pilot" href={pilotHref(flight.handle)}>{flight.pilot}</a></td>
+					<td class="words">
+						<a class="pilot" href={pilotHref(flight.handle)}>{flight.pilot}</a>
+						<Flag code={flight.pilotCountry} />
+					</td>
 				{/if}
 				<td>
 					<a class="flight" href={publicFlightHref(flight.id)}>{text.day(flight.startUnixS)}</a>
 				</td>
 				<td class="words lesser">
+					<Flag code={flight.takeoffCountry} />
 					{#if flight.takeoff}
 						<a class="place" href={placeHref(flight.takeoff, flight.takeoffSiteId ?? '')}>
 							{flight.takeoffName ?? text.place(flight.takeoff.lat, flight.takeoff.lon)}
@@ -115,7 +123,7 @@
 						{flight.takeoffName}
 					{/if}
 				</td>
-				<td class="words">{flight.glider ?? ''}</td>
+				<td class="words">{gliderLine(flight, classes) ?? ''}</td>
 				<td class="number">
 					{#if triangle}
 						<span class="shape" aria-hidden="true"><Icon name="triangle" /></span>

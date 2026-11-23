@@ -55,6 +55,8 @@ import type {
 	FlightAirspace,
 	FlightAnalysis,
 	FlightSharing,
+	GliderClassKind,
+	LeagueHandover,
 	FlightView,
 	FlightVisibility,
 	ForecastView,
@@ -134,10 +136,14 @@ import type {
 	SiteSheetWords,
 	SocialWords,
 	StationSheetWords,
-	TodayWords
+	TodayWords,
+	GliderWords
 } from './pkg/venti_core_wasm.js';
 import {
 	commonWords,
+	gliderClassName,
+	gliderWords,
+	leagueHandoverFromFile,
 	pagesWords,
 	pilotsAlarmNumbers,
 	pilotsWords,
@@ -191,12 +197,25 @@ export interface Calls {
 	allOwnFlights: { given: undefined; answer: OwnFlight[] | undefined };
 	/** One of the pilot's flights on the server, from its file. */
 	openOwnFlight: { given: string; answer: OpenedOwnFlight | undefined };
-	/** One of the pilot's flight files, with a name to save it under. */
-	ownFlightFile: { given: string; answer: { name: string; text: string } | undefined };
 	/** A flight file's bytes, as the pilot picked or dropped it: an upload to the account. */
 	uploadFlight: { given: ArrayBuffer; answer: Uploaded | undefined };
 	/** Deletes one of the pilot's flights on the server. */
 	deleteOwnFlight: { given: string; answer: undefined };
+	/** Given a flight's address on the server: sets the class of its glider, or says it is not known. */
+	setFlightGliderClass: {
+		given: { id: string; gliderClass: GliderClassKind | undefined };
+		answer: OwnFlight;
+	};
+	/** What all the pilot's flights add up to, the private ones too; nothing signed out. */
+	ownStatistics: { given: undefined; answer: PilotStatistics | undefined };
+	/**
+	 * One of the pilot's flights checked against the airspace the app has,
+	 * given its file's text. Throws while any of that airspace is still to
+	 * be fetched.
+	 */
+	ownFlightAirspace: { given: string; answer: FlightAirspace };
+	/** What the pilot is told before a flight goes to a league, given its file's text. */
+	leagueHandover: { given: string; answer: LeagueHandover };
 	/**
 	 * The ground under a flight's track, read from the map's elevation
 	 * tiles, which are fetched for it. Empty where there is none to be
@@ -503,6 +522,10 @@ export interface Calls {
 	account: { given: undefined; answer: AccountView | undefined };
 	/** The same after asking the server what it says of the account now. */
 	refreshAccount: { given: undefined; answer: AccountView | undefined };
+	/** Sets the pilot's country, two letters, or clears it: the account as the server then has it. */
+	setCountry: { given: string | undefined; answer: AccountView | undefined };
+	/** Sets the class of the glider the pilot flies now, or clears it. */
+	setGliderClass: { given: GliderClassKind | undefined; answer: AccountView | undefined };
 	signIn: { given: { handle: string; password: string }; answer: AccountView };
 	createAccount: { given: NewAccount; answer: AccountView };
 	signOut: { given: undefined; answer: undefined };
@@ -698,7 +721,14 @@ export interface ScreenWords {
 	siteSheet: SiteSheetWords;
 	stationSheet: StationSheetWords;
 	today: TodayWords;
+	/** The glider's words: "Glider class" among them. */
+	glider: GliderWords;
+	/** The glider classes as the core names them, "None" first: for menus and rows. */
+	gliderClasses: { kind: GliderClassKind | undefined; name: string }[];
 }
+
+/** Every glider class, in the order a menu lists them. */
+const GLIDER_CLASSES: GliderClassKind[] = ['a', 'b', 'c', 'd', 'ccc'];
 
 /** What comes back from the core. */
 export type Reply =
@@ -776,12 +806,13 @@ export async function answer<Name extends CallName>(
 		ownFlights: (after) => own.list(after),
 		allOwnFlights: () => own.all(),
 		openOwnFlight: (id) => own.open(id),
-		ownFlightFile: async (id) => {
-			const file = await own.file(id);
-			return file && { name: file.name, text: file.text };
-		},
 		uploadFlight: (file) => own.upload(file),
 		deleteOwnFlight: (id) => own.delete(id),
+		setFlightGliderClass: ({ id, gliderClass }) => own.setGliderClass(id, gliderClass),
+		ownStatistics: () => own.statistics(),
+		ownFlightAirspace: (text) => session.ask((core) => core.flightAirspaceFromFile(text)),
+		// Judged by the server's clock, never the browser's.
+		leagueHandover: async (text) => leagueHandoverFromFile(text, await wind.serverNow()),
 		flightGround: (asked) => terrain.under(asked),
 		forgetFlightGround: (asking) => terrain.forget(asking),
 		wind: (box) => wind.windMap(box),
@@ -882,6 +913,8 @@ export async function answer<Name extends CallName>(
 		deleteAccountWithGoogle: (idToken) => account.deleteAccountWithGoogle(idToken),
 		account: () => account.account(),
 		refreshAccount: () => account.refresh(),
+		setCountry: (country) => account.setCountry(country),
+		setGliderClass: (gliderClass) => account.setGliderClass(gliderClass),
 		signIn: ({ handle, password }) => account.signIn(handle, password),
 		createAccount: (wanted) => account.createAccount(wanted),
 		signOut: () => account.signOut(),
@@ -928,7 +961,12 @@ export async function answer<Name extends CallName>(
 			planner: plannerWords(),
 			siteSheet: siteSheetWords(),
 			stationSheet: stationSheetWords(),
-			today: todayWords()
+			today: todayWords(),
+			glider: gliderWords(),
+			gliderClasses: [undefined, ...GLIDER_CLASSES].map((kind) => ({
+				kind,
+				name: gliderClassName(kind)
+			}))
 		}),
 		alertPoints: () => alerts.points(),
 		alertFormWords: () => alerts.formWords(),

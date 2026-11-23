@@ -291,10 +291,9 @@ test('the map of a flight draws the airspace around it', async ({ page, mapDrawn
 	await keep('36-flight-airspace');
 });
 
-// The core checks a flight of its own store only, and the website keeps no
-// flights of its own (owner decision 20): this waits for the core to check a
-// flight from its file, as it reads everyone's.
-test.fixme('a flight’s details list the airspace it entered, and say what that is worth', async ({
+// One of the pilot's flights is checked from its file, fetched from the
+// account (`flightAirspaceFromFile`): the website keeps no flights of its own.
+test('a flight’s details list the airspace it entered, and say what that is worth', async ({
 	page,
 	mapDrawn,
 	keep,
@@ -347,10 +346,9 @@ test.fixme('a flight’s details list the airspace it entered, and say what that
 	await keep('46-flight-airspace-entry');
 });
 
-// The core checks a flight of its own store only, and the website keeps no
-// flights of its own (owner decision 20): this waits for the core to check a
-// flight from its file, as it reads everyone's.
-test.fixme('a flight that entered nothing says so, and a flight nothing could be checked against too', async ({
+// One of the pilot's flights is checked from its file, fetched from the
+// account (`flightAirspaceFromFile`): the website keeps no flights of its own.
+test('a flight that entered nothing says so, and a flight nothing could be checked against too', async ({
 	context,
 	page,
 	keep,
@@ -371,8 +369,8 @@ test.fixme('a flight that entered nothing says so, and a flight nothing could be
 	await page.getByRole('switch', { name: 'Airspace from Venti' }).uncheck();
 	await expect(page.getByText('Switched off: only your own files are used.')).toBeVisible();
 	await context.route('**/v1/airspace**', (route) => route.abort());
-	await page.goto('/logbook/');
-	await page.getByRole('link', { name: /Sat, 4 Jul/ }).click();
+	await page.goto('/settings/account/flights/');
+	await page.getByRole('main').locator('section.day li').first().getByRole('link').click();
 	if (!wide) await page.getByRole('button', { name: 'Flight details' }).click();
 	await expect(details).toContainText(
 		'Not checked: the app has no airspace where this flight was flown.'

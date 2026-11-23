@@ -20,9 +20,28 @@
 		statistics: PilotStatistics;
 		/** Told the season chosen: the page narrows the pilot's list to it. */
 		onseason?: (season: PilotTotalsView) => void;
+		/** Where a row about one flight leads: its public page, or the pilot's own one. */
+		flightHref?: (id: string) => string;
+		/**
+		 * Whether the totals are the page and not a column beside a list: on
+		 * a wide screen the numbers then stand beside the sites and months.
+		 */
+		whole?: boolean;
+		/**
+		 * Whether these are the flights the pilot shares with everyone, which
+		 * the core's note under them says. Not the pilot's own statistics,
+		 * which count the private flights too: the note would be wrong there.
+		 */
+		shared?: boolean;
 	}
 
-	let { statistics, onseason }: Props = $props();
+	let {
+		statistics,
+		onseason,
+		flightHref = publicFlightHref,
+		whole = false,
+		shared = true
+	}: Props = $props();
 
 	/** The headings and the choice's name are the core's (`pilotsWords`). */
 	const said = $derived(getApp().everyone?.pilotsWords);
@@ -45,7 +64,7 @@
 	const id = $props.id();
 </script>
 
-<section class="totals" aria-label="Totals">
+<section class="totals" class:whole aria-label="Totals">
 	{#if names.length > 1}
 		{#if names.length <= SEGMENTS}
 			<Segmented
@@ -69,7 +88,7 @@
 				<dt>{row.label}</dt>
 				<dd class="numeric">
 					{#if row.flightId}
-						<a href={publicFlightHref(row.flightId)}>{row.value}</a>
+						<a href={flightHref(row.flightId)}>{row.value}</a>
 					{:else}
 						{row.value}
 					{/if}
@@ -96,7 +115,7 @@
 		<MonthBars months={view.months} />
 	</div>
 
-	{#if statistics.note}
+	{#if statistics.note && shared}
 		<p class="footnote">{statistics.note}</p>
 	{/if}
 	<!-- Under what the flights are given: behind the core's title for it. -->
@@ -201,6 +220,33 @@
 		.card {
 			border: 1px solid var(--color-border);
 			border-radius: var(--radius-m);
+		}
+
+		/* The whole page: the numbers at the left, the sites and the months
+		   at the right, the notes across both. */
+		.whole {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			align-items: start;
+			gap: var(--space-4) var(--space-5);
+		}
+
+		/* The choice over the numbers, in their column. */
+		.whole > :global(*) {
+			grid-column: 1;
+		}
+
+		.whole > .footnote {
+			grid-column: 1 / -1;
+		}
+
+		.whole > dl.card {
+			grid-row: span 2;
+		}
+
+		.whole > ul.card,
+		.whole > .months {
+			grid-column: 2;
 		}
 	}
 </style>

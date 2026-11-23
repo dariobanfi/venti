@@ -5,7 +5,9 @@
 	The flight is fetched from its file with the session when this page
 	opens, and is kept nowhere, as another pilot's is: the website keeps no
 	logbook of its own (owner decision 20). What can be done with it: who may
-	see it, another flight beside it, its file, and deleting it.
+	see it, another flight beside it, its file, sending it to a league, and
+	deleting it. It is checked against the airspace the app has, from the
+	same file.
 -->
 <script lang="ts">
 	import { MediaQuery } from 'svelte/reactivity';
@@ -16,7 +18,7 @@
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { accountHref, myFlightsHref } from '#lib/app/routes.ts';
 	import { words } from '#lib/community/pages.ts';
-	import type { FlightRef, OpenedOwnFlight } from '#lib/core/index.ts';
+	import type { FlightRef, LeagueHandover, OpenedOwnFlight } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -26,6 +28,7 @@
 	import FlightScreen from '#lib/flight/FlightScreen.svelte';
 	import { saveFile } from '#lib/logbook/flight-file.ts';
 	import { deletionWarning } from '#lib/logbook/import-report.ts';
+	import LeagueSheet from '#lib/logbook/LeagueSheet.svelte';
 	import { reasonFor } from '#lib/logbook/model.svelte.ts';
 
 	const app = getApp();
@@ -46,6 +49,8 @@
 	let confirmingDelete = $state(false);
 	/** Whether the sheet that says who can see the flight is open. */
 	let sharing = $state(false);
+	/** The sheet that hands the flight to a league, while it is open. */
+	let league = $state.raw<{ handover: LeagueHandover | undefined; problem: string | undefined }>();
 
 	$effect(() => {
 		if (app.failure) {
@@ -85,7 +90,7 @@
 	const actions: MenuItem[] = [
 		{ label: 'Share with a link', icon: 'link', onselect: () => (sharing = true) },
 		{ label: 'Lay another flight beside it', icon: 'track', onselect: () => (choosing = true) },
-		{ label: 'Download flight file', icon: 'download', onselect: () => void downloadFlight() },
+		{ label: 'Download flight file', icon: 'download', onselect: downloadFlight },
 		{
 			label: 'Delete flight',
 			icon: 'trash',
@@ -137,14 +142,25 @@
 		});
 	}
 
-	/** Saves the flight's file, as it was uploaded, where the browser keeps downloads. */
-	async function downloadFlight() {
-		if (!id || !app.myFlights) return;
+	/**
+	 * Saves the flight's file, as it was uploaded, where the browser keeps
+	 * downloads, under the name the core gives it: the file fetched when
+	 * the page opened.
+	 */
+	function downloadFlight() {
+		if (phase.is !== 'loaded') return;
+		saveFile(phase.opened.name, phase.opened.text);
+	}
+
+	/** Opens the sheet that hands the flight to a league, with what the core says about it now. */
+	async function sendToALeague() {
+		if (phase.is !== 'loaded' || !app.myFlights) return;
+		league = { handover: undefined, problem: undefined };
 		try {
-			const file = await app.myFlights.file(id);
-			saveFile(file.name, file.text);
+			const handover = await app.myFlights.leagueHandover(phase.opened.text);
+			if (league) league = { handover, problem: undefined };
 		} catch (error) {
-			app.notice = { title: 'The flight file could not be saved', lines: [reasonFor(error)] };
+			if (league) league = { handover: undefined, problem: reasonFor(error) };
 		}
 	}
 
@@ -184,6 +200,17 @@
 				: undefined}
 			{beside}
 			onendbeside={() => layBeside(undefined)}
+			checkAirspace={() =>
+				app.myFlights?.airspace(opened.text) ?? Promise.reject(new Error('Not signed in.'))}
+			onleague={() => void sendToALeague()}
+		/>
+		<LeagueSheet
+			open={Boolean(league)}
+			handover={league?.handover}
+			problem={league?.problem}
+			ondownload={() =>
+				league?.handover && saveFile(league.handover.file.name, league.handover.file.igcText)}
+			onclose={() => (league = undefined)}
 		/>
 		<CompareChooser
 			open={choosing}
@@ -197,6 +224,7 @@
 			flight={opened.row.id}
 			shared={app.myFlights?.flights.find((one) => one.row.id === opened.row.id)?.sharing ??
 				opened.sharing}
+			takenDown={opened.takenDown}
 			onclose={() => (sharing = false)}
 		/>
 	{/key}

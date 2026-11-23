@@ -21,6 +21,7 @@ import type {
 	Coordinate,
 	Credit,
 	FlightVisibility,
+	GliderClassKind,
 	GlideReachSetting,
 	PlanDraft,
 	ReportReason,
@@ -108,11 +109,6 @@ export class CoreClient {
 		return this.#call('openOwnFlight', id);
 	}
 
-	/** One of the pilot's flight files as it was uploaded, with a name to save it under. */
-	ownFlightFile(id: string) {
-		return this.#call('ownFlightFile', id);
-	}
-
 	/** Uploads a flight file to the account. Its bytes are handed over: `file` is empty afterwards. */
 	uploadFlight(file: ArrayBuffer) {
 		return this.#call('uploadFlight', file, [file]);
@@ -121,6 +117,30 @@ export class CoreClient {
 	/** Deletes one of the pilot's flights on the server, at once and for good. */
 	deleteOwnFlight(id: string) {
 		return this.#call('deleteOwnFlight', id);
+	}
+
+	/** Sets the class of the glider one of the pilot's flights was flown on, or clears it. */
+	setFlightGliderClass(id: string, gliderClass: GliderClassKind | undefined) {
+		return this.#call('setFlightGliderClass', { id, gliderClass });
+	}
+
+	/** What all the pilot's flights add up to, the private ones too; nothing signed out. */
+	ownStatistics() {
+		return this.#call('ownStatistics', undefined);
+	}
+
+	/**
+	 * One of the pilot's flights checked against the airspace the app has,
+	 * from its file's text. Throws while that airspace is still being
+	 * fetched: ask again when `AirspaceModel.revision` goes up.
+	 */
+	ownFlightAirspace(text: string) {
+		return this.#call('ownFlightAirspace', text);
+	}
+
+	/** What the pilot is told before a flight goes to a league, from its file's text. */
+	leagueHandover(text: string) {
+		return this.#call('leagueHandover', text);
 	}
 
 	/**
@@ -621,6 +641,16 @@ export class CoreClient {
 	/** The same, after asking the server what it says of the account now. */
 	refreshAccount() {
 		return this.#call('refreshAccount', undefined);
+	}
+
+	/** Sets the pilot's country, two letters such as `DE`, or clears it without one. */
+	setCountry(country: string | undefined) {
+		return this.#call('setCountry', country);
+	}
+
+	/** Sets the class of the glider the pilot flies now, or clears it without one. */
+	setGliderClass(gliderClass: GliderClassKind | undefined) {
+		return this.#call('setGliderClass', gliderClass);
 	}
 
 	signIn(handle: string, password: string) {

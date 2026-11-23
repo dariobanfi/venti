@@ -52,6 +52,11 @@ export function myFlightsHref(): string {
 	return resolve('/settings/account/flights');
 }
 
+/** What all the pilot's flights add up to, the private ones too. */
+export function myStatisticsHref(): string {
+	return resolve('/settings/account/flights/statistics');
+}
+
 export function settingsHref(): string {
 	return resolve('/settings');
 }

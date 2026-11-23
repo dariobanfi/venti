@@ -12,13 +12,11 @@
 	interface Props {
 		candidate: SiteCandidateView;
 		offer?: CandidateOffer;
-		/** Under what the flights it is made from are given, in the server's words. */
-		terms?: string;
 		onadd: (offer: CandidateOffer) => void;
 		ondismiss: (offer: CandidateOffer) => void;
 	}
 
-	let { candidate, offer, terms = '', onadd, ondismiss }: Props = $props();
+	let { candidate, offer, onadd, ondismiss }: Props = $props();
 </script>
 
 <div class="candidate">
@@ -30,9 +28,6 @@
 	</div>
 	{#if offer}
 		<CandidateOfferCard {offer} {onadd} {ondismiss} />
-	{/if}
-	{#if terms}
-		<p class="footnote">{terms}</p>
 	{/if}
 </div>
 
@@ -59,12 +54,5 @@
 
 	.row + .row {
 		box-shadow: inset 0 0.5px 0 var(--separator);
-	}
-
-	.footnote {
-		padding: 0 var(--space-4);
-		font-size: var(--footnote);
-		color: var(--text-secondary);
-		overflow-wrap: anywhere;
 	}
 </style>

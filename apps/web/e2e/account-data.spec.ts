@@ -39,7 +39,7 @@ test('a kept take-off goes to the pilot’s account and comes back in a browser 
 	keep,
 	problems
 }) => {
-	const SITE = `/logbook/everyone/place/?lat=47.6791413&lon=11.9051032&site=${encodeURIComponent('osm-free-flying:way/1080986173')}`;
+	const SITE = `/places/47.6791413,11.9051032/?site=${encodeURIComponent('osm-free-flying:way/1080986173')}`;
 	const handle = newHandle();
 	await createAccount(page, handle);
 	const kept = (on: Page) => on.getByRole('button', { name: 'Kept' });

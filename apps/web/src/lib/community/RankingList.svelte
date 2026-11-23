@@ -49,7 +49,7 @@
 						{@const triangle = shape(flight)}
 						<li>
 							<a href={publicFlightHref(flight.id)}>
-								<span class="day">{flightFormat(flight).day(flight.startUnixS)}</span>
+								<span class="day">{flightFormat(flight).date(flight.startUnixS)}</span>
 								<span class="distance numeric">
 									{#if triangle}
 										<span class="shape" role="img" aria-label={triangle}>

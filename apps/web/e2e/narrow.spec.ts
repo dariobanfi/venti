@@ -138,7 +138,7 @@ test('tonight’s screens fit a narrow phone with large text', async ({
 	await expect(form).toBeHidden();
 
 	// Everyone's flights with its Filter open, and the Following choice.
-	await page.goto('/logbook/everyone/');
+	await page.goto('/flights/');
 	await expect(rowsOf(page, 'Everyone’s flights').first()).toBeVisible();
 	await page.getByRole('button', { name: 'Filter', exact: true }).click();
 	await expect(page.getByLabel('From')).toBeVisible();
@@ -149,7 +149,7 @@ test('tonight’s screens fit a narrow phone with large text', async ({
 
 	// A flight with its cheers and comments, in a sheet on a phone.
 	await rowsOf(page, 'Following').first().locator('a.flight').click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/flight\/\?id=/);
+	await expect(page).toHaveURL(/\/\/[^/]+\/flights\/[0-9a-z]{26}\//);
 	await fits('j-flight');
 	await page.getByRole('button', { name: /cheered|comment/i }).click();
 	const said = page.getByRole('region', { name: 'Comments' });
@@ -166,7 +166,7 @@ test('tonight’s screens fit a narrow phone with large text', async ({
 	await fits('m-home-following');
 
 	// A pilot's page with Follow.
-	await page.goto('/logbook/everyone/pilot/?handle=mara');
+	await page.goto('/pilots/mara/');
 	await expect(page.getByRole('button', { name: 'Following' })).toBeVisible();
 	await fits('n-pilot-follow');
 

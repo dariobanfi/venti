@@ -14,7 +14,7 @@ test('a pilot is found by name, and the pilot’s page says what the flights add
 	keep,
 	problems
 }) => {
-	await page.goto('/logbook/everyone/');
+	await page.goto('/flights/');
 	const field = page.getByRole('searchbox', { name: 'Pilot' });
 	const found = page.getByRole('list', { name: 'Pilots found' }).getByRole('link');
 
@@ -37,7 +37,7 @@ test('a pilot is found by name, and the pilot’s page says what the flights add
 
 	// A pilot found opens that pilot's page.
 	await found.first().click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/pilot\/\?handle=lena$/);
+	await expect(page).toHaveURL(/\/pilots\/lena\/$/);
 	await expect(page.getByRole('heading', { level: 1, name: 'Lena Probe' })).toBeVisible();
 	await expect(rowsOf(page, 'Flights of Lena Probe')).toHaveCount(3);
 
@@ -54,12 +54,10 @@ test('a pilot is found by name, and the pilot’s page says what the flights add
 		12
 	);
 	await expect(totals.getByText('May: 1 flight')).toBeAttached();
-	// What the numbers are made of, and under what the flights are given.
+	// What the numbers are made of. The flights' terms are not shown (the owner, 2026-11-23).
 	await expect(totals.getByText(/^Of the flights this pilot shared with everyone/)).toBeVisible();
-	// The flights' terms stand behind the core's title for them.
-	await expect(totals.getByText(/^These flights are their pilots/)).toBeHidden();
-	await totals.locator('details.terms summary').click();
-	await expect(totals.getByText(/^These flights are their pilots/)).toBeVisible();
+	await expect(page.getByText('Terms for these flights')).toHaveCount(0);
+	await expect(page.getByText(/^These flights are their pilots/)).toHaveCount(0);
 	// One season alone has the same numbers.
 	await totals.getByRole('radio', { name: '2026' }).check();
 	await expect(row('Points, best 3 flights')).toContainText('28.19');
@@ -70,11 +68,18 @@ test('a pilot is found by name, and the pilot’s page says what the flights add
 
 	// A row about one flight opens that flight.
 	await row('Longest flight').getByRole('link').click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/flight\/\?id=/);
+	await expect(page).toHaveURL(/\/\/[^/]+\/flights\/[0-9a-z]{26}\//);
 	await page.goBack();
-	// A take-off opens its place.
+	// A take-off opens its place: the site, the flights from it and its
+	// pilots of all years, Lena Probe among them.
 	await sites.getByRole('link', { name: 'Musterkogel West, 2 flights' }).click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/place\/\?.*site=/);
+	await expect(page).toHaveURL(/\/places\/[-0-9.]+,[-0-9.]+\/\?site=venti%3A/);
+	await expect(page.getByRole('heading', { level: 1, name: 'Musterkogel West' })).toBeVisible();
+	await expect(rowsOf(page, 'Flights from here').first()).toBeVisible();
+	await expect(page.getByRole('radio', { name: 'All years' })).toBeChecked();
+	await expect(rowsOf(page, /^Ranking from here/).filter({ hasText: 'Lena Probe' })).toHaveCount(1);
+	await expect(page.getByRole('region', { name: 'The site' })).toBeVisible();
+	await keep('64f-pilot-place');
 	expect(problems).toEqual([]);
 });
 
@@ -83,7 +88,7 @@ test('the ranking of a month is chosen beside the years, and is in the address',
 	keep,
 	problems
 }) => {
-	await page.goto('/logbook/ranking/?season=2026');
+	await page.goto('/ranking/?season=2026');
 	const pilots = rowsOf(page, /^Ranking of /);
 	await expect(pilots.first()).toContainText('Lena Probe');
 	await expect(page.getByText(/^2026: \d+ flights$/)).toBeVisible();
@@ -99,7 +104,7 @@ test('the ranking of a month is chosen beside the years, and is in the address',
 	await expect(months.filter({ hasText: 'January' })).toHaveCount(0);
 
 	await months.filter({ hasText: 'May' }).click();
-	await expect(page).toHaveURL(/\/logbook\/ranking\/\?month=2026-05$/);
+	await expect(page).toHaveURL(/\/ranking\/\?month=2026-05$/);
 	await expect(page).toHaveTitle('Ranking of May 2026 · Venti');
 	await expect(months.filter({ hasText: 'May' })).toHaveAttribute('aria-pressed', 'true');
 	await expect(months.first()).toHaveAttribute('aria-pressed', 'false');
@@ -131,7 +136,7 @@ test('a pilot’s picture stands beside their name wherever it is, and can be re
 	await signUp(page);
 
 	// In the search: Mara's picture, Lena's initials.
-	await page.goto('/logbook/everyone/');
+	await page.goto('/flights/');
 	const field = page.getByRole('searchbox', { name: 'Pilot' });
 	const found = page.getByRole('list', { name: 'Pilots found' }).getByRole('link');
 	await field.fill('mara');
@@ -148,7 +153,7 @@ test('a pilot’s picture stands beside their name wherever it is, and can be re
 	await expect.poll(() => mara.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(256);
 
 	// On the pilot's page, large, with a report of the picture beside the page's.
-	await page.goto('/logbook/everyone/pilot/?handle=mara');
+	await page.goto('/pilots/mara/');
 	await expect(page.getByRole('heading', { level: 1, name: 'Mara Muster' })).toBeVisible();
 	await expect(page.locator('header .face.l img')).toHaveAttribute('src', PICTURE);
 	await keep('64d-pilot-picture');
@@ -160,7 +165,7 @@ test('a pilot’s picture stands beside their name wherever it is, and can be re
 	await expect(form.getByRole('status')).toHaveText('Sent. Whoever runs Venti will read it.');
 
 	// A pilot without a picture has their initials and no such report.
-	await page.goto('/logbook/everyone/pilot/?handle=lena');
+	await page.goto('/pilots/lena/');
 	await expect(page.getByRole('heading', { level: 1, name: 'Lena Probe' })).toBeVisible();
 	await expect(page.locator('header .face.l')).toHaveText('LP');
 	await expect(page.getByRole('button', { name: 'Report picture' })).toBeHidden();

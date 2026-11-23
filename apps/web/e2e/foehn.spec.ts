@@ -34,7 +34,7 @@ test('today says foehn in one line, and a tap opens the view with both pairs', a
 	keep,
 	problems
 }) => {
-	await page.goto('/today/');
+	await page.goto('/');
 	// The line, over the take-offs, in the danger's colour for "likely".
 	const line = page.getByTestId('foehn-line');
 	await expect(line).toHaveText('South foehn likely: 6 hPa higher at Bolzano than at Innsbruck');
@@ -93,7 +93,7 @@ test('without an answer today shows no line, and the view says why', async ({ pa
 	await page.route('**/v1/foehn', (route) =>
 		busy ? route.fulfill({ status: 503, json: {} }) : route.continue()
 	);
-	await page.goto('/today/');
+	await page.goto('/');
 	await expect(page.getByText(/^(Flyable|Marginal|Not flyable)$/).first()).toBeVisible({
 		timeout: 30_000
 	});
@@ -115,7 +115,7 @@ test('without an answer today shows no line, and the view says why', async ({ pa
 test('the line and the view fit a narrow phone with large text', async ({ page, keep, wide }) => {
 	test.skip(wide, 'A narrow phone: 360 px wide, text at 130 %.');
 	await page.setViewportSize({ width: 360, height: 780 });
-	await page.goto('/today/');
+	await page.goto('/');
 	await page.evaluate(() => (document.documentElement.style.fontSize = '130%'));
 	const line = page.getByTestId('foehn-line');
 	await expect(line).toBeVisible();

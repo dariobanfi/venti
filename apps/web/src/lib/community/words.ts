@@ -17,7 +17,7 @@ export const PILOTS_RECKONING =
 
 /** When a flight was and with what: "Sat, 15 Aug 2026 · Sample Wing". */
 export function detail(flight: PublicFlight, text: Format, classes?: GliderClasses): string {
-	const day = text.day(flight.startUnixS);
+	const day = text.date(flight.startUnixS);
 	const glider = gliderLine(flight, classes);
 	return glider ? `${day} · ${glider}` : day;
 }

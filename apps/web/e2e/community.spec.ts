@@ -33,7 +33,7 @@ test('the pilots near the region’s middle, each a card to the pilot’s page',
 	await keep('270d-community-pilots-near');
 
 	await mara.getByRole('link', { name: 'Mara Muster' }).click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/pilot\/\?handle=mara$/);
+	await expect(page).toHaveURL(/\/pilots\/mara\/$/);
 	expect(problems).toEqual([]);
 });
 

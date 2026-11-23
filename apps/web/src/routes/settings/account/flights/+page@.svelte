@@ -37,7 +37,7 @@
 	const days = $derived.by(() => {
 		const grouped: { day: string; flights: OwnFlight[]; airtimeS: number }[] = [];
 		for (const flight of flights?.flights ?? []) {
-			const day = flightFormat(flight.row).day(flight.row.startUnixS);
+			const day = flightFormat(flight.row).date(flight.row.startUnixS);
 			const last = grouped.at(-1);
 			if (last?.day === day) {
 				last.flights.push(flight);

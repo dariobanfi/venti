@@ -89,7 +89,7 @@ test.fixme('a take-off’s page says what public flights began there, and the ma
 	// One of the pilot's own flights began at the place.
 	await page.goto('/logbook/');
 	await dropFiles(page, [{ name: 'from-the-place.igc', text: flightFrom(CANDIDATE) }]);
-	await expect(page.getByRole('heading', { name: 'Tue, 7 Jul 2026' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: '7 Jul 2026' })).toBeVisible();
 
 	await page.context().grantPermissions(['geolocation']);
 	await page.context().setGeolocation(STANDING);

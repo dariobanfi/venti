@@ -2,8 +2,8 @@
 	The app's sections.
 
 	On a narrow screen this is the design pack's tab bar along the bottom
-	edge: Home, Map, Today, Flights, Community and Settings, the others reached
-	from those. On a wide screen it is a website's bar across the top, as a
+	edge: Home (where Today is), Map, Flights, Ranking, Community and
+	Settings, the others reached from those. On a wide screen it is a website's bar across the top, as a
 	sports data site has it: Venti's logo, the sections as words, and
 	Settings and the account at the right. The pilot's own flights are the
 	account's (owner decision 20): reached from the account, and from Flights
@@ -26,8 +26,7 @@
 		homeHref,
 		mapHref,
 		rankingHref,
-		settingsHref,
-		todayHref
+		settingsHref
 	} from './routes';
 
 	const app = getApp();
@@ -54,26 +53,24 @@
 	}
 
 	const sections: Section[] = [
-		// What is going on: the day, who is in the air, the best flights.
+		// What is going on: Today's take-offs first, who is in the air, the best flights.
 		{ name: 'Home', icon: 'mountain', href: homeHref, root: '/', exact: true, on: 'both' },
 		{ name: 'Map', icon: 'map', href: () => mapHref(), root: '/map', on: 'both' },
-		// What the forecast says about flying from the take-offs around.
-		{ name: 'Today', icon: 'forecast', href: todayHref, root: '/today', on: 'both' },
 		// Everyone's flights, with the pilot's own a choice at their head.
 		{
 			name: 'Flights',
 			icon: 'track',
 			href: () => everyoneHref(),
-			root: '/logbook/everyone',
-			also: ['/settings/account/flights'],
+			root: '/flights',
+			also: ['/settings/account/flights', '/pilots', '/places'],
 			on: 'both'
 		},
 		{
 			name: 'Ranking',
 			icon: 'league',
 			href: () => rankingHref(),
-			root: '/logbook/ranking',
-			on: 'wide'
+			root: '/ranking',
+			on: 'both'
 		},
 		// Pilots among each other: the plans of the pilot's groups, the
 		// flights of those they follow, finding a pilot, what they were told.
@@ -121,8 +118,7 @@
 	 * bar does, and the screen's own back button leads out.
 	 */
 	const covered = $derived(
-		page.route.id === '/settings/account/flights/flight' ||
-			page.route.id === '/logbook/everyone/flight'
+		page.route.id === '/settings/account/flights/flight' || page.route.id === '/flights/[id]'
 	);
 </script>
 

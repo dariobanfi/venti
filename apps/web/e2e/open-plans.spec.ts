@@ -68,7 +68,7 @@ test('signed out, the open plans near the region’s middle, a plan’s page, an
 	await expect(facts).toContainText('2 seats free');
 	await expect(facts.getByRole('link', { name: 'Mara Muster' })).toHaveAttribute(
 		'href',
-		/\/logbook\/everyone\/pilot\/?\?handle=mara$/
+		/\/pilots\/mara\/$/
 	);
 	const who = page.getByRole('list', { name: 'Who is in' });
 	await expect(who.getByRole('listitem')).toHaveText(['Mara Muster', 'Jonas Beispiel']);

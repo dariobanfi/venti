@@ -29,31 +29,35 @@ const counted = (page: Page, pilot: string) =>
 test('the pilots are ranked by their best flights, in a year or in all years', async ({
 	page,
 	keep,
-	wide,
 	problems
 }) => {
-	// The logbook has a third side where the site has a Venti server. On a
-	// wide screen the page of everyone's flights has no switch: the ranking
-	// is in the bar across the top.
-	await page.goto('/logbook/everyone/');
-	if (wide) {
-		await page
-			.getByRole('navigation', { name: 'Sections' })
-			.getByRole('link', { name: 'Ranking' })
-			.click();
-	} else {
-		await whose(page).getByRole('link', { name: 'Ranking' }).click();
-	}
-	await expect(page).toHaveURL(/\/logbook\/ranking\/$/);
+	// The ranking is a section of the bar at every width, and the page of
+	// everyone's flights has no way to it of its own.
+	await page.goto('/flights/');
+	await expect(whose(page).getByRole('link', { name: 'Ranking' })).toHaveCount(0);
+	const sections = page.getByRole('navigation', { name: 'Sections' });
+	await sections.getByRole('link', { name: 'Ranking' }).click();
+	await expect(page).toHaveURL(/\/ranking\/$/);
 	await expect(page).toHaveTitle('Ranking · Venti');
-	await expect(whose(page).getByRole('link', { name: 'Ranking' })).toHaveAttribute(
+	await expect(sections.getByRole('link', { name: 'Ranking' })).toHaveAttribute(
 		'aria-current',
 		'page'
 	);
-	// The newest season is the chosen one: the year of today.
+	// A leaderboard of its own: no switch of whose flights, no "Logbook".
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ranking');
+	await expect(whose(page)).toHaveCount(0);
+	await expect(page.getByText('Logbook')).toHaveCount(0);
+	// The newest season is the chosen one: the year of today. The two
+	// newest years stand; the two older ones are behind "More".
 	const seasons = page.getByRole('radiogroup', { name: 'Season' }).getByRole('radio');
-	await expect(seasons).toHaveCount(5);
+	await expect(seasons).toHaveCount(3);
 	await expect(seasons.first()).toBeChecked();
+	const more = page.getByRole('button', { name: 'More' });
+	await more.click();
+	await expect(seasons).toHaveCount(5);
+	await keep('84a-ranking-more-years');
+	await page.getByRole('button', { name: 'Less' }).click();
+	await expect(seasons).toHaveCount(3);
 
 	// All years: every public flight of the development mode counts.
 	await page.getByRole('radio', { name: 'All years' }).check();
@@ -70,7 +74,7 @@ test('the pilots are ranked by their best flights, in a year or in all years', a
 	await expect(pilots(page).nth(1)).toContainText('Mara Muster');
 	await expect(pilots(page).nth(1)).toContainText('23.42');
 	await expect(counted(page, 'Mara Muster')).toHaveCount(2);
-	await expect(counted(page, 'Mara Muster').first()).toContainText('Sun, 16 Aug 2026');
+	await expect(counted(page, 'Mara Muster').first()).toContainText('16 Aug 2026');
 	await expect(counted(page, 'Mara Muster').first()).toContainText('12.0 km');
 	await expect(counted(page, 'Mara Muster').first()).toContainText('11.98');
 	await expect(counted(page, 'Mara Muster').last()).toContainText('11.44');
@@ -93,8 +97,11 @@ test('the pilots are ranked by their best flights, in a year or in all years', a
 	await expect(page.getByRole('radio', { name: 'All years' })).toBeChecked();
 	await expect(pilots(page)).toHaveCount(RANKED);
 
-	// The oldest year offered: nobody flew then.
+	// The oldest year offered: nobody flew then. It stands behind "More",
+	// and keeps the older years shown while it is chosen.
+	await page.getByRole('button', { name: 'More' }).click();
 	await seasons.nth(3).check();
+	await expect(page.getByRole('button', { name: 'Less' })).toHaveCount(0);
 	await expect(page.getByRole('heading', { name: 'Nobody is ranked' })).toBeVisible();
 	await expect(page.getByText(/Choose another year, or all years/)).toBeVisible();
 	await keep('85-ranking-nobody');
@@ -105,7 +112,7 @@ test('the ranking of a year names the year in its address, and leads to pilots a
 	page,
 	keep
 }) => {
-	await page.goto('/logbook/ranking/?season=2026');
+	await page.goto('/ranking/?season=2026');
 	await expect(page.getByRole('radio', { name: '2026' })).toBeChecked();
 	await expect(pilots(page)).toHaveCount(RANKED);
 	await expect(pilots(page).first()).toContainText('Lena Probe');
@@ -113,12 +120,12 @@ test('the ranking of a year names the year in its address, and leads to pilots a
 
 	// A flight that counts opens that flight.
 	await counted(page, 'Demo Pilot').first().getByRole('link').click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/flight\/\?id=/);
+	await expect(page).toHaveURL(/\/\/[^/]+\/flights\/[0-9a-z]{26}\//);
 	await page.goBack();
 
 	// A pilot's name leads to that pilot's flights.
 	await pilots(page).nth(2).getByRole('link', { name: 'Jonas Beispiel' }).click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/pilot\/\?handle=jonas$/);
+	await expect(page).toHaveURL(/\/pilots\/jonas\/$/);
 	await expect(page.getByRole('heading', { level: 1, name: 'Jonas Beispiel' })).toBeVisible();
 });
 
@@ -127,7 +134,7 @@ test('a server that cannot rank says so, and can be asked again', async ({ conte
 	await context.route('**/v1/ranking**', (route) =>
 		down ? route.fulfill({ status: 503, body: '' }) : route.continue()
 	);
-	await page.goto('/logbook/ranking/?season=2026');
+	await page.goto('/ranking/?season=2026');
 
 	await expect(
 		page.getByRole('heading', { name: 'The ranking could not be fetched' })

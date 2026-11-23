@@ -434,7 +434,7 @@ export async function addSampleFlight(page: Page): Promise<void> {
 	await page
 		.locator('input[type=file]')
 		.setInputFiles(asUpload('sample.igc', readFileSync(SAMPLE_FLIGHT, 'utf8')));
-	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: '4 Jul 2026' })).toBeVisible();
 	await groundDrawn(page);
 }
 

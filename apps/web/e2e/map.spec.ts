@@ -102,7 +102,7 @@ test('the navigation leads to every section, and says where one is', async ({ pa
 	// A flight fills a narrow screen, so the bar steps aside there. A wide
 	// screen keeps its bar.
 	await addSampleFlight(page);
-	await expect(page).toHaveTitle('Sat, 4 Jul 2026 · Venti');
+	await expect(page).toHaveTitle('4 Jul 2026 · Venti');
 	if (wide) await expect(navigation).toBeVisible();
 	else await expect(navigation).toBeHidden();
 });

@@ -15,6 +15,17 @@ describe('dates and times', () => {
 		expect(american.dayInYear(TAKE_OFF)).toBe('Sat, Jul 4');
 	});
 
+	it('writes a flight’s date as day, month and year in every region, with no weekday', () => {
+		expect(british.date(TAKE_OFF)).toBe('4 Jul 2026');
+		expect(american.date(TAKE_OFF)).toBe('4 Jul 2026');
+		// September is "Sep", never "Sept".
+		const september = Date.UTC(2026, 8, 26, 12) / 1000;
+		expect(british.date(september)).toBe('26 Sep 2026');
+		expect(createFormat('de-DE', 'Europe/Berlin').date(september)).toBe('26 Sep 2026');
+		// The date where the flight was flown: just after midnight in Berlin is the next day there.
+		expect(british.date(Date.UTC(2026, 10, 19, 23, 5) / 1000)).toBe('20 Nov 2026');
+	});
+
 	it('writes the time of day where the reader is, in the way of their region', () => {
 		expect(british.time(TAKE_OFF)).toBe('12:30');
 		// U+202F, a narrow no-break space, is what browsers put before AM and PM.

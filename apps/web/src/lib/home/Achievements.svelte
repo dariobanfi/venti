@@ -31,7 +31,7 @@
 
 	/** The day, and the points where the flight scores: "Sat, 9 May 2026 · 12.01 points". */
 	function when(flight: PublicFlight): string {
-		const day = flightFormat(flight).day(flight.startUnixS);
+		const day = flightFormat(flight).date(flight.startUnixS);
 		return flight.score ? `${day} · ${text.points(flight.score.points)} points` : day;
 	}
 </script>

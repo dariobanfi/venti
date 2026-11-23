@@ -56,7 +56,7 @@
 	<!-- The flight's link is stretched over the whole row. -->
 	<a class="flight where" href={myFlightHref(row.id)}>
 		<span class="sign"><Icon name="takeoff" /></span>
-		<span class="name">{where ?? text.day(row.startUnixS)}</span>
+		<span class="name">{where ?? text.date(row.startUnixS)}</span>
 		<Flag code={row.takeoffCountry} />
 	</a>
 	<span class="glider">

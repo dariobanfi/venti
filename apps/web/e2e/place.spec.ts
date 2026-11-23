@@ -19,7 +19,7 @@ import {
 
 /** The first of the Wallberg's two ramps, where the made-up flights take off. */
 const RAMP = 'osm-free-flying:node/5964676196';
-const WALLBERG = `/logbook/everyone/place/?lat=47.66522&lon=11.79542&site=${encodeURIComponent(RAMP)}`;
+const WALLBERG = `/places/47.66522,11.79542/?site=${encodeURIComponent(RAMP)}`;
 
 // Exactly: the site's own "The best flights from here" is another list.
 const flights = (page: Page) => rowsOf(page, /^Flights from here$/);
@@ -61,9 +61,10 @@ test('a site’s page lists what was flown from it, the best first, and ranks it
 	// Three flights share the most points; the first of them leads.
 	await expect(flights(page).first()).toContainText('11.98');
 
-	// The pilots of all years, ranked by what they flew from here.
-	await page.getByRole('radio', { name: 'All years' }).check();
-	await expect(page).toHaveURL(/season=All(%20|\+)years/);
+	// The pilots of all years, ranked by what they flew from here: a place's
+	// records are of every year, so its ranking opens on them.
+	await expect(page.getByRole('radio', { name: 'All years' })).toBeChecked();
+	await expect(page).not.toHaveURL(/season=/);
 	await expect(ranked(page)).toHaveCount(3);
 	await expect(ranked(page).first()).toContainText('Mara Muster');
 	await expect(
@@ -72,32 +73,37 @@ test('a site’s page lists what was flown from it, the best first, and ranks it
 	await keep('87-place-best');
 
 	// The address holds both: opened again, the page is the same.
+	// One year is named in the address.
+	await page.getByRole('radio', { name: '2026' }).check();
+	await expect(page).toHaveURL(/season=2026/);
 	await page.reload();
 	await expect(page.getByRole('radio', { name: 'Best' })).toBeChecked();
-	await expect(page.getByRole('radio', { name: 'All years' })).toBeChecked();
+	await expect(page.getByRole('radio', { name: '2026' })).toBeChecked();
+	await page.getByRole('radio', { name: 'All years' }).check();
+	await expect(page).not.toHaveURL(/season=/);
 	await expect(ranked(page)).toHaveCount(3);
 
 	// A flight opens like any other pilot's.
 	await flights(page).first().getByRole('link').filter({ hasNotText: '°' }).last().click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/flight\/\?id=/);
+	await expect(page).toHaveURL(/\/\/[^/]+\/flights\/[0-9a-z]{26}\//);
 	expect(problems).toEqual([]);
 });
 
 test('a flight leads to the flights from its take-off', async ({ page, wide }) => {
-	await page.goto('/logbook/everyone/');
+	await page.goto('/flights/');
 	await rowsOf(page, 'Everyone’s flights')
 		.first()
 		.getByRole('link')
 		.filter({ hasNotText: '°' })
 		.last()
 		.click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/flight\/\?id=/);
+	await expect(page).toHaveURL(/\/\/[^/]+\/flights\/[0-9a-z]{26}\//);
 
 	if (!wide) await page.getByRole('button', { name: 'Flight details' }).click();
 	await flightDetails(page).getByRole('link', { name: 'Flights from this take-off' }).click();
 
 	// The nearest take-off the source knows is the place's site.
-	await expect(page).toHaveURL(/\/logbook\/everyone\/place\/\?lat=/);
+	await expect(page).toHaveURL(/\/places\/[-0-9.]+,[-0-9.]+\//);
 	await expect(page.locator('header').first()).toContainText('Take-off');
 	await expect(page.getByRole('region', { name: 'The site' })).toBeVisible();
 	await expect(flights(page)).toHaveCount(5);
@@ -161,6 +167,6 @@ test('without the site, the flights from a place are listed all the same', async
 });
 
 test('an address without a place says so', async ({ page }) => {
-	await page.goto('/logbook/everyone/place/?lat=north');
+	await page.goto('/places/north/');
 	await expect(page.getByRole('heading', { name: 'This address names no place' })).toBeVisible();
 });

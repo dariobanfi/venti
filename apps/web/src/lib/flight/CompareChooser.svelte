@@ -86,7 +86,7 @@
 									<span class="who">
 										<span class="name">{other.pilot}</span>
 										<span class="lesser">
-											{when.day(other.startUnixS)} · {when.time(other.startUnixS)}
+											{when.date(other.startUnixS)} · {when.time(other.startUnixS)}
 										</span>
 									</span>
 									<span class="lesser numeric">
@@ -121,7 +121,7 @@
 						<li>
 							<button class="group-row" type="button" onclick={() => onchoose({ own: entry.id })}>
 								<span>
-									{when.day(entry.startUnixS)}
+									{when.date(entry.startUnixS)}
 									<span class="lesser">{when.time(entry.startUnixS)}</span>
 								</span>
 								<span class="lesser numeric">

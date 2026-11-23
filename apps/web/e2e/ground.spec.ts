@@ -87,7 +87,7 @@ test('a flight’s profile is drawn over the ground, and the marked moment says 
 });
 
 test('another pilot’s flight has the ground under its profile too', async ({ page }) => {
-	await page.goto(`/logbook/everyone/flight/?id=${ANOTHER_PILOTS_FLIGHT}`);
+	await page.goto(`/flights/${ANOTHER_PILOTS_FLIGHT}/`);
 	await expect(page.getByRole('link', { name: 'Jonas Beispiel' })).toBeVisible();
 
 	await groundDrawn(page);
@@ -113,7 +113,7 @@ test('without elevation tiles the profile is as it was', async ({ context, page,
 	await page
 		.locator('input[type=file]')
 		.setInputFiles(asUpload('sample.igc', readFileSync(SAMPLE_FLIGHT, 'utf8')));
-	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: '4 Jul 2026' })).toBeVisible();
 	await asked;
 
 	await expect(chart).toHaveAttribute('aria-valuetext', 'From 786 to 2117 metres. Nothing marked.');

@@ -475,7 +475,7 @@ test('a landing field mapped as an area is drawn as its outline, under its sign'
 test('a site’s page shows its mapper’s description as text', async ({ page, keep, problems }) => {
 	// One of the Wallberg's two ramps, which OpenStreetMap describes.
 	await page.goto(
-		`/logbook/everyone/place/?lat=47.66522&lon=11.79542&site=${encodeURIComponent('osm-free-flying:node/5964676196')}`
+		`/places/47.66522,11.79542/?site=${encodeURIComponent('osm-free-flying:node/5964676196')}`
 	);
 	const more = page.getByRole('region', { name: 'What its source says' });
 	await expect(more).toHaveText('Startrampe (vermutlich für Drachenflieger)');

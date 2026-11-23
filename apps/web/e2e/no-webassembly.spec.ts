@@ -72,7 +72,7 @@ test('a browser without WebAssembly is told it needs it, over the whole window',
 	await page.keyboard.press('Escape');
 	await page.keyboard.press('Escape');
 	const flights = page
-		.locator('nav[aria-label="Sections"] a[href="/logbook/everyone"]')
+		.locator('nav[aria-label="Sections"] a[href="/flights"]')
 		.filter({ visible: true })
 		.first();
 	const box = (await flights.boundingBox())!;

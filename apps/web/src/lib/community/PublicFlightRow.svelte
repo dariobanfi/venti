@@ -54,7 +54,7 @@
 			<a class="flight leads" href={publicFlightHref(flight.id)}>
 				<span class="day">
 					<Flag code={flight.takeoffCountry} />
-					{text.day(flight.startUnixS)}
+					{text.date(flight.startUnixS)}
 				</span>
 				{#if glider}
 					<span class="glider">{glider}</span>

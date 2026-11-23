@@ -1,10 +1,11 @@
 <!--
-	Home: what is going on, in the first region and on Venti. At the top
-	what Venti stands for, in four lines, and the season's flights that
-	stand out as large cards; then panels side by side on a wide screen, as
-	a sports data site has them, one under the other on a phone: the
-	weather for the pilot's place, today's take-offs there as the core
-	judges them, who is in the air now, Venti's news, the top of the
+	Home: what is going on, in the first region and on Venti. First Today:
+	the take-offs around the pilot's place and what the forecast says of
+	each (`TodayCard.svelte`; the owner merged the two sections on
+	2026-11-23). Then what Venti stands for, in four lines, and the season's
+	flights that stand out as large cards; then panels side by side on a
+	wide screen, as a sports data site has them, one under the other on a
+	phone: who is in the air now, Venti's news, the top of the
 	season's ranking, today's best flights (or the newest), what pilots
 	added to the map, and, for a pilot who is signed in, what their alarms
 	fired and what the pilots they follow flew.
@@ -31,8 +32,7 @@
 		pilotHref,
 		placeHref,
 		publicFlightHref,
-		rankingHref,
-		todayHref
+		rankingHref
 	} from '#lib/app/routes.ts';
 	import { queryOf } from '#lib/community/pages.ts';
 	import PublicFlightRow from '#lib/community/PublicFlightRow.svelte';
@@ -44,13 +44,10 @@
 	import HomePanel from '#lib/home/HomePanel.svelte';
 	import SiteFooter from '#lib/app/SiteFooter.svelte';
 	import StandsFor from '#lib/home/StandsFor.svelte';
-	import WeatherPanel from '#lib/home/WeatherPanel.svelte';
 	import DraftMark from '#lib/news/DraftMark.svelte';
 	import NewsPicture from '#lib/news/NewsPicture.svelte';
 	import { postMoment, posts } from '#lib/news/posts.ts';
-	import StatusChip from '#lib/today/StatusChip.svelte';
-	import { NOTHING_YET } from '#lib/today/model.svelte.ts';
-	import { arranged, firstDay } from '#lib/today/order.ts';
+	import TodayCard from '#lib/today/TodayCard.svelte';
 
 	const app = getApp();
 	const text = format();
@@ -64,16 +61,6 @@
 	const home = $derived(app.home);
 	const todayDate = dayOf(new Date());
 	$effect(() => home?.show(todayDate));
-
-	/* Today: the core's take-offs where the weather panel looks, ordered by the core. */
-	const today = $derived(app.today);
-	const shown = $derived(today?.state ?? NOTHING_YET);
-	const dayIndex = $derived(firstDay(shown.places));
-	const dayName = $derived(
-		shown.places.find((place) => place.outlook)?.outlook?.days[dayIndex]?.name ?? 'Today'
-	);
-	const order = $derived(arranged(shown.places, shown.orders[dayIndex], dayIndex));
-	const takeoffs = $derived(order.listed.slice(0, 5));
 
 	/* Alerts: what the pilot's alarms fired lately, signed in only. */
 	const signedIn = $derived(Boolean(app.account?.signedIn));
@@ -122,7 +109,6 @@
 			{#if browser}<p class="sub">{text.day(Date.now() / 1000)}</p>{/if}
 		</div>
 		<div class="actions">
-			<a class="button-plain" href={todayHref()}>Today</a>
 			<a class="button-prominent" href={mapHref()}>
 				<Icon name="map" />
 				<span>Open the map</span>
@@ -131,6 +117,10 @@
 	</header>
 
 	<div class="columns">
+		<div class="span-12">
+			<TodayCard />
+		</div>
+
 		<StandsFor class="span-12" />
 
 		<Achievements
@@ -138,55 +128,6 @@
 			shown={home?.achievements}
 			again={() => home?.again('achievements', todayDate)}
 		/>
-
-		<WeatherPanel class="span-4" />
-
-		<!-- Today's take-offs -->
-		<HomePanel
-			id="home-today"
-			title={dayName === 'Today' ? 'Take-offs today' : `Take-offs, ${dayName}`}
-			class="span-4"
-			more={{ href: todayHref(), words: 'Today' }}
-			loading={shown.phase === 'idle' || shown.phase === 'loading'}
-			problem={shown.phase === 'failed' ? shown.problem : undefined}
-			absent={shown.phase === 'absent'}
-			again={() => today?.again()}
-		>
-			{#if takeoffs.length === 0}
-				<p class="quiet">No take-offs around here.</p>
-			{:else}
-				<table class="rows fit takeoffs" aria-label="Take-offs">
-					<tbody>
-						{#each takeoffs as place (place.site.id)}
-							{@const day = place.outlook?.days[dayIndex]}
-							<tr>
-								<th scope="row" class="name">
-									<a href={placeHref(place.site.position, place.site.id)}>{place.site.name}</a>
-								</th>
-								<td class="verdict">
-									{#if day}
-										<StatusChip verdict={day.verdict} status={day.status} />
-									{:else}
-										<span class="quiet">
-											{place.problem ??
-												(place.outlook ? 'No forecast for this day' : 'Fetching the forecast…')}
-										</span>
-									{/if}
-								</td>
-								<td class="number wind">
-									{#if day?.windKmh}{day.windKmh} km/h{/if}
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-				<!-- The best take-off's line, where it says more than its chip
-				     does ("Good until 14:00"): the verdict alone is in every row. -->
-				{#if order.best && order.best.day.headline !== order.best.day.status}
-					<p class="line">{order.best.day.headline}</p>
-				{/if}
-			{/if}
-		</HomePanel>
 
 		<div class="span-4 stack">
 			<!-- Who is in the air -->
@@ -395,7 +336,7 @@
 											>
 										</td>
 										<td class="number">{flight.score ? text.points(flight.score.points) : '–'}</td>
-										<td class="number">{flightFormat(flight).day(flight.startUnixS)}</td>
+										<td class="number">{flightFormat(flight).date(flight.startUnixS)}</td>
 										<td class="words quiet">{row.cheersLine}</td>
 										<td class="words quiet">{row.commentsLine}</td>
 									</tr>
@@ -481,7 +422,7 @@
 										<td class="number">
 											{flights.ofToday
 												? flightFormat(flight).time(flight.startUnixS)
-												: flightFormat(flight).day(flight.startUnixS)}
+												: flightFormat(flight).date(flight.startUnixS)}
 										</td>
 									</tr>
 								{/each}
@@ -573,7 +514,6 @@
 		font-weight: 600;
 	}
 
-	.line,
 	.count {
 		font-weight: 500;
 	}
@@ -659,31 +599,9 @@
 		max-width: 0;
 	}
 
-	/* At a phone's width a take-off's name takes a second line before it is
-	   cut: three "Startmöglichkei…" in a row name nothing. */
-	@media (max-width: 55.99rem) {
-		.takeoffs .name {
-			padding-block: var(--space-1);
-			white-space: normal;
-		}
-
-		.takeoffs .name a {
-			display: -webkit-box;
-			-webkit-box-orient: vertical;
-			-webkit-line-clamp: 2;
-			line-clamp: 2;
-			overflow: hidden;
-			overflow-wrap: anywhere;
-		}
-	}
-
 	.rows .place {
 		width: 2rem;
 		color: var(--text-secondary);
-	}
-
-	.rows .verdict {
-		width: 1%;
 	}
 
 	.link {
@@ -770,12 +688,6 @@
 		.rows a:hover,
 		.list a:hover {
 			text-decoration: underline;
-		}
-	}
-
-	@media (max-width: 23.99rem) {
-		.wind {
-			display: none;
 		}
 	}
 

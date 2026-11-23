@@ -64,7 +64,7 @@ test('the demo pilot sees whom they follow, their feed and what they were told',
 
 	// The whole feed, beside "Everyone".
 	await home.getByRole('link', { name: 'All', exact: true }).click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/\?feed=following$/);
+	await expect(page).toHaveURL(/\/flights\/\?feed=following$/);
 	await expect(page.getByRole('radio', { name: 'Following' })).toBeChecked();
 	await expect(feed(page).first()).toBeVisible();
 	await expect(feed(page).filter({ hasText: 'Mara Muster' }).first()).toContainText(/cheered/);
@@ -76,7 +76,7 @@ test('the demo pilot sees whom they follow, their feed and what they were told',
 
 	// "Everyone" is the list as it was.
 	await page.getByRole('radio', { name: 'Everyone', exact: true }).check();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/$/);
+	await expect(page).toHaveURL(/\/flights\/$/);
 	await expect(rowsOf(page, 'Everyone’s flights').first()).toBeVisible();
 
 	// Community has the same: the plans of the demo pilot's group, the
@@ -108,10 +108,10 @@ test('the demo pilot sees whom they follow, their feed and what they were told',
 	await page.emulateMedia({ colorScheme: test.info().project.use.colorScheme ?? 'light' });
 	// A card opens the flight.
 	await cards.first().locator('a.open').click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/flight\/\?id=/);
+	await expect(page).toHaveURL(/\/\/[^/]+\/flights\/[0-9a-z]{26}\//);
 
 	// A pilot's page says who follows them, and that the demo pilot does.
-	await page.goto('/logbook/everyone/pilot/?handle=mara');
+	await page.goto('/pilots/mara/');
 	await expect(page.getByRole('heading', { name: 'Mara Muster', level: 1 })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Following' })).toHaveAttribute(
 		'aria-pressed',
@@ -122,7 +122,7 @@ test('the demo pilot sees whom they follow, their feed and what they were told',
 	await keep('273-pilot-follow');
 
 	// Nobody follows themselves: one's own page has the counts alone.
-	await page.goto('/logbook/everyone/pilot/?handle=demo');
+	await page.goto('/pilots/demo/');
 	await expect(page.getByText(/^\d+ followers?$/)).toBeVisible();
 	await expect(page.getByRole('button', { name: /^Follow/ })).toHaveCount(0);
 
@@ -155,7 +155,7 @@ test('a pilot follows another, cheers a flight and writes under it', async ({
 	await signUp(page);
 
 	// Signed in, another pilot's page has the button.
-	await page.goto('/logbook/everyone/pilot/?handle=mara');
+	await page.goto('/pilots/mara/');
 	const follow = page.getByRole('button', { name: 'Follow', exact: true });
 	await expect(follow).toHaveAttribute('aria-pressed', 'false');
 	await follow.click();
@@ -165,7 +165,7 @@ test('a pilot follows another, cheers a flight and writes under it', async ({
 	);
 
 	// The feed now has Mara Muster's flights.
-	await page.goto('/logbook/everyone/');
+	await page.goto('/flights/');
 	await page.getByRole('radio', { name: 'Following' }).check();
 	const first = feed(page).filter({ hasText: 'Mara Muster' }).first();
 	await expect(first).toBeVisible();
@@ -173,7 +173,7 @@ test('a pilot follows another, cheers a flight and writes under it', async ({
 	// Her newest flight: cheers and comments beside the flight on a wide
 	// screen, in a sheet on a phone.
 	await first.locator('a.flight').click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/flight\/\?id=/);
+	await expect(page).toHaveURL(/\/\/[^/]+\/flights\/[0-9a-z]{26}\//);
 	if (!wide) await page.getByRole('button', { name: /cheered|comment/i }).click();
 	const said = page.getByRole('region', { name: 'Comments' });
 	await expect(said).toContainText(/cheered/);

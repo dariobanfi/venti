@@ -55,12 +55,12 @@ test('a pilot brings the sample flight in, inspects it and deletes it', async ({
 	await page
 		.locator('input[type=file]')
 		.setInputFiles(asUpload('sample.igc', readFileSync(SAMPLE_FLIGHT, 'utf8')));
-	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: '4 Jul 2026' })).toBeVisible();
 	await expect(page.getByText('12:30 – 12:59 · Sample Wing')).toBeVisible();
 	await expect(metric(totals, 'Airtime')).toHaveText('0:29 h');
 	// The flight in one number: its scored distance, in the hero style.
 	await expect(page.getByLabel('Distance: 12.0 kilometres')).toBeVisible();
-	await expect(page.getByRole('heading', { name: 'Free flight, Sat, 4 Jul 2026' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Free flight, 4 Jul 2026' })).toBeVisible();
 	await expect(metric(totals, 'Highest')).toHaveText('2117 m');
 	await expect(metric(totals, 'Best climb')).toHaveText('+2.4 m/s');
 	await expect(page.getByRole('img', { name: /Track colours/ })).toBeVisible();
@@ -190,13 +190,13 @@ test('a pilot brings the sample flight in, inspects it and deletes it', async ({
 
 	// The flight is the account's: a reload of its page finds it.
 	await page.reload();
-	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: '4 Jul 2026' })).toBeVisible();
 	await expect(metric(totals, 'Airtime')).toHaveText('0:29 h');
 
 	// Back to the pilot's flights, where it is listed under its day: the
 	// take-off's time first, the glider, the airtime large, the distance.
 	await page.getByRole('link', { name: 'My flights', exact: true }).first().click();
-	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: '4 Jul 2026' })).toBeVisible();
 	const row = page.getByRole('main').locator('section.day li').first();
 	await expect(row).toContainText('12:30');
 	await expect(row).toContainText('Sample Wing');
@@ -214,7 +214,7 @@ test('a pilot brings the sample flight in, inspects it and deletes it', async ({
 	// Deleting asks first, and "Cancel" keeps the flight.
 	await page.goto('/settings/account/flights/');
 	await row.getByRole('link').click();
-	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: '4 Jul 2026' })).toBeVisible();
 	await more.click();
 	await page.getByRole('menuitem', { name: 'Delete flight' }).click();
 	const confirmation = page.getByRole('alertdialog', { name: 'Delete this flight?' });
@@ -225,7 +225,7 @@ test('a pilot brings the sample flight in, inspects it and deletes it', async ({
 	await keep('11-delete');
 	await confirmation.getByRole('button', { name: 'Cancel' }).click();
 	await expect(confirmation).toBeHidden();
-	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: '4 Jul 2026' })).toBeVisible();
 
 	await more.click();
 	await page.getByRole('menuitem', { name: 'Delete flight' }).click();
@@ -312,5 +312,5 @@ test('the flight screen can be used from the keyboard', async ({ page, wide }) =
 	await expect(confirmation).toBeVisible();
 	await page.keyboard.press('Enter');
 	await expect(confirmation).toBeHidden();
-	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: '4 Jul 2026' })).toBeVisible();
 });

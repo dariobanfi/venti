@@ -98,7 +98,7 @@
 									<span class="pair">
 										<span>{SHOWS_IT_MOST}</span>
 										{#if observation.flightUnixS !== undefined}
-											<span class="lesser">{text.day(observation.flightUnixS)}</span>
+											<span class="lesser">{text.date(observation.flightUnixS)}</span>
 										{/if}
 									</span>
 									<span class="chevron"><Icon name="forward" /></span>

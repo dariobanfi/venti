@@ -27,17 +27,14 @@ async function sideways(page: Page) {
 }
 
 const PAGES = [
-	{ path: '/logbook/everyone/', ready: (page: Page) => page.locator('table').first() },
-	{ path: '/logbook/ranking/', ready: (page: Page) => page.locator('table').first() },
+	{ path: '/flights/', ready: (page: Page) => page.locator('table').first() },
+	{ path: '/ranking/', ready: (page: Page) => page.locator('table').first() },
 	{
-		path: '/logbook/everyone/pilot/?handle=demo',
+		path: '/pilots/demo/',
 		ready: (page: Page) => page.locator('table').first()
 	},
-	{ path: '/', ready: (page: Page) => page.locator('h1').first() },
-	{
-		path: '/today/',
-		ready: (page: Page) => page.getByText(/^(Flyable|Marginal|Not flyable)$/).first()
-	},
+	// The home page, with Today first: ready once a take-off's status is in.
+	{ path: '/', ready: (page: Page) => page.getByText(/^(Flyable|Marginal|Not flyable)$/).first() },
 	{
 		path: '/settings/account/flights/',
 		ready: (page: Page) => page.getByRole('heading', { level: 1, name: 'My flights' })
@@ -53,8 +50,8 @@ for (const width of [900, 1024, 1280]) {
 			await expect(ready(page)).toBeVisible({ timeout: 30_000 });
 			const found = await sideways(page);
 			expect(found.over, `${path}: ${found.out.join(', ')}`).toBeLessThanOrEqual(0);
-			if (path === '/logbook/ranking/') await keep(`181-no-sideways-${width}`);
-			if (path !== '/logbook/everyone/') continue;
+			if (path === '/ranking/') await keep(`181-no-sideways-${width}`);
+			if (path !== '/flights/') continue;
 			await keep(`180-no-sideways-${width}`);
 
 			// The table's last column is reached by scrolling the table's card.

@@ -2,20 +2,20 @@
  * Where each screen lives. Every link in the app is made here, so the app
  * can be served from a folder of a site as well as from its root.
  *
- * A flight is named by a query parameter, not by a part of the path. The
- * app is static files with no server behind it: `/settings/account/flights/flight/`
- * is one page that any web server can serve, where a path for each flight
- * would need a server that answers for every identifier.
+ * Another pilot's flight, a pilot and a place are named by a part of the
+ * path (`/flights/<id>/`, `/pilots/<handle>/`, `/places/<lat>,<lon>/`).
+ * Those pages cannot be written out at build time: the build writes the
+ * fallback page `200.html`, which the web server answers every address with
+ * that is no file (`deploy/Caddyfile`), and the page is opened in the
+ * browser. The pilot's own flight is still `?id=`, under the account.
  */
 
 import { resolve } from '$app/paths';
 
-/** Today: the take-offs around a place, and what the forecast says of each. */
-export function todayHref(): string {
-	return resolve('/today');
-}
-
-/** The home page: what is going on, on Venti and in the air. */
+/**
+ * The home page: Today's take-offs around the pilot's place first, then what
+ * is going on, on Venti and in the air. `/today/` leads here.
+ */
 export function homeHref(): string {
 	return resolve('/');
 }
@@ -46,7 +46,7 @@ export function mapAroundIn(params: URLSearchParams): { lat: number; lon: number
 
 /**
  * The pilot's own flights, on the account (owner decision 20): reached
- * from the account and from everyone's flights. `/logbook/` leads here.
+ * from the account and from the "Mine" of Flights. `/logbook/` leads here.
  */
 export function myFlightsHref(): string {
 	return resolve('/settings/account/flights');
@@ -91,7 +91,7 @@ export function airspaceHref(): string {
 
 /** Everyone's public flights. `query` is what is asked of them, as `queryOf` writes it. */
 export function everyoneHref(query = ''): string {
-	return `${resolve('/logbook/everyone')}${query}`;
+	return `${resolve('/flights')}${query}`;
 }
 
 /**
@@ -101,14 +101,14 @@ export function everyoneHref(query = ''): string {
  * then of that month, which says its year itself.
  */
 export function rankingHref(season = '', month = ''): string {
-	const path = resolve('/logbook/ranking');
+	const path = resolve('/ranking');
 	if (month) return `${path}?month=${encodeURIComponent(month)}`;
 	return season ? `${path}?season=${encodeURIComponent(season)}` : path;
 }
 
 /** The public flights of one pilot, by handle. */
 export function pilotHref(handle: string): string {
-	return `${resolve('/logbook/everyone/pilot')}?handle=${encodeURIComponent(handle)}`;
+	return `${resolve('/pilots/[handle]', { handle: encodeURIComponent(handle) })}/`;
 }
 
 /**
@@ -119,15 +119,16 @@ export function pilotHref(handle: string): string {
  */
 export function placeHref(at: { lat: number; lon: number }, site = '', query = ''): string {
 	// Five decimals are a metre: the address stays short and the place where it is.
-	const params = new URLSearchParams({ lat: at.lat.toFixed(5), lon: at.lon.toFixed(5) });
+	const path = `${resolve('/places/[at]', { at: `${at.lat.toFixed(5)},${at.lon.toFixed(5)}` })}/`;
+	const params = new URLSearchParams(query.replace(/^\?/, ''));
 	if (site) params.set('site', site);
-	const more = query.replace(/^\?/, '');
-	return `${resolve('/logbook/everyone/place')}?${params}${more ? `&${more}` : ''}`;
+	const asked = params.toString();
+	return asked ? `${path}?${asked}` : path;
 }
 
 /** Another pilot's flight, by its address on the server. */
 export function publicFlightHref(id: string): string {
-	return `${resolve('/logbook/everyone/flight')}?id=${encodeURIComponent(id)}`;
+	return `${resolve('/flights/[id]', { id: encodeURIComponent(id) })}/`;
 }
 
 /**
@@ -216,3 +217,42 @@ export const SOURCE_CODE = 'https://github.com/dariobanfi/venti';
 
 /** The server's description of its API, at the root of the site's origin. */
 export const API_DESCRIPTION = '/v1/openapi.json';
+
+/**
+ * Where an address the website had before 2026-11-24 leads now, for the
+ * pages at the old addresses: links to them are out in the wild. The rest
+ * of the query goes along.
+ */
+export function movedTo(
+	old: 'everyone' | 'flight' | 'pilot' | 'place' | 'ranking',
+	url: URL
+): string {
+	const query = new URLSearchParams(url.search);
+	const take = (name: string) => {
+		const value = query.get(name) ?? '';
+		query.delete(name);
+		return value;
+	};
+	const rest = () => (query.size > 0 ? `?${query}` : '');
+	switch (old) {
+		case 'everyone':
+			return everyoneHref(rest());
+		case 'ranking':
+			return `${resolve('/ranking')}${rest()}`;
+		case 'flight': {
+			const id = take('id');
+			return id ? `${publicFlightHref(id)}${rest()}` : everyoneHref();
+		}
+		case 'pilot': {
+			const handle = take('handle');
+			return handle ? pilotHref(handle) : everyoneHref();
+		}
+		case 'place': {
+			const at = mapAroundIn(query);
+			take('lat');
+			take('lon');
+			const site = take('site');
+			return at ? placeHref(at, site, rest()) : everyoneHref();
+		}
+	}
+}

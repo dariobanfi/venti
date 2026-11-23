@@ -36,7 +36,7 @@ async function signUp(page: Page): Promise<void> {
 
 /** Opens the report form of another pilot's flight from the flight's menu. */
 async function reportTheFlight(page: Page): Promise<Locator> {
-	await page.goto(`/logbook/everyone/flight/?id=${FLIGHT}`);
+	await page.goto(`/flights/${FLIGHT}/`);
 	await page.getByRole('button', { name: 'More' }).click();
 	await page.getByRole('menuitem', { name: 'Report this flight' }).click();
 	const form = page.getByRole('dialog', { name: 'Report this flight' });
@@ -121,7 +121,7 @@ test('a report needs an account: signed out, the form says so and offers nothing
 
 test('a pilot’s page is reported from the pilot’s flights', async ({ page }) => {
 	await signUp(page);
-	await page.goto('/logbook/everyone/pilot/?handle=mara');
+	await page.goto('/pilots/mara/');
 	await expect(page.getByRole('heading', { level: 1, name: 'Mara Muster' })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Report this pilot' }).click();

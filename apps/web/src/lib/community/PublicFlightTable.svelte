@@ -115,7 +115,7 @@
 				{/if}
 				<td>
 					<a class="flight" href={publicFlightHref(flight.id)}
-						>{flightFormat(flight).day(flight.startUnixS)}</a
+						>{flightFormat(flight).date(flight.startUnixS)}</a
 					>
 				</td>
 				<td class="words lesser">

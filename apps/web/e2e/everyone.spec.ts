@@ -33,14 +33,16 @@ test('everyone’s flights are listed newest first or best, on any day or on the
 		'page'
 	);
 	await whose(page).getByRole('link', { name: 'Everyone' }).click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/$/);
+	await expect(page).toHaveURL(/\/flights\/$/);
 	await expect(page).toHaveTitle('Everyone’s flights · Venti');
 
 	// The newest first: who flew, when and with what, how far and how long.
 	await expect(rows(page)).toHaveCount(ALL);
 	const first = rows(page).first();
 	await expect(first.getByRole('link', { name: 'Jonas Beispiel' })).toBeVisible();
-	await expect(first).toContainText(/Sun, 6 Sept? 2026[\s\S]*Sample Wing/);
+	await expect(first).toContainText(/6 Sep 2026[\s\S]*Sample Wing/);
+	// A flight's date is day, month and year, with no weekday (the owner, 2026-11-23).
+	await expect(first).not.toContainText(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/);
 	await expect(first).toContainText('12.0 km');
 	await expect(first).toContainText('0:29 h');
 	// The oldest last.
@@ -74,16 +76,16 @@ test('everyone’s flights are listed newest first or best, on any day or on the
 	await expect(rows(page)).toHaveCount(4);
 	await expect(page).toHaveURL(/\?order=best&from=2026-08-15&to=2026-08-16$/);
 	await expect(rows(page).first()).toContainText('Mara Muster');
-	await expect(rows(page).first()).toContainText('Sun, 16 Aug 2026');
+	await expect(rows(page).first()).toContainText('16 Aug 2026');
 	// The span chosen stands beside "Filter" as a chip.
-	await expect(page.getByText('Sat, 15 Aug 2026 – Sun, 16 Aug 2026')).toBeVisible();
+	await expect(page.getByText('15 Aug 2026 – 16 Aug 2026')).toBeVisible();
 	await keep('62-everyone-best-days');
 
 	// The address holds the question: opened again, the list is the same.
 	await page.reload();
 	await expect(page.getByRole('radio', { name: 'Best' })).toBeChecked();
 	await expect(filter).toHaveAttribute('aria-expanded', 'false');
-	await expect(page.getByText('Sat, 15 Aug 2026 – Sun, 16 Aug 2026')).toBeVisible();
+	await expect(page.getByText('15 Aug 2026 – 16 Aug 2026')).toBeVisible();
 	await filter.click();
 	await expect(page.getByLabel('From')).toHaveValue('2026-08-15');
 	await expect(rows(page)).toHaveCount(4);
@@ -100,10 +102,13 @@ test('everyone’s flights are listed newest first or best, on any day or on the
 	await expect(rows(page)).toHaveCount(ALL);
 
 	// The pilot's own side is one click away, by the switch at the head of
-	// the list, and comes back to the same list.
-	if (wide) {
-		await expect(page.getByRole('heading', { level: 1 })).toHaveText('Everyone’s flights');
-	}
+	// the page, and comes back to the same list. The switch is Mine and
+	// Everyone alone: the ranking is a section of the bar.
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Flights');
+	await expect(whose(page).getByRole('link')).toHaveText(['Mine', 'Everyone']);
+	await page.evaluate(() => window.scrollTo(0, 0));
+	await expect(whose(page)).toBeInViewport();
+	await keep('61a-flights-mine-or-everyone');
 	await whose(page).getByRole('link', { name: 'Mine' }).click();
 	await expect(page.getByRole('heading', { name: 'Sign in to see your flights' })).toBeVisible();
 	await whose(page).getByRole('link', { name: 'Everyone' }).click();
@@ -119,7 +124,7 @@ test('a long list is read a page at a time', async ({ context, page }) => {
 		address.searchParams.set('limit', '2');
 		return route.continue({ url: address.href });
 	});
-	await page.goto('/logbook/everyone/');
+	await page.goto('/flights/');
 
 	const more = page.getByRole('button', { name: 'More flights' });
 	await expect(rows(page)).toHaveCount(2);
@@ -133,9 +138,9 @@ test('a long list is read a page at a time', async ({ context, page }) => {
 });
 
 test('a pilot’s name leads to that pilot’s flights', async ({ page, keep, wide }) => {
-	await page.goto('/logbook/everyone/');
+	await page.goto('/flights/');
 	await rows(page).first().getByRole('link', { name: 'Jonas Beispiel' }).click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/pilot\/\?handle=jonas$/);
+	await expect(page).toHaveURL(/\/pilots\/jonas\/$/);
 
 	await expect(page.getByRole('heading', { level: 1, name: 'Jonas Beispiel' })).toBeVisible();
 	await expect(page.getByText('@jonas', { exact: true })).toBeVisible();
@@ -143,7 +148,7 @@ test('a pilot’s name leads to that pilot’s flights', async ({ page, keep, wi
 	await expect(own).toHaveCount(2);
 	// The rows of one pilot's flights begin with the day.
 	await expect(own.first().getByRole('link').first()).toHaveText(
-		wide ? /^Sun, 6 Sept? 2026$/ : /Sun, 6 Sept? 2026\s*Sample Wing/
+		wide ? /^6 Sep 2026$/ : /6 Sep 2026\s*Sample Wing/
 	);
 	await expect(own.first()).toContainText('Sample Wing');
 	await expect(own.last()).toContainText('9.0 km');
@@ -155,7 +160,7 @@ test('a pilot’s name leads to that pilot’s flights', async ({ page, keep, wi
 });
 
 test('a handle the server knows no pilot by says so in the core’s words', async ({ page }) => {
-	await page.goto('/logbook/everyone/pilot/?handle=nobody');
+	await page.goto('/pilots/nobody/');
 
 	await expect(
 		page.getByRole('heading', { name: 'The flights could not be listed' })
@@ -172,19 +177,19 @@ test('another pilot’s flight opens like one’s own, from its file, and is kep
 	wide,
 	problems
 }) => {
-	await page.goto('/logbook/everyone/');
+	await page.goto('/flights/');
 	// The whole row opens the flight.
 	await rows(page)
 		.first()
-		.getByRole('link', { name: /Sun, 6 Sept? 2026/ })
+		.getByRole('link', { name: /6 Sep 2026/ })
 		.click();
-	await expect(page).toHaveURL(new RegExp(`/logbook/everyone/flight/\\?id=${NEWEST}$`));
+	await expect(page).toHaveURL(new RegExp(`/flights/${NEWEST}/$`));
 
 	// The flight screen of the logbook, with the pilot's name over the day.
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText(/Sun, 6 Sept? 2026/);
-	await expect(page).toHaveTitle(/^Jonas Beispiel · Sun, 6 Sept? 2026 · Venti$/);
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText(/6 Sep 2026/);
+	await expect(page).toHaveTitle(/^Jonas Beispiel · 6 Sep 2026 · Venti$/);
 	const pilot = page.getByRole('link', { name: 'Jonas Beispiel' });
-	await expect(pilot).toHaveAttribute('href', /\/logbook\/everyone\/pilot\/?\?handle=jonas$/);
+	await expect(pilot).toHaveAttribute('href', /\/pilots\/jonas\/$/);
 	await expect(metric(panel(page).totals, 'Airtime')).toHaveText(/^0:29\sh$/);
 	await expect(metric(panel(page).totals, 'Highest')).toHaveText(/^2117\sm$/);
 	await mapDrawn();
@@ -224,7 +229,7 @@ test('what another pilot wrote is shown as text, never as markup', async ({ cont
 		}
 		await route.fulfill({ response, json: answer });
 	});
-	await page.goto('/logbook/everyone/');
+	await page.goto('/flights/');
 
 	await expect(rows(page)).toHaveCount(ALL);
 	// The letters are on the page as letters.
@@ -255,7 +260,7 @@ test('a take-off’s country and its pilot’s are flags, and a glider’s class
 		}
 		await route.fulfill({ response, json: answer });
 	});
-	await page.goto('/logbook/everyone/');
+	await page.goto('/flights/');
 
 	const first = rows(page).first();
 	await expect(first).toContainText('Jonas Beispiel');
@@ -266,7 +271,7 @@ test('a take-off’s country and its pilot’s are flags, and a glider’s class
 });
 
 test('a flight its pilot took back says so, in the core’s words', async ({ page, keep }) => {
-	await page.goto('/logbook/everyone/flight/?id=00000000000000000000000000');
+	await page.goto('/flights/00000000000000000000000000/');
 
 	await expect(
 		page.getByRole('heading', { name: 'This flight could not be opened' })
@@ -290,6 +295,35 @@ test('a site without a server has no second side to the pilot’s flights', asyn
 	await expect(whose(page)).toBeHidden();
 
 	// Whoever has the address is told why there is nothing.
-	await page.goto('/logbook/everyone/');
+	await page.goto('/flights/');
 	await expect(page.getByRole('heading', { name: 'Not connected to Venti' })).toBeVisible();
+});
+
+test('the old addresses of the flights, a pilot, a place and the ranking lead to the new ones', async ({
+	page,
+	keep
+}) => {
+	// Links of before 2026-11-24 are out in the wild: each leads on, its query along.
+	await page.goto('/logbook/everyone/?order=best');
+	await expect(page).toHaveURL(/\/\/[^/]+\/flights\/\?order=best$/);
+	await page.goto(`/logbook/everyone/flight/?id=${NEWEST}`);
+	await expect(page).toHaveURL(new RegExp(`//[^/]+/flights/${NEWEST}/$`));
+	await expect(page).toHaveTitle(/^Jonas Beispiel · /);
+	await page.goto('/logbook/everyone/pilot/?handle=jonas');
+	await expect(page).toHaveURL(/\/\/[^/]+\/pilots\/jonas\/$/);
+	await expect(page.getByRole('heading', { level: 1, name: 'Jonas Beispiel' })).toBeVisible();
+	await page.goto(
+		'/logbook/everyone/place/?lat=47.66522&lon=11.79542&site=osm-free-flying%3Anode%2F5964676196&order=best'
+	);
+	await expect(page).toHaveURL(
+		/\/\/[^/]+\/places\/47\.66522,11\.79542\/\?order=best&site=osm-free-flying%3Anode%2F5964676196$/
+	);
+	await page.goto('/logbook/ranking/?season=2025');
+	await expect(page).toHaveURL(/\/\/[^/]+\/ranking\/\?season=2025$/);
+
+	// A flight's own address opens it, also loaded straight from the web server.
+	await page.goto(`/flights/${NEWEST}/`);
+	await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+	await expect(page).toHaveTitle(/^Jonas Beispiel · /);
+	await keep('65a-flight-at-its-address');
 });

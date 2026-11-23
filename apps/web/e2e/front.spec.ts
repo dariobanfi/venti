@@ -16,7 +16,7 @@ test('everyone’s flights begin with the best of the day and the top of the yea
 }) => {
 	// A day on which two pilots flew.
 	await page.clock.setFixedTime(new Date('2026-08-16T15:00:00'));
-	await page.goto('/logbook/everyone/');
+	await page.goto('/flights/');
 
 	const best = page.getByRole('list', { name: 'Best of today' }).getByRole('listitem');
 	await expect(best).toHaveCount(2);
@@ -37,6 +37,6 @@ test('everyone’s flights begin with the best of the day and the top of the yea
 	await expect(page.getByRole('list', { name: 'Best of today' })).toHaveCount(0);
 	await page.getByRole('radio', { name: 'Newest' }).check();
 	await page.getByRole('link', { name: 'The whole ranking' }).click();
-	await expect(page).toHaveURL(/\/logbook\/ranking\/$/);
+	await expect(page).toHaveURL(/\/ranking\/$/);
 	expect(problems).toEqual([]);
 });

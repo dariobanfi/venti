@@ -165,12 +165,10 @@ test('“Where thermals have been” marks the cells public flights climbed in, 
 	await page.waitForTimeout(800);
 	await keep('264-map-flown-thermals');
 
-	// What the layer is under its row, and its terms behind the core's link.
+	// What the layer is under its row; the flights' terms are not shown (the owner, 2026-11-23).
 	await openLayers(page);
 	await expect(sheet).toContainText(/Where pilots climbed, from the public flights on Venti/);
-	await expect(sheet.getByText(/^These flights are their pilots'/)).toBeHidden();
-	await sheet.getByText('Terms for these flights').click();
-	await expect(sheet.getByText(/^These flights are their pilots'/)).toBeVisible();
+	await expect(sheet.getByText('Terms for these flights')).toHaveCount(0);
 	await keep('265-map-layers-flown');
 	await closeLayers(page);
 

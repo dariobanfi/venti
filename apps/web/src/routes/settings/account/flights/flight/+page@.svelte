@@ -130,7 +130,7 @@
 					flight: compared.other,
 					name:
 						compared.pilot ??
-						`Your flight of ${flightFormat(compared.other).day(compared.other.startUnixS)}`,
+						`Your flight of ${flightFormat(compared.other).date(compared.other.startUnixS)}`,
 					comparison: compared.comparison
 				};
 			},
@@ -207,7 +207,7 @@
 
 	const title = $derived(
 		phase.is === 'loaded'
-			? `${flightFormat(phase.opened.flight).day(phase.opened.flight.startUnixS)} · Venti`
+			? `${flightFormat(phase.opened.flight).date(phase.opened.flight.startUnixS)} · Venti`
 			: 'Flight · Venti'
 	);
 </script>

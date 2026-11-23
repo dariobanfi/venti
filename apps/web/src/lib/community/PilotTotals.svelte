@@ -4,7 +4,8 @@
 	with its own note): the choice of all years or one, the numbers as
 	labelled rows (a row about one flight opens that flight), the take-offs
 	flown from most, the twelve months as the bars a site's flights have,
-	and under them what the numbers are made of and the flights' terms.
+	and under them what the numbers are made of. The flights' terms are not
+	shown (the owner, 2026-11-23: "remove this").
 
 	Every word and number is the core's; nothing is added up here. A
 	take-off opens its place's page where one of the flights listed took
@@ -15,7 +16,7 @@
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import type { PilotStatistics, PilotTotalsView } from '#lib/core/index.ts';
 	import MonthBars from '#lib/design/MonthBars.svelte';
-	import Segmented from '#lib/design/Segmented.svelte';
+	import YearChips from '#lib/design/YearChips.svelte';
 
 	interface Props {
 		statistics: PilotStatistics;
@@ -41,34 +42,21 @@
 	let chosen = $state('');
 	const view = $derived(views.find((one) => one.name === chosen) ?? statistics.overall);
 
-	/** How many choices a row of segments has room for in a side column. */
-	const SEGMENTS = 4;
-
 	function choose(name: string) {
 		chosen = name;
 		const season = views.find((one) => one.name === name);
 		if (season) onseason?.(season);
 	}
-
-	const id = $props.id();
 </script>
 
 <section class="totals" class:whole aria-label="Totals">
 	{#if names.length > 1}
-		{#if names.length <= SEGMENTS}
-			<Segmented
-				label={said?.seasonChoice ?? ''}
-				options={names}
-				bind:value={() => view.name, choose}
-			/>
-		{:else}
-			<label class="visually-hidden" for="{id}-season">{said?.seasonChoice ?? ''}</label>
-			<select id="{id}-season" bind:value={() => view.name, choose}>
-				{#each names as name (name)}
-					<option value={name}>{name}</option>
-				{/each}
-			</select>
-		{/if}
+		<YearChips
+			label={said?.seasonChoice ?? ''}
+			options={names}
+			value={view.name}
+			onchoose={choose}
+		/>
 	{/if}
 
 	<dl class="card" aria-label={view.words}>
@@ -106,15 +94,6 @@
 
 	{#if statistics.note}
 		<p class="footnote">{statistics.note}</p>
-	{/if}
-	<!-- Under what the flights are given: behind the core's title for it. -->
-	{#if statistics.terms.text && statistics.terms.title}
-		<details class="footnote terms">
-			<summary>{statistics.terms.title}</summary>
-			<p>{statistics.terms.text}</p>
-		</details>
-	{:else if statistics.terms.text}
-		<p class="footnote">{statistics.terms.text}</p>
 	{/if}
 </section>
 
@@ -179,30 +158,11 @@
 		padding: var(--space-3) var(--space-4);
 	}
 
-	select {
-		min-height: var(--target);
-		padding: 0 var(--space-3);
-		border: 0;
-		border-radius: var(--radius-control);
-		background: var(--fill);
-		color: var(--text);
-		font: inherit;
-	}
-
 	.footnote {
 		padding: 0 var(--space-4);
 		font-size: var(--footnote);
 		color: var(--text-secondary);
 		overflow-wrap: anywhere;
-	}
-
-	.terms summary {
-		color: var(--link);
-		cursor: pointer;
-	}
-
-	.terms p {
-		margin-top: var(--space-1);
 	}
 
 	@media (min-width: 56rem) {

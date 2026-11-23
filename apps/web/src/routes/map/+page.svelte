@@ -1291,11 +1291,7 @@
 						icon: 'thermal',
 						on: flownChosen,
 						onchange: setFlown,
-						notes: [layerWords.flownThermalsNote, flownSaid, flown.answer?.thermals?.note ?? ''],
-						terms: flown.answer?.thermals && {
-							title: flown.answer.thermals.termsTitle ?? '',
-							text: flown.answer.thermals.terms
-						}
+						notes: [layerWords.flownThermalsNote, flownSaid, flown.answer?.thermals?.note ?? '']
 					}
 				]
 			: [])
@@ -1729,7 +1725,6 @@
 					<CandidateView
 						{candidate}
 						offer={adding?.mayAdd ? offerFor(takeoffs.offers, candidate) : undefined}
-						terms={takeoffs.answer?.terms.text}
 						onadd={addOffered}
 						ondismiss={(offer) => void dismissOffered(offer)}
 					/>

@@ -120,7 +120,7 @@
 		header @scripts Content-Security-Policy "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://tiles.openfreemap.org https://tiles.mapterhorn.com; frame-ancestors 'none'; base-uri 'none'"
 		header X-Frame-Options "DENY"
 		encode zstd gzip
-		try_files {path} {path}/index.html /index.html
+		try_files {path} {path}/index.html /200.html
 		file_server
 	}
 }

@@ -9,6 +9,13 @@
 export interface Format {
 	/** "Sat, 4 Jul 2026" */
 	day(unixSeconds: number): string;
+	/**
+	 * A flight's date: "26 Sep 2026", the day, the month as a short English
+	 * word and the year, in that order in every region and with no weekday
+	 * (the owner, 2026-11-23: "just a day, month, year format"), so that
+	 * 9/10 is never read both ways.
+	 */
+	date(unixSeconds: number): string;
 	/** "Sat, 4 Jul", for lists already grouped by year. */
 	dayInYear(unixSeconds: number): string;
 	/** The time of day as the reader's region writes it: "10:30", "00:05", "9:30 AM". */
@@ -114,6 +121,14 @@ export function createFormat(locale: string, timeZone?: string): Format {
 		});
 
 	const day = date({ weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+	// American English for the parts alone: it writes "Sep", where British
+	// English now writes "Sept". The order is put together below.
+	const dayMonthYear = new Intl.DateTimeFormat('en-US', {
+		timeZone,
+		day: 'numeric',
+		month: 'short',
+		year: 'numeric'
+	});
 	// The region's own short time of day, which is what the iPhone asks its
 	// system for: "00:05" and "09:30" on a 24-hour clock, "12:05 AM" and
 	// "9:30 AM" on a 12-hour one. Asking for the hour as a number and the
@@ -166,6 +181,12 @@ export function createFormat(locale: string, timeZone?: string): Format {
 
 	return {
 		day: (unixSeconds) => day.format(at(unixSeconds)),
+		date: (unixSeconds) => {
+			const parts = Object.fromEntries(
+				dayMonthYear.formatToParts(at(unixSeconds)).map((part) => [part.type, part.value])
+			);
+			return `${parts.day} ${parts.month} ${parts.year}`;
+		},
 		dayInYear: (unixSeconds) => withoutYear(day.formatToParts(at(unixSeconds))),
 		time: (unixSeconds) => time.format(at(unixSeconds)),
 		hoursMinutes: (seconds) => {

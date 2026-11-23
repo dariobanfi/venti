@@ -134,7 +134,10 @@ export default defineConfig({
 		sveltekit({
 			// Static files only: every page is written out at build time and any
 			// web server can serve the result. No Node process runs in production.
-			adapter: adapter({ precompress: true }),
+			// The pages of one flight, pilot or place cannot be written out: the
+			// web server answers an address that is no file with `200.html`,
+			// which opens the page in the browser (`deploy/Caddyfile`).
+			adapter: adapter({ precompress: true, fallback: '200.html' }),
 			paths: { base },
 			// What a page may load, run and talk to. Every page is written out
 			// at build time, so the policy travels in the page itself, as a

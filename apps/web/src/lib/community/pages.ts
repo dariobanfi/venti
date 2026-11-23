@@ -208,14 +208,20 @@ export function queryOf(asked: Asked): string {
 }
 
 /** What a place's page asks for besides the place, read from its address. */
-export function placeAskedIn(query: Pick<URLSearchParams, 'get'>): {
+export function placeAskedIn(
+	place: string,
+	query: Pick<URLSearchParams, 'get'>
+): {
 	at: { lat: number; lon: number } | undefined;
 	site: string;
 	order: PublicFlightsOrder;
 	season: string;
 } {
-	const lat = Number(query.get('lat') ?? Number.NaN);
-	const lon = Number(query.get('lon') ?? Number.NaN);
+	// The place is the address's part `47.66522,11.79542`.
+	const [lat, lon, ...more] = place
+		.split(',')
+		.map((part) => (part.trim() ? Number(part) : Number.NaN));
+	if (more.length > 0) return placeAskedIn('', query);
 	const real = Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 89;
 	return {
 		at: real && Math.abs(lon) <= 180 ? { lat, lon } : undefined,

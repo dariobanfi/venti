@@ -255,8 +255,8 @@ describe('a row of the list', () => {
 	const text = createFormat('en-GB', 'Europe/Berlin');
 
 	it('says when the flight was and with what', () => {
-		expect(detail(flight(), text)).toBe('Sat, 15 Aug 2026 · Sample Wing');
-		expect(detail(flight({ glider: undefined }), text)).toBe('Sat, 15 Aug 2026');
+		expect(detail(flight(), text)).toBe('15 Aug 2026 · Sample Wing');
+		expect(detail(flight({ glider: undefined }), text)).toBe('15 Aug 2026');
 	});
 
 	it('has the scored distance, or the track’s length for a flight too short to score', () => {

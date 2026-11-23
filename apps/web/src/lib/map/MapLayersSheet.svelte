@@ -21,7 +21,6 @@
 		/** Lines under the row while the layer is on: what it is, why nothing shows. */
 		notes?: readonly string[];
 		/** What its data is given under, behind a link of the core's title, while the layer is on. */
-		terms?: { title: string; text: string };
 	}
 
 	/** A tool of the map: a row that opens something, or leads somewhere. */
@@ -69,12 +68,6 @@
 				<p class="notes" id="{id}-{layer.key}">
 					{#each notes as note (note)}<span>{note}</span>{/each}
 				</p>
-			{/if}
-			{#if layer.on && layer.terms?.text}
-				<details class="notes terms">
-					<summary>{layer.terms.title}</summary>
-					<p>{layer.terms.text}</p>
-				</details>
 			{/if}
 		</div>
 	{/each}
@@ -133,20 +126,6 @@
 		padding: 0 var(--space-4) var(--space-3);
 		color: var(--text-secondary);
 		font-size: var(--footnote);
-	}
-
-	.terms {
-		display: block;
-	}
-
-	.terms summary {
-		width: fit-content;
-		color: var(--link);
-		cursor: pointer;
-	}
-
-	.terms p {
-		margin: var(--space-1) 0 0;
 	}
 
 	/* Compact on a wide screen, as the rest of the map's side. */

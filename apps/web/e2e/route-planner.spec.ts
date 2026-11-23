@@ -132,9 +132,7 @@ test('a site’s page plans a route from the site, on the map around it', async 
 }) => {
 	// The first of the Wallberg's two ramps.
 	const ramp = 'osm-free-flying:node/5964676196';
-	await page.goto(
-		`/logbook/everyone/place/?lat=47.66522&lon=11.79542&site=${encodeURIComponent(ramp)}`
-	);
+	await page.goto(`/places/47.66522,11.79542/?site=${encodeURIComponent(ramp)}`);
 	await page
 		.getByRole('region', { name: 'The site' })
 		.getByRole('button', { name: 'Plan route' })

@@ -162,7 +162,7 @@ sha256sum basemap.pmtiles                                                      #
 ## The web app behind Caddy
 
 - The headers Caddy sends, and why, are in [apps/web/AGENTS.md](../apps/web/AGENTS.md#the-content-security-policy). The pages of shared flights have a policy of their own from the server, which allows no script at all.
-- Each page of the web app is a file of its own (`/logbook/` is `logbook/index.html`), and Caddy answers an address with its page. An address that is no page gets the map's page.
+- Each page of the web app is a file of its own (`/logbook/` is `logbook/index.html`), and Caddy answers an address with its page. An address that is no page gets the map's page. Since 2026-11-23 an address that is no file is answered with `200.html`, the app's fallback (`try_files {path} {path}/index.html /200.html`), so that the pages written per flight, pilot and place (`/flights/<id>/`, `/pilots/<handle>/`, `/places/<lat>,<lon>/`) load straight from the server.
 - Tried on 2026-11-19 with the web app as built that day, served by this `Caddyfile` in Caddy 2.10 and opened in Chromium: the map, the logbook and the settings drew, both workers started, the core answered and the map fetched its tiles, and the browser refused nothing. Safari and Firefox were not tried.
 - On an update the API is away for a few seconds; a collection run that was under way is dropped and repeated, and a map region's download breaks off and is taken up again by the app.
 

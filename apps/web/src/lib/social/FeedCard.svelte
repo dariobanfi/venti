@@ -38,10 +38,10 @@
 	<!-- The flight's link is stretched over the whole card. -->
 	<a class="open where" href={publicFlightHref(flight.id)}>
 		<span class="sign"><Icon name="takeoff" /></span>
-		<span class="name">{where ?? text.day(flight.startUnixS)}</span>
+		<span class="name">{where ?? text.date(flight.startUnixS)}</span>
 		<Flag code={flight.takeoffCountry} />
 	</a>
-	<span class="day">{text.day(flight.startUnixS)}</span>
+	<span class="day">{text.date(flight.startUnixS)}</span>
 	<span class="numbers">
 		<span class="number numeric">
 			<span class="visually-hidden">Airtime</span>

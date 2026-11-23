@@ -9,7 +9,7 @@
 	colour: a count, never good or bad), the short names under them and
 	the core's words for each to a screen reader; the season's sentence;
 	the best flights as rows, each opening the flight as a public flight
-	opens; and the terms' text at the foot in the caption style. Every
+	opens. The flights' terms are not shown (the owner, 2026-11-23). Every
 	word is the core's (`crates/core/src/takeoffs.rs`).
 
 	Nothing at all for a site that is not a take-off. While the answer is
@@ -60,10 +60,6 @@
 		};
 	});
 
-	/** Whether the terms for reusing the flights are unfolded. */
-	let termsOpen = $state(false);
-	const uid = $props.id();
-
 	/** The answer for this site, once it is read; nothing while another site's is held. */
 	const shown = $derived(flights?.siteId === id ? flights : undefined);
 </script>
@@ -97,22 +93,6 @@
 					{/each}
 				</ul>
 			{/if}
-			{#if shown.terms.text && shown.terms.title && shown.flights > 0}
-				<!-- The terms for reusing these flights: one short link, titled
-				     by the core, that opens its words; only where there are flights. -->
-				<button
-					class="terms"
-					type="button"
-					aria-expanded={termsOpen}
-					aria-controls="{uid}-terms"
-					onclick={() => (termsOpen = !termsOpen)}
-				>
-					{shown.terms.title}
-				</button>
-				{#if termsOpen}
-					<p class="footnote" id="{uid}-terms">{shown.terms.text}</p>
-				{/if}
-			{/if}
 		{:else if problem}
 			<div class="card">
 				<p class="row said" role="alert">{problem}</p>
@@ -138,16 +118,6 @@
 		font-size: var(--subheadline);
 		font-weight: 600;
 		color: var(--text-secondary);
-	}
-
-	/* The terms' link: a line of the footnote's size in the link colour. */
-	.terms {
-		align-self: flex-start;
-		min-height: var(--target);
-		padding: 0 var(--space-4);
-		color: var(--link);
-		font-size: var(--footnote);
-		text-align: left;
 	}
 
 	.card {

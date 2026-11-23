@@ -96,7 +96,7 @@ test('flights are brought in with the file picker, several at once, and listed b
 	// The three flights, a day each, the newest first: the take-off's time,
 	// the glider of the file, the airtime large and the distance.
 	const days = page.getByRole('main').locator('section.day h2');
-	await expect(days).toHaveText([/^Sun, 5 Jul 2026/, /^Fri, 3 Jul 2026/, /^Thu, 2 Jul 2026/]);
+	await expect(days).toHaveText([/^5 Jul 2026/, /^3 Jul 2026/, /^2 Jul 2026/]);
 	await expect(flightRows(page)).toHaveCount(3);
 	const first = flightRows(page).first();
 	await expect(first).toContainText('Sample Wing');
@@ -121,7 +121,7 @@ test('flights are brought in with the file picker, several at once, and listed b
 
 	// A row opens its flight.
 	await first.getByRole('link').click();
-	await expect(page.getByRole('heading', { name: 'Sun, 5 Jul 2026' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: '5 Jul 2026' })).toBeVisible();
 
 	expect(problems).toEqual([]);
 });
@@ -172,7 +172,7 @@ test('flights are brought in by dropping files on the page, and found from Fligh
 
 	// A single new flight opens straight away, as it does from the picker.
 	await dropFiles(page, [mixed[3]]);
-	await expect(page.getByRole('heading', { name: 'Sun, 5 Jul 2026' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: '5 Jul 2026' })).toBeVisible();
 
 	// Only a file that is not a flight: nothing is added, and the page says why.
 	await dropFiles(page, [mixed[2]]);
@@ -244,7 +244,7 @@ test('how you fly is said from the flights on the account, each observation with
 		.setInputFiles(
 			[1, 2, 3, 5, 6].map((day) => asUpload(`2026-07-0${day}.igc`, sampleFlightOn(day)))
 		);
-	await expect(page.getByRole('heading', { name: 'Mon, 6 Jul 2026' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: '6 Jul 2026' })).toBeVisible();
 	// The logbook's old address leads here.
 	await page.goto('/logbook/statistics/how-you-fly/');
 	await expect(page).toHaveURL(/\/settings\/account\/flights\/statistics\/how-you-fly\/$/);
@@ -259,7 +259,7 @@ test('how you fly is said from the flights on the account, each observation with
 
 	// The flight that shows it most opens that flight among the pilot's own.
 	const flight = climbing.getByRole('link', { name: /The flight that shows it most/ });
-	await expect(flight).toContainText(/\w{3}, \d+ Jul 2026/);
+	await expect(flight).toContainText(/\b\d+ Jul 2026/);
 	await flight.click();
 	await expect(page).toHaveURL(/\/settings\/account\/flights\/flight\/\?id=/);
 	expect(problems).toEqual([]);
@@ -279,11 +279,11 @@ test.describe('in a browser in California', () => {
 		await page
 			.locator('input[type=file]')
 			.setInputFiles(asUpload('sample.igc', readFileSync(SAMPLE_FLIGHT, 'utf8')));
-		await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: '4 Jul 2026' })).toBeVisible();
 		await expect(page.getByText('12:30 – 12:59 · Sample Wing')).toBeVisible();
 
 		await page.goto('/settings/account/flights/');
-		await expect(page.getByRole('main').locator('section.day h2')).toHaveText([/^Sat, 4 Jul 2026/]);
+		await expect(page.getByRole('main').locator('section.day h2')).toHaveText([/^4 Jul 2026/]);
 		await expect(flightRows(page).first().locator('.time')).toHaveText(/\b12:30$/);
 		expect(problems).toEqual([]);
 	});

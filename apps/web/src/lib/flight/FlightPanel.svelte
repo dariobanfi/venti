@@ -57,7 +57,7 @@
 
 	/** What kind of flight it was, by its score, and the day: "FAI triangle, Sat, 4 Jul 2026". */
 	const kindAndDay = $derived.by(() => {
-		const day = text.day(flight.startUnixS);
+		const day = text.date(flight.startUnixS);
 		if (!score) return day;
 		const kind = {
 			freeFlight: 'Free flight',

@@ -68,7 +68,7 @@
 	}
 
 	const summary = $derived([
-		['Date', text.day(flight.startUnixS)],
+		['Date', text.date(flight.startUnixS)],
 		[
 			'Take-off',
 			takeoffName

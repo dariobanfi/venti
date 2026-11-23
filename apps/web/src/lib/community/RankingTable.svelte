@@ -78,7 +78,7 @@
 								{flight.score ? text.points(flight.score.points) : '–'}
 							</a>
 							<span class="lesser small">
-								{flightFormat(flight).day(flight.startUnixS)} ·
+								{flightFormat(flight).date(flight.startUnixS)} ·
 								{#if triangle}
 									<span class="shape" role="img" aria-label={triangle}>
 										<Icon name="triangle" />

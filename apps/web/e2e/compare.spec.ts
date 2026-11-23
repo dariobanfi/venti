@@ -10,7 +10,7 @@ import { addSampleFlight, expect, flightDetails, rowsOf, test } from './helpers'
 
 /** Opens Mara Muster's flight of 16 August 2026, from that day's list. */
 async function openMarasFlight(page: Page) {
-	await page.goto('/logbook/everyone/?order=best&from=2026-08-16&to=2026-08-16');
+	await page.goto('/flights/?order=best&from=2026-08-16&to=2026-08-16');
 	await rowsOf(page, 'Everyone’s flights')
 		.filter({ hasText: 'Mara Muster' })
 		.getByRole('link')
@@ -18,7 +18,7 @@ async function openMarasFlight(page: Page) {
 		.filter({ hasNotText: '°' })
 		.last()
 		.click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/flight\/\?id=/);
+	await expect(page).toHaveURL(/\/\/[^/]+\/flights\/[0-9a-z]{26}\//);
 	await expect(page.getByRole('slider', { name: 'Altitude over time' })).toBeVisible();
 }
 
@@ -83,10 +83,10 @@ test('the pilot’s own flight is laid beside another pilot’s', async ({ page 
 	await page.getByRole('menuitem', { name: 'Lay another flight beside it' }).click();
 
 	const chooser = page.getByRole('dialog', { name: 'Lay a flight beside it' });
-	await chooser.getByRole('button', { name: /Sat, 4 Jul 2026/ }).click();
+	await chooser.getByRole('button', { name: /4 Jul 2026/ }).click();
 	await expect(page).toHaveURL(/beside=own%3A/);
 	const line = page
-		.getByRole('button', { name: /Your flight of Sat, 4 Jul 2026/ })
+		.getByRole('button', { name: /Your flight of 4 Jul 2026/ })
 		.filter({ hasText: 'Side by side' });
 	await expect(line).toContainText('apart. Each is laid out from its first moment.');
 });

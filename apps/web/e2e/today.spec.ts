@@ -18,11 +18,19 @@ test('today says what the forecast says of the take-offs around', async ({
 	wide,
 	problems
 }) => {
-	await page.goto('/today/');
-	await expect(page).toHaveTitle('Today · Venti');
-	await expect(
-		page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Today' })
-	).toHaveAttribute('aria-current', 'page');
+	await page.goto('/');
+	// Today is the home page's first part (the owner, 2026-11-23), and the
+	// bar has no section of its own for it.
+	await expect(page).toHaveTitle('Venti');
+	const sections = page.getByRole('navigation', { name: 'Sections' });
+	await expect(sections.getByRole('link', { name: 'Home', exact: true })).toHaveAttribute(
+		'aria-current',
+		'page'
+	);
+	await expect(sections.getByRole('link', { name: 'Today' })).toHaveCount(0);
+	const today = page.getByRole('region', { name: 'Today', exact: true });
+	const standsFor = page.getByRole('region', { name: 'What Venti stands for' });
+	expect((await today.boundingBox())!.y).toBeLessThan((await standsFor.boundingBox())!.y);
 
 	// The take-offs are listed at once, and each forecast fills in.
 	// A wide screen has every take-off in a table; a phone, the others under the best.
@@ -37,7 +45,7 @@ test('today says what the forecast says of the take-offs around', async ({
 	await expect(page.getByText('Gusts', { exact: true })).toBeVisible();
 	await expect(page.getByRole('list', { name: 'Hour by hour' })).toBeVisible();
 	// Never a word that sounds like permission.
-	await expect(page.getByText(/\bsafe\b/i)).toHaveCount(0);
+	await expect(today.getByText(/\bsafe\b/i)).toHaveCount(0);
 	await expect(page.getByText(/They\s+are not\s+advice to fly/)).toBeVisible();
 	// The model's run is one click away, behind "About this forecast".
 	await expect(page.getByText(/run of/)).toBeHidden();
@@ -62,15 +70,22 @@ test('today says what the forecast says of the take-offs around', async ({
 	} else {
 		await others.first().getByRole('link').click();
 	}
-	await expect(page).toHaveURL(/\/logbook\/everyone\/place\/\?lat=/);
+	await expect(page).toHaveURL(/\/places\/[-0-9.]+,[-0-9.]+\//);
 	expect(problems).toEqual([]);
 });
 
 test('today goes by the pilot’s position once asked to', async ({ context, page, keep }) => {
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(JAEGERKAMP);
-	await page.goto('/today/');
-	await expect(page.getByText(/around the Tegernsee$/)).toBeVisible();
+	await page.goto('/');
+	// A position the browser was allowed to give before is used without asking.
+	await expect(page.getByText(/near you$/)).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Use my position' })).toHaveCount(0);
+	await context.clearPermissions();
+	await page.reload();
+	// Else the place is the region's middle, or the position of the visit before.
+	await expect(page.getByText(/(around the Tegernsee|near your last position)$/)).toBeVisible();
+	await context.grantPermissions(['geolocation']);
 	await page.getByRole('button', { name: 'Use my position' }).click();
 	await expect(page.getByText(/near you$/)).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Use my position' })).toHaveCount(0);
@@ -90,13 +105,16 @@ test('today says when Venti cannot be reached, and asks again', async ({
 	await context.route('**/v1/sites**', (route) =>
 		down ? route.fulfill({ status: 503, body: '' }) : route.continue()
 	);
-	await page.goto('/today/');
+	await page.goto('/');
 	await expect(
 		page.getByRole('heading', { name: 'Today’s forecast could not be fetched' })
 	).toBeVisible();
 	await keep('98-today-unreachable');
 	down = false;
-	await page.getByRole('button', { name: 'Try again' }).click();
+	await page
+		.getByRole('region', { name: 'Today', exact: true })
+		.getByRole('button', { name: 'Try again' })
+		.click();
 	await expect(
 		wide
 			? page.getByRole('table', { name: 'Take-offs' })
@@ -113,7 +131,7 @@ test('a strong day puts the take-offs in the order of their thermals, with the c
 }) => {
 	// MADE UP: no model forecast this. See `made-up-summer.ts`.
 	await context.route('**/v1/forecast**', madeUpSummer);
-	await page.goto('/today/');
+	await page.goto('/');
 
 	// The head names the best take-off's kind of day under its line.
 	await expect(page.getByText(/^Big day$/).first()).toBeVisible({ timeout: 30_000 });
@@ -166,7 +184,7 @@ test('a take-off the pilot keeps leads Today under its heading, and is forgotten
 		});
 
 	// With none kept, Today has one group and names none.
-	await page.goto('/today/');
+	await page.goto('/');
 	await forecasts();
 	await expect(page.getByText('Your take-offs')).toHaveCount(0);
 	await expect(page.getByText('Within 30 km')).toHaveCount(0);
@@ -181,7 +199,7 @@ test('a take-off the pilot keeps leads Today under its heading, and is forgotten
 			.first()
 			.click();
 	}
-	await expect(page).toHaveURL(/\/logbook\/everyone\/place\/\?lat=/);
+	await expect(page).toHaveURL(/\/places\/[-0-9.]+,[-0-9.]+\//);
 	const sitePage = page.url();
 	await page.getByRole('button', { name: 'Keep as my take-off' }).click();
 	await expect(page.getByRole('button', { name: 'Kept' })).toHaveAttribute('aria-pressed', 'true');
@@ -196,7 +214,7 @@ test('a take-off the pilot keeps leads Today under its heading, and is forgotten
 
 	// Today, drawn again, has it first under the core's heading, and the
 	// others under theirs. The same after a reload: the browser kept it.
-	await sections.getByRole('link', { name: 'Today' }).click();
+	await sections.getByRole('link', { name: 'Home', exact: true }).click();
 	for (const reloaded of [false, true]) {
 		if (reloaded) await page.reload();
 		await forecasts();
@@ -231,7 +249,7 @@ test('a take-off the pilot keeps leads Today under its heading, and is forgotten
 		'aria-pressed',
 		'false'
 	);
-	await sections.getByRole('link', { name: 'Today' }).click();
+	await sections.getByRole('link', { name: 'Home', exact: true }).click();
 	await forecasts();
 	await expect(page.getByText('Your take-offs')).toHaveCount(0);
 	await expect(page.getByText('Within 30 km')).toHaveCount(0);
@@ -244,7 +262,7 @@ test('a day on which the wind near by is much stronger says so under what limits
 	wide,
 	problems
 }) => {
-	await page.goto('/today/');
+	await page.goto('/');
 	await expect(page.getByText(/^(Flyable|Marginal|Not flyable)$/).first()).toBeVisible({
 		timeout: 30_000
 	});

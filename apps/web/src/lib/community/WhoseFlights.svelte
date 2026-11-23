@@ -1,14 +1,17 @@
 <!--
 	The switch at the head of the flights: the pilot's own flights on the
-	account, the flights everyone on the server shares, or the ranking of the
-	pilots who shared them. On the iPhone it is a segmented control in the logbook's
-	title bar; here they are pages, so it is links drawn as one control.
+	account, or the flights everyone on the server shares. The owner asked
+	for one that cannot be missed (2026-11-23): the pack's segmented control
+	at the head of the page, as wide as a phone and at a finger's height,
+	its words at the body's size. On the iPhone it is a segmented control in
+	the flights' title bar; here they are pages, so it is links drawn as one
+	control. The ranking is a section of its own in the bar.
 -->
 <script lang="ts">
-	import { everyoneHref, myFlightsHref, rankingHref } from '#lib/app/routes.ts';
+	import { everyoneHref, myFlightsHref } from '#lib/app/routes.ts';
 
 	interface Props {
-		current: 'mine' | 'everyone' | 'ranking';
+		current: 'mine' | 'everyone';
 		/** What was last asked of everyone's flights, to come back to it. */
 		query?: string;
 	}
@@ -21,16 +24,15 @@
 	<a href={everyoneHref(query)} aria-current={current === 'everyone' ? 'page' : undefined}>
 		Everyone
 	</a>
-	<a href={rankingHref()} aria-current={current === 'ranking' ? 'page' : undefined}>Ranking</a>
 </nav>
 
 <style>
 	.segments {
 		display: flex;
-		gap: 0.125rem;
-		width: 21rem;
-		max-width: 100%;
-		padding: 0.1875rem;
+		gap: var(--space-1);
+		width: 100%;
+		max-width: 28rem;
+		padding: var(--space-1);
 		border-radius: var(--radius-pill);
 		background: var(--fill);
 	}
@@ -39,11 +41,10 @@
 		flex: 1;
 		display: grid;
 		place-items: center;
-		/* 32 px in all on a wide screen, as its other controls. */
-		min-height: calc(var(--target) - 0.625rem);
+		min-height: var(--target);
 		border-radius: var(--radius-pill);
-		font-size: var(--subheadline);
-		font-weight: 500;
+		font-size: var(--body);
+		font-weight: 600;
 		color: var(--text-secondary);
 	}
 
@@ -51,5 +52,11 @@
 	a[aria-current] {
 		background: var(--accent);
 		color: var(--on-accent);
+	}
+
+	@media (min-width: 56rem) {
+		.segments {
+			max-width: 22rem;
+		}
 	}
 </style>

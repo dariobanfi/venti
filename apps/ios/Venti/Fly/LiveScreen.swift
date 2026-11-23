@@ -4,15 +4,25 @@ import VentiCore
 /// Whom the pilot shows flights to while they are under way. Kept between
 /// flights: the choice is on the Fly tab before every start.
 enum LiveChoice: String, CaseIterable, Identifiable {
-    case nobody = ""
+    case nobody
     case link
     case everyone = "public"
 
     var id: String { rawValue }
 
-    /// The choice the pilot last made. Nobody, until one was made.
+    /// The choice the pilot last made. Everyone, until one was made (the
+    /// owner, 2026-11-23: on by default, for safety).
     static var stored: LiveChoice {
-        LiveChoice(rawValue: UserDefaults.standard.string(forKey: Preferences.liveAudience) ?? "") ?? .nobody
+        chosen(UserDefaults.standard.string(forKey: Preferences.liveAudience))
+    }
+
+    /// The choice as it is kept: nothing kept is Everyone; an empty word
+    /// is Nobody as it was kept before 2026-11-23, an explicit choice
+    /// that stays; a word this app no longer knows is the default again.
+    static func chosen(_ kept: String?) -> LiveChoice {
+        guard let kept else { return .everyone }
+        if kept.isEmpty { return .nobody }
+        return LiveChoice(rawValue: kept) ?? .everyone
     }
 
     /// What the core calls it. Nobody is no audience: nothing is sent.
@@ -48,10 +58,10 @@ enum LiveChoice: String, CaseIterable, Identifiable {
 struct LiveScreen: View {
     @Environment(FlySession.self) private var fly
     @Environment(AccountModel.self) private var account
-    @AppStorage(Preferences.liveAudience) private var stored = ""
+    @AppStorage(Preferences.liveAudience) private var stored: String?
     @State private var isConfirmingDeletion = false
 
-    private var choice: LiveChoice { LiveChoice(rawValue: stored) ?? .nobody }
+    private var choice: LiveChoice { LiveChoice.chosen(stored) }
 
     var body: some View {
         VentiList {
@@ -138,11 +148,11 @@ struct LiveScreen: View {
     static func explanation(of choice: LiveChoice) -> String {
         switch choice {
         case .nobody:
-            "Nothing is sent. Nobody sees where you are."
+            "Off. Nothing is sent. Nobody sees where you are."
         case .link:
-            "Whoever has the link sees where you are and where you flew, with your name: send it to the people who should know. The flight is on nobody's map."
+            "On from take-off. Whoever has the link sees where you are and where you flew, with your name: send it to the people who should know. The flight is on nobody's map."
         case .everyone:
-            "Everyone who looks at Venti's map sees your glider on it, with your name, and can follow the flight."
+            "On from take-off. Everyone who looks at Venti's map sees your glider on it, with your name, and can follow the flight."
         }
     }
 }

@@ -17,7 +17,7 @@ struct CockpitSettingsSheet: View {
     @Environment(AccountModel.self) private var account
     @Environment(OfflineMapsModel.self) private var maps
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(Preferences.liveAudience) private var liveAudience = ""
+    @AppStorage(Preferences.liveAudience) private var liveAudience: String?
     @AppStorage(Preferences.cockpitHidesThermalMap) private var hidesThermalMap = false
 
     var body: some View {
@@ -187,7 +187,7 @@ struct CockpitSettingsSheet: View {
     /// because this iPhone is signed in nowhere, is not shown as if it
     /// could.
     private var liveSummary: String {
-        let choice = LiveChoice(rawValue: liveAudience) ?? .nobody
+        let choice = LiveChoice.chosen(liveAudience)
         return choice == .nobody || account.isSignedIn ? choice.short : "Not signed in"
     }
 

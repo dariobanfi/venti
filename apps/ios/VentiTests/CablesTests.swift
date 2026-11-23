@@ -79,4 +79,21 @@ final class CablesTests: XCTestCase {
         XCTAssertEqual(CockpitPage.instruments.previous(hasTask: false), .flight)
         XCTAssertEqual(CockpitPage.all(hasTask: false), [.instruments, .map, .flight])
     }
+
+    func testThePageFollowsTheFingerAndTurnsWhenLetGoFarOrFlung() {
+        // The page starts where the finger was when the drag was first
+        // seen, and follows it both ways.
+        XCTAssertEqual(PageSlide.offset(following: 20, from: 32), 0)
+        XCTAssertEqual(PageSlide.offset(following: -100, from: 32), -68)
+        XCTAssertEqual(PageSlide.offset(following: 100, from: 32), 68)
+        // Let go: far enough sideways turns it, a short one does not, and
+        // one more up or down than sideways never does.
+        XCTAssertTrue(PageSlide.turns(sideways: -60, upOrDown: 10, flung: -60, across: 390, atLeast: 48))
+        XCTAssertFalse(PageSlide.turns(sideways: -30, upOrDown: 0, flung: -40, across: 390, atLeast: 48))
+        XCTAssertFalse(PageSlide.turns(sideways: -60, upOrDown: 50, flung: -300, across: 390, atLeast: 48))
+        // A short flick that would have gone half the page along turns it;
+        // one flung back the other way does not.
+        XCTAssertTrue(PageSlide.turns(sideways: 30, upOrDown: 0, flung: 220, across: 390, atLeast: 48))
+        XCTAssertFalse(PageSlide.turns(sideways: 30, upOrDown: 0, flung: -220, across: 390, atLeast: 48))
+    }
 }

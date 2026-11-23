@@ -86,9 +86,13 @@ enum Preferences {
     /// Whether the pilot has switched off airspace from the server.
     static let airspaceWithoutServer = "VentiAirspaceWithoutServer"
 
-    /// Whom flights are shown to while they are under way: "link",
-    /// "public", or nothing for nobody.
+    /// Whom flights are shown to while they are under way: "nobody",
+    /// "link" or "public"; nothing kept is "public" (`LiveChoice.chosen`),
+    /// and an empty word, as Nobody was kept before 2026-11-23, nobody.
     static let liveAudience = "VentiLiveAudience"
+    /// Whether the cockpit has told the signed-in pilot once that the
+    /// flight is shared live. Never again after.
+    static let liveNoticeShown = "VentiLiveNoticeShown"
     /// Whether the cockpit leaves the screen's brightness as it is. By
     /// itself it turns it all the way up for as long as it is open.
     static let cockpitKeepsBrightness = "VentiCockpitKeepsBrightness"

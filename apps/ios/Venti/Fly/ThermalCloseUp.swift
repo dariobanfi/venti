@@ -234,9 +234,13 @@ private struct CloseUpWind: View {
             }
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s1) {
-                    Text(wind?.speedKmh ?? "– –")
-                        .font(.ventiType(.instrumentM))
-                        .monospacedDigit()
+                    if let speed = wind?.speedKmh {
+                        Text(speed)
+                            .font(.ventiType(.instrumentM))
+                            .monospacedDigit()
+                    } else {
+                        NumberPlaceholder(font: .ventiType(.instrumentM), inset: VentiSpace.s2)
+                    }
                     Text("km/h")
                         .font(.ventiType(.label))
                 }

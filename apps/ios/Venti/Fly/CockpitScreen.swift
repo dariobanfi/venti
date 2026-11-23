@@ -105,6 +105,19 @@ struct CockpitScreen: View {
     /// The thermal map of thermal.kk7.ch on the cockpit's map: on until
     /// the pilot switches it off in the cockpit's settings.
     @AppStorage(Preferences.cockpitHidesThermalMap) private var hidesThermalMap = false
+    /// Whether the pilot was told once that the flight is shared live.
+    @AppStorage(Preferences.liveNoticeShown) private var liveNoticeShown = false
+    /// The notice that the flight is shared live, while this cockpit
+    /// shows it.
+    @State private var showsLiveNotice = false
+    /// How far the page is moved sideways: by the finger, or while it
+    /// settles on the next one.
+    @State private var slide: CGFloat = 0
+    /// Whether the page is settling, during which the finger is not
+    /// followed.
+    @State private var isSettling = false
+    /// The width the pages slide across.
+    @State private var pageWidth: CGFloat = 0
 
     /// Whether the cockpit's map shows the thermal map.
     private var showsThermalMap: Bool {
@@ -166,77 +179,110 @@ struct CockpitScreen: View {
                     vario: fly.mode == .live ? view.vario : nil,
                     noBluetooth: fly.vario.isUnavailable,
                     pages: CockpitPage.all(hasTask: hasTask), page: page,
-                    nextPage: { page = page.next(hasTask: hasTask) },
-                    previousPage: { page = page.previous(hasTask: hasTask) },
+                    nextPage: { turnPage(toNext: true) },
+                    previousPage: { turnPage(toNext: false) },
                     openSettings: { isShowingSettings = true },
                     end: onFinish
                 )
                 alerts(view)
-                switch page {
-                case .instruments:
-                    Instruments(view: view, way: fly.way) {
-                        windsBeginOnTheGround = false
-                        isShowingWinds = true
-                    }
-                case .map:
-                    EmptyView()
-                case .task:
-                    if let readings = view.taskReadings {
-                        TaskReadingsPage(readings: readings)
-                    }
-                case .flight:
-                    FlightPage(view: view, score: fly.score, isReplay: isReplay) {
-                        isShowingLive = true
-                    } showDetails: {
-                        isShowingDetails = true
-                    }
-                }
-                CockpitRule()
-                // The map alone gives way when a warning takes room at the
-                // top: the readings keep their size and their place.
-                map(view)
-                    .layoutPriority(-1)
-                CockpitRule()
-                if page == .map {
-                    // The airspace that matters next, large, while there
-                    // is a reading: without one the strip goes and the map
-                    // has its room. No airspace at all is said by the top
-                    // line's sign, as on Android.
-                    if let proximity = view.airspaceProximity {
-                        AirspaceProximityStrip(proximity: proximity) {
-                            isShowingAirspace = true
+                // The page: the readings, the map and the strips under
+                // it. It moves under the finger and settles on the next.
+                VStack(spacing: 0) {
+                    switch page {
+                    case .instruments:
+                        Instruments(view: view, way: fly.way) {
+                            windsBeginOnTheGround = false
+                            isShowingWinds = true
                         }
-                        CockpitRule()
-                    }
-                    // With a task: where the flight stands in it, above
-                    // the line that says where to fly, which is then its
-                    // next turnpoint unless the pilot chose another place.
-                    if let status = fly.task {
-                        TaskStrip(status: status) {
-                            isShowingTask = true
+                    case .map:
+                        EmptyView()
+                    case .task:
+                        if let readings = view.taskReadings {
+                            TaskReadingsPage(readings: readings)
+                        }
+                    case .flight:
+                        FlightPage(view: view, score: fly.score, isReplay: isReplay) {
+                            isShowingLive = true
+                        } showDetails: {
+                            isShowingDetails = true
                         }
                     }
-                    TargetStrip(way: fly.way, courseDeg: Self.course(of: view)) {
-                        isChoosingTarget = true
+                    CockpitRule()
+                    // The map alone gives way when a warning takes room at the
+                    // top: the readings keep their size and their place.
+                    map(view)
+                        .layoutPriority(-1)
+                    CockpitRule()
+                    if page == .map {
+                        // The airspace that matters next, large, while there
+                        // is a reading: without one the strip goes and the map
+                        // has its room. No airspace at all is said by the top
+                        // line's sign, as on Android.
+                        if let proximity = view.airspaceProximity {
+                            AirspaceProximityStrip(proximity: proximity) {
+                                isShowingAirspace = true
+                            }
+                            CockpitRule()
+                        }
+                        // With a task: where the flight stands in it, above
+                        // the line that says where to fly, which is then its
+                        // next turnpoint unless the pilot chose another place.
+                        if let status = fly.task {
+                            TaskStrip(status: status) {
+                                isShowingTask = true
+                            }
+                        }
+                        TargetStrip(way: fly.way, courseDeg: Self.course(of: view)) {
+                            isChoosingTarget = true
+                        }
+                        MapReadings(view: view)
                     }
-                    MapReadings(view: view)
                 }
+                .offset(x: slide)
+                // What has slid off is not drawn over the notices' sides.
+                .clipped()
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { pageWidth = $0 }
             }
             .background(.venti(.bg))
-            // A swipe sideways, anywhere, changes the page: to the left
-            // the next, to the right the one before, as an instrument's
-            // pages go. One more up or down than sideways is not one.
+            // A swipe sideways, anywhere, moves the page under the finger
+            // and, let go, settles on the next: to the left the next, to
+            // the right the one before, as an instrument's pages go. One
+            // that begins more up or down than sideways is not one. The
+            // cockpit's map does not pan (it follows the glider), and a
+            // pinch on it is two fingers, which this does not follow.
             .simultaneousGesture(
                 DragGesture(minimumDistance: VentiSpace.s6)
-                    .onEnded { drag in
-                        guard !isLocked else { return }
+                    .onChanged { drag in
+                        guard !isLocked, !isSettling else { return }
                         let sideways = drag.translation.width
-                        guard abs(sideways) >= VentiSpace.s7,
-                            abs(sideways) > 1.5 * abs(drag.translation.height)
-                        else { return }
-                        page = sideways < 0 ? page.next(hasTask: hasTask) : page.previous(hasTask: hasTask)
+                        if slide == 0, abs(sideways) <= 1.5 * abs(drag.translation.height) {
+                            return
+                        }
+                        // From where the drag was first seen, so that the
+                        // page does not jump by the gesture's first step.
+                        slide = PageSlide.offset(following: sideways, from: VentiSpace.s6)
+                    }
+                    .onEnded { drag in
+                        guard !isLocked, !isSettling else { return }
+                        let turns = slide != 0 && PageSlide.turns(
+                            sideways: drag.translation.width,
+                            upOrDown: drag.translation.height,
+                            flung: drag.predictedEndTranslation.width,
+                            across: pageWidth,
+                            atLeast: VentiSpace.s7
+                        )
+                        if turns {
+                            turnPage(toNext: drag.translation.width < 0)
+                        } else if slide != 0 {
+                            withAnimation(.snappy(duration: 0.2)) { slide = 0 }
+                        }
                     }
             )
+            // Once, the first time a signed-in pilot opens the cockpit:
+            // that the flight is shared live (on by default, the owner,
+            // 2026-11-23). Kept as said, so it never comes again.
+            .onAppear(perform: tellOnceThatTheFlightIsShared)
+            .onChange(of: account.isSignedIn) { tellOnceThatTheFlightIsShared() }
             // With the first position, and a network, the airspace around
             // it is fetched if what the iPhone keeps is old or from
             // elsewhere, and again as the glider moves on, waiting for the
@@ -384,7 +430,9 @@ struct CockpitScreen: View {
     /// while it is not in the air.
     private func alerts(_ view: CockpitView) -> some View {
         VStack(spacing: VentiSpace.s2) {
-            AirspaceBanner(warnings: fly.airspaceWarnings, check: fly.airspaceCheck) {
+            AirspaceBanner(
+                warnings: fly.airspaceWarnings, check: fly.airspaceCheck, isFlying: view.phase == .flying
+            ) {
                 isShowingAirspace = true
             }
             // The cable ahead, under the airspace warning.
@@ -437,6 +485,19 @@ struct CockpitScreen: View {
             if let words = fly.quietNotice {
                 QuietNotice(text: words) {
                     fly.quietNotice = nil
+                }
+            }
+            // That the flight is shared live, said once; a tap opens the
+            // page where it is changed.
+            if showsLiveNotice {
+                QuietNotice(
+                    text: Self.liveNoticeWords,
+                    symbol: "chevron.right",
+                    hint: "Opens live tracking",
+                    identifier: "cockpit-live-notice"
+                ) {
+                    showsLiveNotice = false
+                    isShowingLive = true
                 }
             }
         }
@@ -651,6 +712,42 @@ struct CockpitScreen: View {
                         .padding(VentiSpace.s2)
                 }
             }
+    }
+
+    /// The words of the notice that the flight is shared live.
+    static let liveNoticeWords = "With Venti your flight is shared live for safety. Change it in the settings."
+
+    /// Says once that the flight is shared live: for a signed-in pilot
+    /// whose choice shares it, not in a replay. Kept as said at once, so
+    /// that it never comes again, whether or not it was tapped.
+    private func tellOnceThatTheFlightIsShared() {
+        guard !liveNoticeShown, !isReplay, account.isSignedIn, LiveChoice.stored.audience != nil else { return }
+        liveNoticeShown = true
+        showsLiveNotice = true
+    }
+
+    /// Turns the page as a paged view does: the page in front goes off to
+    /// the side, and the next comes in from the other. The dots change
+    /// with the page.
+    private func turnPage(toNext: Bool) {
+        guard !isSettling else { return }
+        let width = max(pageWidth, 1)
+        isSettling = true
+        withAnimation(.easeIn(duration: 0.12)) {
+            slide = toNext ? -width : width
+        } completion: {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) {
+                page = toNext ? page.next(hasTask: hasTask) : page.previous(hasTask: hasTask)
+                slide = toNext ? width : -width
+            }
+            withAnimation(.snappy(duration: 0.22)) {
+                slide = 0
+            } completion: {
+                isSettling = false
+            }
+        }
     }
 
     /// Whether a task is flown, and so has its page.
@@ -968,6 +1065,10 @@ private struct ProblemNotice: View {
 /// tap: on the raised surface, without a sign of caution.
 private struct QuietNotice: View {
     let text: String
+    /// The sign at its end: what a tap does.
+    var symbol = "xmark"
+    var hint = "Puts this message away"
+    var identifier = "cockpit-quiet-notice"
     let putAway: () -> Void
 
     var body: some View {
@@ -978,7 +1079,7 @@ private struct QuietNotice: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
-                Image(systemName: "xmark")
+                Image(systemName: symbol)
                     .font(.ventiType(.label))
                     .accessibilityHidden(true)
             }
@@ -990,8 +1091,29 @@ private struct QuietNotice: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .accessibilityHint("Puts this message away")
-        .accessibilityIdentifier("cockpit-quiet-notice")
+        .accessibilityHint(hint)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+/// When a drag sideways turns the cockpit's page, and how far the page
+/// follows it: the numbers of the slide, apart from the view.
+enum PageSlide {
+    /// How far the page is moved by a drag `sideways` long, first seen
+    /// `from` points along: the page starts where the finger was then.
+    static func offset(following sideways: CGFloat, from start: CGFloat) -> CGFloat {
+        guard abs(sideways) > start else { return 0 }
+        return sideways < 0 ? sideways + start : sideways - start
+    }
+
+    /// Whether a drag let go turns the page: sideways more than half again
+    /// as much as up or down, and either `atLeast` points along or flung
+    /// so that it would have ended half the page `across` along.
+    static func turns(
+        sideways: CGFloat, upOrDown: CGFloat, flung: CGFloat, across width: CGFloat, atLeast: CGFloat
+    ) -> Bool {
+        guard abs(sideways) > 1.5 * abs(upOrDown) else { return false }
+        return abs(sideways) >= atLeast || (width > 0 && abs(flung) >= width / 2 && flung.sign == sideways.sign)
     }
 }
 
@@ -1439,7 +1561,7 @@ private struct FlightPage: View {
 /// The numbers are the design language's instrument sizes and do not grow
 /// with the text size: a reading has to be in the same place at the same
 /// size every time the pilot glances at it. A value the sensors have not
-/// supplied is two dashes, never an old number.
+/// supplied is a quiet bar (`NumberPlaceholder`), never an old number.
 private struct Reading: View {
     enum Size {
         /// The one reading a page may have of this size.
@@ -1468,11 +1590,15 @@ private struct Reading: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s1) {
-                Text(value ?? "– –")
-                    .font(numberFont)
-                    .foregroundStyle(.venti(ink))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.6)
+                if let value {
+                    Text(value)
+                        .font(numberFont)
+                        .foregroundStyle(.venti(ink))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.6)
+                } else {
+                    NumberPlaceholder(font: numberFont, inset: placeholderInset)
+                }
                 if !unit.isEmpty {
                     Text(unit)
                         .font(unitFont)
@@ -1518,6 +1644,16 @@ private struct Reading: View {
         }
     }
 
+    /// How much of the number's line the placeholder leaves above and
+    /// below its bar: about the figures' height is drawn.
+    private var placeholderInset: CGFloat {
+        switch size {
+        case .veryLarge: VentiSpace.s5
+        case .large: VentiSpace.s3
+        case .medium: VentiSpace.s2
+        }
+    }
+
     private var unitFont: Font {
         switch size {
         case .veryLarge: .custom("FiraSans-SemiBold", fixedSize: 24)
@@ -1531,6 +1667,32 @@ private struct Reading: View {
         let number = unit.isEmpty ? value : "\(value) \(unit)"
         let said = noteArrowDeg == nil ? note : note.map { "flying \($0)" }
         return said.map { "\(number), \($0)" } ?? number
+    }
+}
+
+/// What a reading shows before its first value: a quiet bar in the muted
+/// ink, as wide as a number of two figures and as high as figures in that
+/// type, on the number's baseline, so that nothing moves when the value
+/// comes. No dashes and no made-up zero; the top line says why
+/// ("No GPS").
+struct NumberPlaceholder: View {
+    let font: Font
+    /// Room left above and below the bar within the number's line.
+    let inset: CGFloat
+
+    var body: some View {
+        // Two figures in the number's type, unseen, give the bar its size
+        // and the line its baseline.
+        Text(verbatim: "00")
+            .font(font)
+            .monospacedDigit()
+            .hidden()
+            .overlay {
+                RoundedRectangle(cornerRadius: VentiRadius.s)
+                    .fill(.venti(.surfaceRaised))
+                    .padding(.vertical, inset)
+            }
+            .accessibilityHidden(true)
     }
 }
 

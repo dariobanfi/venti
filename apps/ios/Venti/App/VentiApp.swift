@@ -137,6 +137,11 @@ enum Session {
             let wind = WindModel()
             let airspace = AirspaceModel(core: core, remembersChoice: !LaunchOptions.isUnderTest)
             airspace.server = { wind.server }
+            // A UI test can start as a pilot new to live tracking.
+            if LaunchOptions.forgetsLiveTracking {
+                UserDefaults.standard.removeObject(forKey: Preferences.liveAudience)
+                UserDefaults.standard.removeObject(forKey: Preferences.liveNoticeShown)
+            }
             // Flying sites come from the same server as the wind.
             // What the pilot asks of them is kept between launches;
             // a UI test can start with the filter asking nothing.
@@ -596,6 +601,11 @@ enum LaunchOptions {
     /// keeps that: a UI test of the filter leaves it so for the tests
     /// after it, whatever became of it. Preferences outlive a test.
     static let showsAllSites = arguments.contains("--all-sites")
+
+    /// Start as a pilot who never chose who may watch a flight and was
+    /// never told that it is shared live (`--fresh-live-tracking`): both
+    /// are forgotten at launch, under a UI test only.
+    static let forgetsLiveTracking = isUITesting && arguments.contains("--fresh-live-tracking")
 
     /// `--tapped-alert`: the app starts as if by a tap on a notification
     /// of what an alarm fired, which a UI test cannot post and tap

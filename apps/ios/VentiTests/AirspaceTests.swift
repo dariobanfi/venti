@@ -415,4 +415,17 @@ final class AirspaceTests: XCTestCase {
         )
         XCTAssertEqual(CockpitScreen.airspaceCredit([plain]), "Airspace: Another")
     }
+
+    func testNoAirspaceNoticeOnTheGroundBeforeTheFirstFix() {
+        // Before take-off the top line's "No GPS" says it: no banner.
+        XCTAssertNil(AirspaceBanner.notice(for: .waitingForHeight, isFlying: false))
+        XCTAssertNil(AirspaceBanner.notice(for: .checking, isFlying: false))
+        XCTAssertNil(AirspaceBanner.notice(for: .noAirspace, isFlying: true))
+        // In flight a position lost is said, as before.
+        XCTAssertEqual(
+            AirspaceBanner.notice(for: .stale, isFlying: true),
+            "Airspace is not being checked: no position. What is shown is from the last one."
+        )
+        XCTAssertNotNil(AirspaceBanner.notice(for: .waitingForHeight, isFlying: true))
+    }
 }

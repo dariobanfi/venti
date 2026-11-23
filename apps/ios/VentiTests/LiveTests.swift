@@ -13,18 +13,37 @@ final class LiveTests: XCTestCase {
         XCTAssertEqual(LiveChoice.link.audience, .link)
         XCTAssertEqual(LiveChoice.everyone.audience, .public)
         // Kept in the words of the server, so that a choice survives a
-        // renaming here; anything else is nobody.
+        // renaming here.
         XCTAssertEqual(LiveChoice(rawValue: "public"), .everyone)
         XCTAssertEqual(LiveChoice(rawValue: "link"), .link)
         XCTAssertNil(LiveChoice(rawValue: "followers"))
         XCTAssertEqual(LiveChoice.allCases.map(\.short), ["Off", "With a link", "Everyone"])
     }
 
+    func testEveryoneUntilThePilotChoosesAndAChoiceIsKept() {
+        // Nothing chosen: shared with everyone (the owner, 2026-11-23).
+        XCTAssertEqual(LiveChoice.chosen(nil), .everyone)
+        // An explicit choice wins, Nobody among them, also as Nobody was
+        // kept before: an empty word.
+        XCTAssertEqual(LiveChoice.chosen("nobody"), .nobody)
+        XCTAssertEqual(LiveChoice.chosen(""), .nobody)
+        XCTAssertEqual(LiveChoice.chosen("link"), .link)
+        XCTAssertEqual(LiveChoice.chosen("public"), .everyone)
+        // A word this app does not know is the default again.
+        XCTAssertEqual(LiveChoice.chosen("followers"), .everyone)
+        for choice in LiveChoice.allCases {
+            XCTAssertEqual(LiveChoice.chosen(choice.rawValue), choice)
+        }
+    }
+
     func testEveryChoiceSaysWhatItMeans() {
         for choice in LiveChoice.allCases {
             XCTAssertFalse(LiveScreen.explanation(of: choice).isEmpty)
         }
-        XCTAssertTrue(LiveScreen.explanation(of: .nobody).contains("Nothing is sent"))
+        // Plainly on or off, and who sees it.
+        XCTAssertTrue(LiveScreen.explanation(of: .nobody).hasPrefix("Off. Nothing is sent"))
+        XCTAssertTrue(LiveScreen.explanation(of: .everyone).hasPrefix("On from take-off. Everyone"))
+        XCTAssertTrue(LiveScreen.explanation(of: .link).hasPrefix("On from take-off. Whoever has the link"))
     }
 
     func testTheButtonShowsWhetherTheFlightGoesOut() {

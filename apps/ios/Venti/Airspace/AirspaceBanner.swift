@@ -21,16 +21,28 @@ struct AirspaceBanner: View {
     let warnings: [AirspaceWarning]
     /// Whether anything is being checked at all.
     let check: AirspaceCheck
+    /// Whether the glider is in the air: before take-off the wait for a
+    /// first fix is not said here.
+    var isFlying = false
     let open: () -> Void
 
     /// What to say when the app is not checking, so that its silence is
     /// not taken for "no airspace near".
     private var notice: String? {
-        // No airspace for here at all is said on the cockpit's top line,
-        // as a sign and a word ("No airspace").
+        Self.notice(for: check, isFlying: isFlying)
+    }
+
+    /// The notice for how the checking stands, or `nil`. No airspace for
+    /// here at all is said on the cockpit's top line, as a sign and a word
+    /// ("No airspace"), and so is the wait for the first fix on the ground
+    /// ("No GPS"): no banner for it before take-off (the owner,
+    /// 2026-11-23). In flight a position lost is said, and a flight that
+    /// never had a height.
+    static func notice(for check: AirspaceCheck, isFlying: Bool) -> String? {
         switch check {
         case .checking, .noAirspace, .outsideFiles: nil
-        case .waitingForHeight: "Airspace is not being checked yet: no position with a height."
+        case .waitingForHeight:
+            isFlying ? "Airspace is not being checked yet: no position with a height." : nil
         case .stale: "Airspace is not being checked: no position. What is shown is from the last one."
         }
     }

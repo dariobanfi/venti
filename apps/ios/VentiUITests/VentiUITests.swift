@@ -775,8 +775,8 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("fly-1-ready")
 
         // What was checked before take-off is behind the one settings
-        // button. Who may watch a flight while it is under way: nobody,
-        // until the pilot says otherwise, and nobody can be chosen
+        // button. Who may watch a flight while it is under way: everyone,
+        // until the pilot says otherwise, and nothing can be chosen
         // without an account to send the positions to.
         openTheCockpitsSettings(in: app)
         // The phone's tone is the core's to decide: no mute switch.
@@ -786,7 +786,7 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("fly-1a-settings")
         element("live-before-takeoff", in: app).tap()
         XCTAssertTrue(app.navigationBars["Live tracking"].appears(timeout: 10))
-        XCTAssertTrue(saying("Nothing is sent", in: app).appears(timeout: 10))
+        XCTAssertTrue(saying("On from take-off. Everyone", in: app).appears(timeout: 10))
         usleep(400_000)
         keepScreenshot("fly-1b-live")
         app.navigationBars.buttons.firstMatch.tap()
@@ -1166,6 +1166,62 @@ final class VentiUITests: XCTestCase {
     /// dark. The sheet's list has `.contentMargins(.top, …)`: a grouped
     /// list without a heading otherwise begins with a heading's empty room
     /// under the bar.
+    /// The cockpit before its first readings, as a signed-in pilot new to
+    /// live tracking opens it before a position: each reading a quiet bar
+    /// in place of dashes, no airspace notice (the top line's "No GPS"
+    /// says it), and once the notice that the flight is shared live, whose
+    /// tap opens live tracking, on for everyone. A swipe moves the page
+    /// along. Opened again, the notice is not there. Skipped without a
+    /// server.
+    func testTheCockpitBeforeItsFirstReadings() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server, "--fresh-live-tracking"])
+        XCTAssertTrue(app.buttons["Show my position"].appears(timeout: 90))
+        signIn(("demo", "demo-pilot-password"), in: app)
+        // No position comes: a location manager started after the
+        // simulated position was set hears of it only once it changes,
+        // and the test changes none.
+        openTheCockpit(in: app)
+        let notice = element("cockpit-live-notice", in: app)
+        XCTAssertTrue(notice.appears(timeout: 10))
+        XCTAssertEqual(notice.label, "With Venti your flight is shared live for safety. Change it in the settings.")
+        XCTAssertFalse(labelled(containing: "\u{2013} \u{2013}", in: app).exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(NSPredicate(format: "value == %@", "not available")).firstMatch
+                .exists
+        )
+        XCTAssertFalse(element("airspace-notice", in: app).exists)
+        usleep(400_000)
+        keepScreenshot("cockpit-0a-before-the-first-readings")
+
+        // A swipe: the page moves along and the next comes in; the
+        // picture is taken as it settles.
+        app.swipeLeft()
+        keepScreenshot("cockpit-0b-page-sliding")
+        usleep(600_000)
+        XCTAssertTrue((element("cockpit-pages", in: app).value as? String)?.hasPrefix("Map") == true)
+        keepScreenshot("cockpit-0c-map-page-before-the-first-readings")
+
+        // The notice opens live tracking: on, for everyone.
+        notice.tap()
+        XCTAssertTrue(app.navigationBars["Live tracking"].appears(timeout: 10))
+        XCTAssertTrue(saying("On from take-off. Everyone", in: app).appears(timeout: 10))
+        usleep(400_000)
+        keepScreenshot("cockpit-0d-live-tracking-on")
+        app.navigationBars["Live tracking"].buttons["Done"].tap()
+        XCTAssertTrue(element("cockpit-end", in: app).appears(timeout: 10))
+        XCTAssertFalse(notice.exists)
+
+        // Said once: not again when the cockpit opens again.
+        endTheCockpit(in: app)
+        openTheCockpit(in: app)
+        XCTAssertTrue(element("cockpit-end", in: app).appears(timeout: 10))
+        sleep(1)
+        XCTAssertFalse(notice.exists)
+    }
+
     func testTheCockpitWithLargerText() {
         let app = launch(
             bundledMap: true,
@@ -4259,8 +4315,8 @@ final class VentiUITests: XCTestCase {
             usleep(500_000)
         }
         // Standing at the take-off, with positions that have a height:
-        // the cockpit checks them against that airspace, and its notice
-        // that nothing is checked yet goes.
+        // the cockpit checks them against that airspace. Before take-off
+        // no notice says that nothing is checked yet: "No GPS" says it.
         let unchecked = element("airspace-notice", in: app)
         for _ in 0..<20 {
             put(metresNorth: 0, altitude: Self.takeoffGroundM, speed: 0)

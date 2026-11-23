@@ -71,6 +71,8 @@ class LogbookModel(
     private val files: AppFiles,
     /** Where reading and parsing run, so the screen stays responsive. */
     private val background: CoroutineDispatcher = Dispatchers.IO,
+    /** A clock in milliseconds that only goes forward, for how often an import reads the list again. */
+    private val millis: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
     var view: LogbookView by mutableStateOf(core.logbook())
         private set
@@ -155,17 +157,19 @@ class LogbookModel(
                 val added = mutableListOf<String>()
                 val alreadyThere = mutableListOf<String>()
                 val failures = mutableListOf<ImportReport.Failure>()
+                val rereads = ListRereads(millis)
                 sources.forEachIndexed { index, source ->
+                    var isNew = false
                     try {
                         val imported = core.importFlight(source.read())
-                        (if (imported.alreadyInLogbook) alreadyThere else added) += imported.id
+                        isNew = !imported.alreadyInLogbook
+                        (if (isNew) added else alreadyThere) += imported.id
                     } catch (error: Exception) {
                         failures += ImportReport.Failure(file = source.name, reason = error.pilotMessage)
                     }
-                    // The count after every file; the list every so often.
-                    val done = index + 1
-                    importProgress = ImportProgress(done, sources.size)
-                    if (done % LIST_EVERY == 0) {
+                    // The count after every file; the list when it has news.
+                    importProgress = ImportProgress(index + 1, sources.size)
+                    if (rereads.afterFile(added = isNew)) {
                         view = core.logbook()
                     }
                 }
@@ -358,9 +362,6 @@ class LogbookModel(
     }
 
     companion object {
-        /** While many files are imported, the list is read again after every so many. */
-        private const val LIST_EVERY = 20
-
         private const val STILL_RUNNING = "Another import is still running. Try again when it has finished."
 
         /** What deleting a flight means, with and without an account on a Venti server. */
@@ -387,5 +388,32 @@ class LogbookModel(
                 bytes.toString(Charsets.ISO_8859_1)
             }
         }
+    }
+}
+
+/**
+ * When an import reads the list again: at once for the first flight it
+ * adds, so that an empty logbook shows it in place of "No flights yet",
+ * then at most once a second while new flights come in, since reading a
+ * long logbook takes its time. A file that adds nothing reads nothing.
+ */
+internal class ListRereads(private val millis: () -> Long) {
+    private var shownAt: Long? = null
+    private var addedSinceShown = false
+
+    /** After each file, whether it added a flight; true when the list is to be read now. */
+    fun afterFile(added: Boolean): Boolean {
+        if (added) addedSinceShown = true
+        if (!addedSinceShown) return false
+        val now = millis()
+        val last = shownAt
+        if (last != null && now - last < EVERY_MS) return false
+        shownAt = now
+        addedSinceShown = false
+        return true
+    }
+
+    private companion object {
+        const val EVERY_MS = 1_000L
     }
 }

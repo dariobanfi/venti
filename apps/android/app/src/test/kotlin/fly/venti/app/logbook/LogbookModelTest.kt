@@ -2,10 +2,12 @@ package fly.venti.app.logbook
 
 import fly.venti.app.TestSupport
 import fly.venti.app.design.Format
+import fly.venti.core.Core
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -290,7 +292,10 @@ class LogbookModelTest {
 
     @Test
     fun anImportCountsItsFilesAndFillsTheListWhileItRuns() = runBlocking {
-        val logbook = makeLogbook()
+        // A made-up clock: each file takes 300 ms to read.
+        var now = 0L
+        val folder = TestSupport.newFolder("logbook")
+        val logbook = LogbookModel(Core(folder.path), folder, TestSupport.files, millis = { now })
         val seen = mutableListOf<ImportProgress?>()
         val listed = mutableListOf<UInt>()
         // Twenty-two flights, one for each day; each notes how far the import had come when it was read.
@@ -298,6 +303,7 @@ class LogbookModelTest {
             FlightFileSource("flight-$day.igc") {
                 seen += logbook.importProgress
                 listed += logbook.view.totals.flights
+                now += 300
                 flown("%02d0626".format(day))
             }
         }
@@ -307,12 +313,38 @@ class LogbookModelTest {
         assertEquals(22, report.added.size)
         // Counted once the folder has been listed, then file by file.
         assertEquals((0..21).map { ImportProgress(done = it, total = 22) }, seen)
-        // The list is read again after every twenty files, not after each.
-        assertEquals(0u, listed[19])
-        assertEquals(20u, listed[20])
-        assertEquals(20u, listed[21])
+        // The first flight is listed at once, the next ones a second or more later.
+        assertEquals(0u, listed[0])
+        assertEquals(listOf(1u, 1u, 1u, 1u), listed.subList(1, 5))
+        assertEquals(5u, listed[5])
         assertNull(logbook.importProgress)
         assertEquals(22u, logbook.view.totals.flights)
+    }
+
+    @Test
+    fun anImportReadsTheListAtOnceForItsFirstFlightThenAtMostOnceASecond() {
+        var now = 0L
+        val rereads = ListRereads { now }
+
+        // A file that adds nothing (in the logbook already, or no flight) reads nothing.
+        assertFalse(rereads.afterFile(added = false))
+        // The first flight added: at once, so that an empty logbook shows it.
+        assertTrue(rereads.afterFile(added = true))
+        now = 500
+        assertFalse(rereads.afterFile(added = true))
+        // A second after, the flight still unlisted is read in, even after a file that added nothing.
+        now = 1_000
+        assertTrue(rereads.afterFile(added = false))
+        // Nothing new since: nothing to read, however long it has been.
+        now = 2_500
+        assertFalse(rereads.afterFile(added = false))
+        // A new flight more than a second after the last reading: at once.
+        now = 2_600
+        assertTrue(rereads.afterFile(added = true))
+        now = 3_599
+        assertFalse(rereads.afterFile(added = true))
+        now = 3_600
+        assertTrue(rereads.afterFile(added = true))
     }
 
     @Test

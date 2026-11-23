@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -113,6 +114,12 @@ fun MapLayersSheet(layers: List<MapLayer>, views: List<MapList>, onDismiss: () -
         Column(
             modifier = Modifier
                 .testTag("layers-sheet")
+                // The sheet as high as the screen allows, whatever its rows.
+                // A sheet whose rows came to about the screen's height and
+                // was pulled up kept Compose recomposing and drawing without
+                // end, at the edge between resting under the status bar and
+                // below it (the UI tests, 2026-11-23).
+                .fillMaxHeight()
                 // Clear of the navigation bar, so that the last row can be scrolled above it.
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())

@@ -12,7 +12,9 @@
 	},
 	"scripts": {
 		"core": "scripts/build-core.sh",
+		"predev": "node scripts/notices.mjs",
 		"dev": "vite dev",
+		"prebuild": "node scripts/notices.mjs",
 		"build": "vite build",
 		"preview": "vite preview",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

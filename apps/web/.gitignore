@@ -7,3 +7,5 @@ src/lib/core/pkg/
 screenshots/
 test-results/
 playwright-report/
+# Written by scripts/notices.mjs before every build.
+src/lib/licences/npm-notices.json

@@ -52,6 +52,7 @@ COPY map /build/map
 COPY apps/ios/Venti/Resources/MapDemo/fonts /build/apps/ios/Venti/Resources/MapDemo/fonts
 COPY apps/ios/Venti/Resources/sample.igc /build/apps/ios/Venti/Resources/sample.igc
 COPY docs /build/docs
+COPY licences /build/licences
 COPY crates /build/crates
 COPY apps/web ./
 COPY --from=core /out/pkg src/lib/core/pkg

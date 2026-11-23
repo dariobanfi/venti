@@ -5,6 +5,7 @@ import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
+import type { Notices } from './scripts/notices.d.mts';
 import { contentSecurityPolicy } from './src/lib/app/security-policy.ts';
 
 // Where the app is served from when it is not at the root of its host, for
@@ -92,9 +93,44 @@ function appIcons(): Plugin {
 	};
 }
 
+/**
+ * Stops the build when the built site carries the code of an npm package
+ * whose notice the "Open-source licences" page lacks. `npm run build` writes
+ * the notices first (scripts/notices.mjs); a package named here goes into
+ * `BUNDLED_FROM_DEV` there, or into the site's `dependencies`.
+ */
+function noticesCover(): Plugin {
+	return {
+		name: 'venti-notices-cover',
+		generateBundle(_, bundle) {
+			if (this.environment.name === 'ssr') return;
+			const file = new URL('./src/lib/licences/npm-notices.json', import.meta.url);
+			const noticed = new Set(
+				(JSON.parse(readFileSync(file, 'utf8')) as Notices).packages.map((each) => each.name)
+			);
+			const bundled = new Set<string>();
+			for (const output of Object.values(bundle)) {
+				if (output.type !== 'chunk') continue;
+				for (const id of output.moduleIds) {
+					const name = /.*\/node_modules\/((?:@[^/]+\/)?[^/]+)/.exec(id)?.[1];
+					if (name) bundled.add(name);
+				}
+			}
+			const missing = [...bundled].filter((name) => !noticed.has(name)).sort();
+			if (missing.length > 0) {
+				this.error(
+					`The site carries packages whose notices are missing: ${missing.join(', ')}. ` +
+						'See BUNDLED_FROM_DEV in scripts/notices.mjs.'
+				);
+			}
+		}
+	};
+}
+
 export default defineConfig({
 	plugins: [
 		appIcons(),
+		noticesCover(),
 		sveltekit({
 			// Static files only: every page is written out at build time and any
 			// web server can serve the result. No Node process runs in production.
@@ -121,6 +157,8 @@ export default defineConfig({
 		proxy: api
 	},
 	preview: { proxy: api },
+	// The core's worker is bundled on its own.
+	worker: { plugins: () => [noticesCover()] },
 	test: {
 		include: ['src/**/*.test.ts']
 	}

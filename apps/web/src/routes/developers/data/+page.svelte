@@ -2,13 +2,15 @@
 	Data and licences: every source the server is built with, its licence
 	and the credit its provider asks for, read at build time from the
 	sources' manifests; and Venti's own sites whole, as the server lists
-	its dumps when the page opens.
+	its dumps when the page opens. A link to the open-source licences of
+	the code the site carries.
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { format } from '#lib/design/format.ts';
 	import { listDumps, type DumpLayer } from '#lib/developers/dumps.ts';
 	import { sources } from '#lib/developers/manifests.ts';
+	import { developersHref } from '#lib/app/routes.ts';
 	import { apiDocsHref } from '#lib/developers/reference.ts';
 
 	const text = format();
@@ -44,6 +46,10 @@
 <p class="lead">
 	Each source keeps its own licence, and its records are never mixed with another’s. Show the credit
 	beside the data.
+</p>
+<p class="lead">
+	The code the site is built with:
+	<a class="text-link" href={developersHref('data/open-source')}>Open-source licences</a>
 </p>
 
 <section aria-labelledby="data-downloads">

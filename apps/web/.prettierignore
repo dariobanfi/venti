@@ -6,3 +6,4 @@ screenshots/
 test-results/
 playwright-report/
 package-lock.json
+src/lib/licences/npm-notices.json

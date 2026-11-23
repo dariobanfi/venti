@@ -138,6 +138,37 @@ test('data and licences: each source with its credit, and Venti’s own sites to
 	expect(problems).toEqual([]);
 });
 
+test('the open-source licences: MapLibre’s in full, the core’s crates and the site’s packages', async ({
+	page,
+	keep,
+	problems
+}) => {
+	await page.goto('/developers/data/');
+	await page.getByRole('link', { name: 'Open-source licences' }).click();
+	await expect(page).toHaveTitle('Open-source licences · Developers · Venti');
+	const maplibre = page.locator('[data-notice="maplibre-gl"]');
+	await expect(maplibre.getByText('6.14.0 · BSD-3-Clause')).toBeVisible();
+	await expect(maplibre.locator('pre')).toContainText('Copyright (c) 2023, MapLibre contributors');
+	await expect(maplibre.locator('pre')).toContainText('Redistributions in binary form');
+	const core = page.locator('[data-notice="core"]');
+	await expect(core.locator('p')).toContainText(/WebAssembly · \d+ crates/);
+	const packages = page.locator('[data-notice="packages"]');
+	await expect(packages.getByText(/^svelte 5\.\d+\.\d+ · MIT$/)).toBeVisible();
+	expect(await sideways(page)).toBe(false);
+	await keep('214-developers-open-source');
+
+	await core.getByText('The notices').click();
+	await expect(core.locator('pre')).toContainText("Third-party software in Venti's core");
+
+	const svelte = packages.getByRole('group', { name: /^svelte \d/ });
+	await svelte.getByText(/^svelte /).click();
+	await expect(svelte.locator('pre')).toContainText('Copyright (c) 2016');
+	await svelte.scrollIntoViewIfNeeded();
+	expect(await sideways(page)).toBe(false);
+	await keep('215-developers-open-source-package');
+	expect(problems).toEqual([]);
+});
+
 test('adding a data source is the guide of the repository, with the template', async ({
 	page,
 	keep,

@@ -182,10 +182,11 @@ export function newsPostHref(slug: string): string {
 /**
  * The pages for developers: where Venti's data is and who may use it, the
  * REST API's reference and its schemas, the connector, the sources and
- * their licences with the downloads, and how to add a source.
+ * their licences with the downloads, the open-source licences of the code
+ * the site is built with, and how to add a source.
  */
 export function developersHref(
-	page: '' | 'api' | 'api/schemas' | 'connector' | 'data' | 'add-a-source' = ''
+	page: '' | 'api' | 'api/schemas' | 'connector' | 'data' | 'data/open-source' | 'add-a-source' = ''
 ): string {
 	switch (page) {
 		case 'api':
@@ -196,6 +197,8 @@ export function developersHref(
 			return resolve('/developers/connector');
 		case 'data':
 			return resolve('/developers/data');
+		case 'data/open-source':
+			return resolve('/developers/data/open-source');
 		case 'add-a-source':
 			return resolve('/developers/add-a-source');
 		default:

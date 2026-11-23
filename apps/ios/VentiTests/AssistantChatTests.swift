@@ -179,7 +179,7 @@ final class AssistantChatTests: XCTestCase {
         XCTAssertEqual(chat.entries[1].lookedUp, ["the wind stations around a place"])
         XCTAssertEqual(
             chat.entries[1].text,
-            "Zugspitze: **54 km/h**, from W, gusts 93, measured 45 minutes ago. Quelle: Deutscher Wetterdienst (CC BY 4.0)"
+            "Zugspitze: **54 km/h**, from W, gusts 93, measured 45 minutes ago. Quelle: Deutscher Wetterdienst (CC BY 4.0) <https://www.dwd.de/>"
         )
         // The server was asked for an area, and for nothing else.
         let urls = await fetched.urls

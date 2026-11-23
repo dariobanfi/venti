@@ -37,13 +37,24 @@ struct StationScreen: View {
             }
 
             Section {
-                dayPicker
+                // A station with no history has no past day to pick either:
+                // the core's words stand alone.
+                if historyEmptyWords == nil {
+                    dayPicker
+                }
                 switch phase {
                 case .loading:
                     ProgressView()
                         .frame(maxWidth: .infinity, minHeight: 120)
                 case .ready(let history):
-                    charts(Self.samples(from: history.readings), over: nil)
+                    if let empty = history.emptyWords {
+                        Text(empty)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
+                            .accessibilityIdentifier("station-history-empty")
+                    } else {
+                        charts(Self.samples(from: history.readings), over: nil)
+                    }
                 case .day(let day):
                     if let empty = day.emptyWords {
                         Text(empty)
@@ -266,15 +277,19 @@ struct StationScreen: View {
         }
     }
 
-    /// How old the reading is, and what that means if it is old.
+    /// How old the reading is, and what that means if it is old: the
+    /// core's words, by Venti's clock where it has been read.
     private var ageText: String {
-        guard let reading = station.latest else {
-            return "The server has no reading from this station."
+        stationMeasuredWords(station: station, nowUnixS: wind.nowIfRead, utcOffsetS: WindModel.utcOffsetS)
+    }
+
+    /// The core's words for a station without history over the last 24
+    /// hours; `nil` while there is a chart, a past day, or nothing yet.
+    private var historyEmptyWords: String? {
+        if case .ready(let history) = phase {
+            return history.emptyWords
         }
-        let age = Format.readingAge(ageMin: station.ageMin, timeUnixS: reading.timeUnixS)
-        return station.isOld
-            ? "Measured \(age). Too old to say what the wind is doing now."
-            : "Measured \(age)."
+        return nil
     }
 
     private var credit: Credit? {
@@ -326,112 +341,107 @@ struct StationScreen: View {
     /// given, else over the readings themselves.
     @ViewBuilder
     private func charts(_ samples: [Sample], over day: ClosedRange<Date>?) -> some View {
-        if samples.count < 2 {
-            Text("The server has no history for this station yet.")
+        let marked = touched.flatMap { Self.nearest(to: $0, in: samples) }
+        VStack(alignment: .leading, spacing: 10) {
+            Text(caption(for: marked))
+                .font(.venti(.footnote))
                 .foregroundStyle(.secondary)
-        } else {
-            let marked = touched.flatMap { Self.nearest(to: $0, in: samples) }
-            VStack(alignment: .leading, spacing: 10) {
-                Text(caption(for: marked))
-                    .font(.venti(.footnote))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+                .monospacedDigit()
 
-                Chart {
-                    ForEach(samples, id: \.time) { sample in
-                        if let wind = sample.wind, let gusts = sample.gusts {
-                            AreaMark(
-                                x: .value("Time", sample.time),
-                                yStart: .value("Wind", wind),
-                                yEnd: .value("Gusts", max(gusts, wind))
-                            )
-                            .foregroundStyle(by: .value("Measure", "Gusts"))
-                        }
-                        if let wind = sample.wind {
-                            LineMark(
-                                x: .value("Time", sample.time),
-                                y: .value("Wind", wind)
-                            )
-                            .foregroundStyle(by: .value("Measure", "Wind"))
-                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                        }
+            Chart {
+                ForEach(samples, id: \.time) { sample in
+                    if let wind = sample.wind, let gusts = sample.gusts {
+                        AreaMark(
+                            x: .value("Time", sample.time),
+                            yStart: .value("Wind", wind),
+                            yEnd: .value("Gusts", max(gusts, wind))
+                        )
+                        .foregroundStyle(by: .value("Measure", "Gusts"))
                     }
-                    if let marked {
-                        RuleMark(x: .value("Time", marked.time))
-                            .foregroundStyle(Color.venti(.text).opacity(0.45))
-                            .lineStyle(StrokeStyle(lineWidth: 1))
+                    if let wind = sample.wind {
+                        LineMark(
+                            x: .value("Time", sample.time),
+                            y: .value("Wind", wind)
+                        )
+                        .foregroundStyle(by: .value("Measure", "Wind"))
+                        .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                     }
                 }
-                .chartForegroundStyleScale(["Wind": Palette.wind, "Gusts": Palette.gusts])
-                .chartXAxis {
-                    // Over a whole day a time needs its half of the day, and
-                    // the labels at both ends stay inside the chart.
-                    AxisMarks(preset: .aligned, values: .stride(by: .hour, count: 6)) { _ in
-                        AxisGridLine()
-                        AxisValueLabel(format: .dateTime.hour())
-                    }
+                if let marked {
+                    RuleMark(x: .value("Time", marked.time))
+                        .foregroundStyle(Color.venti(.text).opacity(0.45))
+                        .lineStyle(StrokeStyle(lineWidth: 1))
                 }
-                .chartYAxis {
-                    AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in
-                        AxisGridLine()
-                        AxisValueLabel {
-                            if let speed = value.as(Double.self) {
-                                Text(Format.decimal(speed, places: 0))
-                            }
-                        }
-                    }
-                }
-                .chartXScale(domain: day ?? Self.span(of: samples))
-                .chartXSelection(value: $touched)
-                .frame(height: 170)
-                .accessibilityIdentifier("wind-chart")
-                .accessibilityLabel("Wind and gusts, in kilometres per hour")
-
-                // Its own small chart, not a second scale on the first:
-                // degrees and km/h have nothing to do with each other.
-                Chart {
-                    ForEach(samples, id: \.time) { sample in
-                        if let from = sample.from {
-                            PointMark(
-                                x: .value("Time", sample.time),
-                                y: .value("From", from)
-                            )
-                            .symbolSize(14)
-                            .foregroundStyle(Palette.wind)
-                        }
-                    }
-                    if let marked {
-                        RuleMark(x: .value("Time", marked.time))
-                            .foregroundStyle(Color.venti(.text).opacity(0.45))
-                            .lineStyle(StrokeStyle(lineWidth: 1))
-                    }
-                }
-                .chartYScale(domain: 0...360)
-                .chartXScale(domain: day ?? Self.span(of: samples))
-                .chartXAxis {
-                    // Over a whole day a time needs its half of the day, and
-                    // the labels at both ends stay inside the chart.
-                    AxisMarks(preset: .aligned, values: .stride(by: .hour, count: 6)) { _ in
-                        AxisGridLine()
-                        AxisValueLabel(format: .dateTime.hour())
-                    }
-                }
-                .chartYAxis {
-                    AxisMarks(position: .trailing, values: [0, 90, 180, 270, 360]) { value in
-                        AxisGridLine()
-                        AxisValueLabel {
-                            if let degrees = value.as(Int.self) {
-                                Text(Format.compassPoint(degrees: Double(degrees)))
-                            }
-                        }
-                    }
-                }
-                .chartXSelection(value: $touched)
-                .frame(height: 96)
-                .accessibilityLabel("Wind direction")
             }
-            .padding(.vertical, 4)
+            .chartForegroundStyleScale(["Wind": Palette.wind, "Gusts": Palette.gusts])
+            .chartXAxis {
+                // Over a whole day a time needs its half of the day, and
+                // the labels at both ends stay inside the chart.
+                AxisMarks(preset: .aligned, values: .stride(by: .hour, count: 6)) { _ in
+                    AxisGridLine()
+                    AxisValueLabel(format: .dateTime.hour())
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let speed = value.as(Double.self) {
+                            Text(Format.decimal(speed, places: 0))
+                        }
+                    }
+                }
+            }
+            .chartXScale(domain: day ?? Self.span(of: samples))
+            .chartXSelection(value: $touched)
+            .frame(height: 170)
+            .accessibilityIdentifier("wind-chart")
+            .accessibilityLabel("Wind and gusts, in kilometres per hour")
+
+            // Its own small chart, not a second scale on the first:
+            // degrees and km/h have nothing to do with each other.
+            Chart {
+                ForEach(samples, id: \.time) { sample in
+                    if let from = sample.from {
+                        PointMark(
+                            x: .value("Time", sample.time),
+                            y: .value("From", from)
+                        )
+                        .symbolSize(14)
+                        .foregroundStyle(Palette.wind)
+                    }
+                }
+                if let marked {
+                    RuleMark(x: .value("Time", marked.time))
+                        .foregroundStyle(Color.venti(.text).opacity(0.45))
+                        .lineStyle(StrokeStyle(lineWidth: 1))
+                }
+            }
+            .chartYScale(domain: 0...360)
+            .chartXScale(domain: day ?? Self.span(of: samples))
+            .chartXAxis {
+                // Over a whole day a time needs its half of the day, and
+                // the labels at both ends stay inside the chart.
+                AxisMarks(preset: .aligned, values: .stride(by: .hour, count: 6)) { _ in
+                    AxisGridLine()
+                    AxisValueLabel(format: .dateTime.hour())
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .trailing, values: [0, 90, 180, 270, 360]) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let degrees = value.as(Int.self) {
+                            Text(Format.compassPoint(degrees: Double(degrees)))
+                        }
+                    }
+                }
+            }
+            .chartXSelection(value: $touched)
+            .frame(height: 96)
+            .accessibilityLabel("Wind direction")
         }
+        .padding(.vertical, 4)
     }
 
     /// From the first sample to the last.

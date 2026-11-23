@@ -2992,15 +2992,19 @@ final class VentiUITests: XCTestCase {
         }
         if sensor.exists {
             sensor.tap()
-            // The development server has one reading of it: no chart,
-            // the page's line that it has no history yet.
+            // The development server has one reading of it: no chart and
+            // no day to pick, the core's line that it has no history yet.
             let page = app.descendants(matching: .any)
                 .matching(NSPredicate(
-                    format: "identifier IN %@ OR label BEGINSWITH 'The server has no history'",
-                    ["wind-chart", "station-day-empty"]
+                    format: "identifier IN %@",
+                    ["wind-chart", "station-day-empty", "station-history-empty"]
                 ))
                 .firstMatch
             XCTAssertTrue(page.appears(timeout: 30))
+            if page.identifier == "station-history-empty" {
+                XCTAssertTrue(page.label.hasPrefix("Venti has no history"))
+                XCTAssertFalse(element("station-day", in: app).exists)
+            }
             XCTAssertFalse(element("station-height", in: app).exists)
             XCTAssertFalse(app.descendants(matching: .any)["Height"].exists)
             let temperature = app.descendants(matching: .any)["Temperature"].firstMatch

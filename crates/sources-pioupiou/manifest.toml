@@ -32,10 +32,14 @@ name = "Pioupiou Community License"
 commercial = true
 redistribution = true
 share_alike = false
-# The wording the licence page gives as its example, read 2026-11-22. The
-# answers of the API carry a shorter one, "(c) contributors of the
-# OpenWindMap wind network <https://www.openwindmap.org>".
-attribution = "Wind data (c) contributors of the OpenWindMap wind network <https://openwindmap.org>"
+# The wording the licence page gives as its example, read 2026-11-22: "Wind
+# data (c) contributors of the OpenWindMap wind network
+# <https://openwindmap.org>". The answers of the API carry a shorter one,
+# "(c) contributors of the OpenWindMap wind network
+# <https://www.openwindmap.org>". The address is not written into the line,
+# where an app shows it raw: it is `link`, which every app shows beside the
+# credit as a link to the site, as it does every source's.
+attribution = "Wind data (c) contributors of the OpenWindMap wind network"
 # "You must give credit and provide a link to the https://openwindmap.org
 # website in a visible part of your application."
 link = "https://openwindmap.org"

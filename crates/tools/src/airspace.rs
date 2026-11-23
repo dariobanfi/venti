@@ -843,7 +843,7 @@ mod tests {
         assert_eq!(
             result["data"],
             json!([{
-                "source": "Data used comes from openAIP. (CC BY-NC 4.0)",
+                "source": "Data used comes from openAIP. (CC BY-NC 4.0) <https://www.openaip.net>",
                 "notice": "OpenAIP data is not certified and must not be used for primary navigation or flight planning.",
                 "coverage": "This source's data reaches the place and the whole radius. It holds the airspace of these countries only: DE, AT. If the place or its surroundings lie in another country, this source says nothing about the airspace there.",
                 "fetched_utc": "2026-11-17 03:10",

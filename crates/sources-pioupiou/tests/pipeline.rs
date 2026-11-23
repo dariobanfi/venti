@@ -320,10 +320,13 @@ fn the_manifest_is_valid_and_carries_the_condition() {
     let manifest = source.manifest();
     assert_eq!(manifest.id.as_str(), "pioupiou");
     assert_eq!(manifest.licence.family(), LicenceFamily::Open);
+    // The credit in words, and the link to the site the licence asks for
+    // beside it, never inside it.
     assert_eq!(
         manifest.licence.attribution,
-        "Wind data (c) contributors of the OpenWindMap wind network <https://openwindmap.org>"
+        "Wind data (c) contributors of the OpenWindMap wind network"
     );
+    assert_eq!(manifest.licence.link, "https://openwindmap.org");
     assert!(
         manifest.licence.constraints.iter().any(
             |c| c.contains("not allowed to use Pioupiou Wind Data under the Community License")

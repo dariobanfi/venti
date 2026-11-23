@@ -5,10 +5,10 @@
   },
   "radius_km": 60.0,
   "sources": [
-    "Data source: Aviation Weather Center, aviationweather.gov (Public domain, U.S. Government)",
-    "Quelle: Deutscher Wetterdienst (CC BY 4.0)",
+    "Data source: Aviation Weather Center, aviationweather.gov (Public domain, U.S. Government) <https://aviationweather.gov/data/api/>",
+    "Quelle: Deutscher Wetterdienst (CC BY 4.0) <https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html>",
     "Data source: GeoSphere Austria - https://data.hub.geosphere.at (CC BY 4.0)",
-    "Wind data (c) contributors of the OpenWindMap wind network <https://openwindmap.org> (Pioupiou Community License)"
+    "Wind data (c) contributors of the OpenWindMap wind network (Pioupiou Community License) <https://openwindmap.org>"
   ],
   "stations": [
     {

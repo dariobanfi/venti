@@ -65,7 +65,10 @@ name = "ARSO terms of reuse (Pogoji ponovne uporabe)"
 # accessible and available for reuse), read 2026-11-22. They name no
 # restriction of use, commercial or other, and ask for nothing but the
 # source. That this makes commercial reuse allowed is the plain reading;
-# that ARSO reads it so is to verify.
+# that ARSO reads it so is to verify. Read again on 2026-11-23: neither the
+# Slovenian nor the English terms, nor the service's page, mentions
+# commercial use or any condition but the credit. What ARSO itself reads in
+# them only ARSO can say: still to verify with it.
 commercial = true
 redistribution = true
 share_alike = false
@@ -78,7 +81,7 @@ constraints = [
     "Whoever publishes or summarises the information must name the source: \"Vir: Agencija Republike Slovenije za okolje\" or \"Vir: ARSO\" (in English \"Source: ARSO\"). Article 14 of the Slovenian act on the state's meteorological, hydrological, oceanographic and seismological service (Uradni list RS, 60/17) makes it a duty by law.",
     "ARSO's disclaimer: the site is \"informativnega značaja\" (for information), may be changed or withdrawn in part or whole without notice, users use its data at their own risk, and ARSO takes no responsibility for any loss from decisions made on it.",
     "The service's page calls the XML data available \"testno\" (as a test), says occasional problems with its updating cannot be ruled out, and that no schema exists; the description of the elements is of 2009 (version 0.80). Each value's meaning and unit is taken from the description that the file carries beside it (<x_var_desc>, <x_var_unit>).",
-    "The meaning of a value's <x_state> is not described anywhere found: on 2026-11-22 it was 0 beside every wind, temperature, humidity and pressure that had a value, and 2 only beside empty ones. A value is taken only when its state is 0 or empty; what the other states mean is to verify.",
+    "The meaning of a value's <x_state> is not described anywhere found: on 2026-11-22 it was 0 beside every wind, temperature, humidity and pressure that had a value, and 2 only beside empty ones. A value is taken only when its state is 0 or empty; what the other states mean is to verify. On 2026-11-23 neither the description of the XML service nor the service's page described <x_state> or any state of a value; the specification of version 0.80 that the service's page links to was not read.",
 ]
 verified_on = "2026-11-22"
 verified_from = [

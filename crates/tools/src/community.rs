@@ -597,6 +597,9 @@ fn licence(attribution: Option<&Attribution>) -> Map<String, Value> {
             "credit".to_owned(),
             json!(source_text(&attribution.text, MAX_CREDIT_CHARS)),
         );
+        if let Some(url) = crate::wind::credit_link(attribution) {
+            fields.insert("url".to_owned(), json!(url));
+        }
         fields.insert(
             "provider".to_owned(),
             json!(source_text(&attribution.provider, MAX_NAME_CHARS)),

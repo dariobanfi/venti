@@ -1444,7 +1444,10 @@ mod tests {
         // summit's is among them.
         let sources = wind["sources"].as_array().unwrap();
         assert!(
-            sources.contains(&json!("Quelle: Deutscher Wetterdienst (CC BY 4.0)")),
+            sources.contains(&json!(
+                "Quelle: Deutscher Wetterdienst (CC BY 4.0) \
+                 <https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html>"
+            )),
             "{sources:?}"
         );
 

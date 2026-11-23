@@ -20965,7 +20965,7 @@
                           "provider": "OpenWindMap (Pioupiou wind network)",
                           "short_name": "Pioupiou",
                           "source": "pioupiou",
-                          "text": "Wind data (c) contributors of the OpenWindMap wind network <https://openwindmap.org>",
+                          "text": "Wind data (c) contributors of the OpenWindMap wind network",
                           "url": "https://openwindmap.org"
                         },
                         {

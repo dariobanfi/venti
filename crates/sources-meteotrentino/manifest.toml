@@ -32,7 +32,9 @@ id = "meteotrentino"
 # province serving the same answers from another host. (IIS 8.5 is the web
 # server of Windows Server 2012 R2, whose TLS has those two suites only for
 # ECDSA certificates, and Windows Server 2016 has them for RSA ones: said
-# from memory, not read on Microsoft's pages today, so to verify.) Test with
+# from memory, not read on Microsoft's pages today, so to verify. Still so on
+# 2026-11-23: no page this manifest names says it, and Microsoft's were not
+# read.) Test with
 #   openssl s_client -connect dati.meteotrentino.it:443 -tls1_2 \
 #     -cipher ECDHE-RSA-AES256-GCM-SHA384
 # and then one live run of the source; then its name goes back into
@@ -70,12 +72,17 @@ share_alike = false
 # Attribution 4.0", and the author, Meteotrentino, for the Provincia
 # Autonoma di Trento; it gives no wording for the credit. This line is
 # Venti's, naming both as the page does: to verify with the province.
+# Read again on 2026-11-23: both datasets' pages still give no wording for
+# the credit; their records name as author and publisher the "Servizio
+# Prevenzione Rischi" and as holder the Provincia Autonoma di Trento. That
+# the line suits the province is the province's to say, not a page's: still
+# to verify with it.
 attribution = "Dati: Provincia Autonoma di Trento - Meteotrentino, CC BY 4.0"
 link = "https://dati.trentino.it/dataset/dati-recenti-delle-stazioni-meteo"
 constraints = [
     "The dataset's page: the values come from a network of automatic stations in real time, \"non hanno subito alcun processo di validazione e possono pertanto contenere errori\" (have not been validated and may hold errors).",
     "The station list is a dataset of its own, \"Anagrafica stazioni meteo (stazioni automatiche)\", under the same licence: https://dati.trentino.it/dataset/anagrafica-stazioni-meteo-stazioni-automatiche.",
-    "The service has a lighter answer for one station, datiRealtimeUnaStazione (JSON, any number of hours, 5 kB for one hour), which names no licence of its own and is in no dataset of the portal: not used until the province says it is under the same licence (to verify).",
+    "The service has a lighter answer for one station, datiRealtimeUnaStazione (JSON, any number of hours, 5 kB for one hour), which names no licence of its own and is in no dataset of the portal: not used until the province says it is under the same licence (to verify). On 2026-11-23 the dataset's page listed 36 resources, each an answer of ultimiDatiStazione for one station (the service the adapter asks), and datiRealtimeUnaStazione still among none of them.",
 ]
 verified_on = "2026-11-22"
 verified_from = [

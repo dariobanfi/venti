@@ -520,7 +520,7 @@ mod tests {
         );
         assert_eq!(
             result["sources"],
-            json!(["Weather data by Open-Meteo.com (CC BY 4.0)"])
+            json!(["Weather data by Open-Meteo.com (CC BY 4.0) <https://open-meteo.com/>"])
         );
         assert_eq!(result["caveats"].as_array().unwrap().len(), CAVEATS.len());
 

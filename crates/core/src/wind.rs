@@ -287,6 +287,20 @@ pub struct StationHistory {
     pub readings: Vec<WindReading>,
     /// Whose data they are.
     pub credits: Vec<Credit>,
+    /// What to say in place of a chart when the station has fewer readings
+    /// than a chart needs: "Venti has no history for this station yet."
+    /// Then there is no past day to pick either, and a shell shows no day
+    /// picker over the words. `None` when there is a chart to draw. It goes
+    /// by the last 24 hours alone, since the answer does not say whether
+    /// older days hold readings: a station silent for a day loses the
+    /// picker too, which was decided to be acceptable.
+    #[uniffi(default = None)]
+    #[cfg_attr(
+        feature = "wasm",
+        serde(skip_serializing_if = "Option::is_none"),
+        tsify(optional)
+    )]
+    pub empty_words: Option<String>,
 }
 
 /// Who may create an account on a server.
@@ -449,6 +463,9 @@ pub fn station_history(
     let response: ObservationsResponse = answer(status, &body)?;
     let latest = response.observations.last().cloned();
     Ok(StationHistory {
+        // Two readings make the shortest line a chart can draw.
+        empty_words: (response.observations.len() < 2)
+            .then(|| "Venti has no history for this station yet.".to_owned()),
         station: wind_station(
             &StationWithLatest {
                 station: response.station,
@@ -679,6 +696,41 @@ fn station_line(station: &StationWithLatest, age_min: Option<i64>, is_old: bool)
         parts.push(network.clone());
     }
     parts.join(" \u{b7} ")
+}
+
+/// What a station's page says under its newest reading: "Measured 25
+/// minutes ago.", "Measured 3 hours ago. Too old to say what the wind is
+/// doing now.", or "Venti has no reading from this station."
+///
+/// `now_unix_s` is the current time by the server's clock (see
+/// [`ServerStatus`]), so that a shell can count the age on by its running
+/// clock; zero or less means the clock is not known, and the words then
+/// give the reading's own time on the pilot's clock, "Measured at 14:05.",
+/// and do not call it old. `utc_offset_s` is how far the pilot's clock is
+/// ahead of UTC, in seconds.
+#[uniffi::export]
+pub fn station_measured_words(station: WindStation, now_unix_s: i64, utc_offset_s: i32) -> String {
+    let Some(reading) = station.latest else {
+        return "Venti has no reading from this station.".to_owned();
+    };
+    if now_unix_s <= 0 {
+        return format!("Measured at {}.", clock(reading.time_unix_s, utc_offset_s));
+    }
+    let age = ((now_unix_s - reading.time_unix_s) / 60).max(0);
+    if age > OLD_AFTER_MIN {
+        format!(
+            "Measured {}. Too old to say what the wind is doing now.",
+            age_words(age)
+        )
+    } else {
+        format!("Measured {}.", age_words(age))
+    }
+}
+
+/// A moment on the pilot's clock: "14:05".
+fn clock(unix_s: i64, utc_offset_s: i32) -> String {
+    DateTime::from_timestamp(unix_s + i64::from(utc_offset_s), 0)
+        .map_or_else(String::new, |time| time.format("%H:%M").to_string())
 }
 
 /// How long ago a reading was measured: "just now", "25 minutes ago",
@@ -995,6 +1047,65 @@ mod tests {
         assert!(history.readings[0].time_unix_s < history.readings[1].time_unix_s);
         assert_eq!(history.station.latest, Some(history.readings[1]));
         assert_eq!(history.station.age_min, Some(45));
+        assert_eq!(history.empty_words, None);
+    }
+
+    #[test]
+    fn a_station_without_a_history_says_so_and_offers_no_day() {
+        let body = r#"{
+            "station": {"id": "pioupiou:1514", "source": "pioupiou", "name": "Kreuzjoch",
+                        "position": {"lat": 47.5, "lon": 11.0}},
+            "observations": [
+                {"time": "2026-11-18T18:20:00Z", "wind_speed_ms": 4.0}
+            ],
+            "attributions": []
+        }"#;
+        let history = station_history(200, body.as_bytes().to_vec(), NOW).unwrap();
+        assert_eq!(
+            history.empty_words.as_deref(),
+            Some("Venti has no history for this station yet.")
+        );
+    }
+
+    #[test]
+    fn a_reading_is_measured_ago_by_a_known_clock_and_at_its_time_by_an_unknown_one() {
+        let station = |latest: Option<WindReading>| WindStation {
+            id: "dwd-10min:05792".to_owned(),
+            name: "Zugspitze".to_owned(),
+            source: "dwd-10min".to_owned(),
+            position: Coordinate {
+                lat: 47.4,
+                lon: 11.0,
+            },
+            elevation_m: None,
+            latest,
+            age_min: None,
+            is_old: false,
+            mark: wind_mark(None, true),
+            network: None,
+            line: String::new(),
+        };
+        // 18:20 UTC; NOW is 19:05 UTC.
+        let reading = WindReading {
+            time_unix_s: NOW - 45 * 60,
+            speed_ms: Some(4.0),
+            gust_ms: None,
+            direction_deg: None,
+            temperature_c: None,
+            humidity_pct: None,
+        };
+        let words = |now: i64| station_measured_words(station(Some(reading)), now, 3600);
+        assert_eq!(words(NOW), "Measured 45 minutes ago.");
+        assert_eq!(
+            words(NOW + 3 * 3600),
+            "Measured 4 hours ago. Too old to say what the wind is doing now."
+        );
+        // Without Venti's clock: the reading's time on the pilot's, never old.
+        assert_eq!(words(0), "Measured at 19:20.");
+        assert_eq!(
+            station_measured_words(station(None), NOW, 3600),
+            "Venti has no reading from this station."
+        );
     }
 
     #[test]

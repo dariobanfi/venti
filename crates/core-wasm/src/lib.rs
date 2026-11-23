@@ -2053,6 +2053,23 @@ pub fn station_history(
     to_js(&venti_core::station_history(status, body, whole_seconds(now_unix_s)).map_err(thrown)?)
 }
 
+/// What a station's page says under its newest reading: "Measured 25
+/// minutes ago.", or "Measured at 14:05." while Venti's clock is not known
+/// (`now_unix_s` zero). `utc_offset_s` is how far the pilot's clock is
+/// ahead of UTC.
+#[wasm_bindgen(js_name = stationMeasuredWords)]
+pub fn station_measured_words(
+    station: Ts<WindStation>,
+    now_unix_s: f64,
+    utc_offset_s: i32,
+) -> Result<String, JsValue> {
+    Ok(venti_core::station_measured_words(
+        from_js(&station)?,
+        whole_seconds(now_unix_s),
+        utc_offset_s,
+    ))
+}
+
 /// The days of a station's past to offer in a day picker: the first and
 /// the last as a date field writes them. `now_unix_s` is the current time
 /// by the server's clock and `utc_offset_s` how far the pilot's clock is

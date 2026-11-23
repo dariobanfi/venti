@@ -537,7 +537,7 @@
       ],
       "licence": {
         "commercial": true,
-        "credit": "Wind data (c) contributors of the OpenWindMap wind network <https://openwindmap.org>",
+        "credit": "Wind data (c) contributors of the OpenWindMap wind network",
         "link": "https://openwindmap.org",
         "name": "Pioupiou Community License",
         "redistribution": true,

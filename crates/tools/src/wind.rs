@@ -22,6 +22,7 @@ use venti_api_types::v1::{
 use venti_api_types::v1::{FOEHN_PATH, FoehnReducedBy, FoehnResponse, FoehnSide, FoehnUnknown};
 use venti_domain::{BoundingBox, GeoPoint, StationId};
 
+use crate::sites::is_plain_address;
 use crate::{Tool, ToolError, source_text};
 
 /// How far around a place `wind_stations` looks when the model does not say.
@@ -275,7 +276,7 @@ pub fn foehn(answer: &FoehnResponse) -> Value {
         "possible_from_hpa": answer.possible_from_hpa,
         "likely_from_hpa": answer.likely_from_hpa,
         "caution": answer.caution,
-        "credits": answer.attributions.iter().map(|credit| &credit.text).collect::<Vec<_>>(),
+        "credits": answer.attributions.iter().take(MAX_CREDITS).map(credit).collect::<Vec<_>>(),
     })
 }
 
@@ -501,16 +502,26 @@ pub(crate) fn sources<'a>(attributions: impl IntoIterator<Item = &'a Attribution
     )
 }
 
-/// One source's credit with its licence, as a result gives it: a line of
-/// bounded length. The sentence is the project's own, from the source's
-/// manifest, but it reaches the app through a server, and the model is
-/// asked to repeat it.
+/// One source's credit with its licence and its link, as a result gives
+/// it: a line of bounded length, "Source: MeteoSwiss (CC BY 4.0)
+/// <https://www.meteoswiss.admin.ch>". The sentence is the project's own,
+/// from the source's manifest, but it reaches the app through a server,
+/// and the model is asked to repeat it. Some licences ask for the link
+/// with the credit (Pioupiou's); it is left out when it is no plain
+/// address, and when the credit already writes it.
 pub(crate) fn credit(attribution: &Attribution) -> String {
-    format!(
-        "{} ({})",
-        source_text(&attribution.text, MAX_CREDIT_CHARS),
-        source_text(&attribution.licence, MAX_LICENCE_CHARS)
-    )
+    let text = source_text(&attribution.text, MAX_CREDIT_CHARS);
+    let licence = source_text(&attribution.licence, MAX_LICENCE_CHARS);
+    match credit_link(attribution) {
+        Some(url) if !text.contains(url) => format!("{text} ({licence}) <{url}>"),
+        _ => format!("{text} ({licence})"),
+    }
+}
+
+/// The address a source's credit links to, if it is one fit to stand in
+/// a result.
+pub(crate) fn credit_link(attribution: &Attribution) -> Option<&str> {
+    Some(attribution.url.as_str()).filter(|url| is_plain_address(url))
 }
 
 /// A call of `wind_stations`, with its arguments read and bounded.
@@ -682,6 +693,7 @@ pub(crate) fn tenth(value: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sites::MAX_URL_CHARS;
 
     fn at(text: &str) -> DateTime<Utc> {
         text.parse().unwrap()
@@ -866,7 +878,7 @@ mod tests {
 
         assert_eq!(
             result["sources"],
-            json!(["Quelle: Deutscher Wetterdienst (CC BY 4.0)"])
+            json!(["Quelle: Deutscher Wetterdienst (CC BY 4.0) <https://www.dwd.de/>"])
         );
         assert!(result.get("note").is_none());
     }
@@ -890,14 +902,14 @@ mod tests {
         // Patscherkofel, 44 km away, is in the box and not in the circle.
         assert_eq!(
             sources(20.0),
-            json!(["Quelle: Deutscher Wetterdienst (CC BY 4.0)"])
+            json!(["Quelle: Deutscher Wetterdienst (CC BY 4.0) <https://www.dwd.de/>"])
         );
         // Within 50 km it is listed, and its source credited.
         assert_eq!(
             sources(50.0),
             json!([
-                "Quelle: Deutscher Wetterdienst (CC BY 4.0)",
-                "Data source: GeoSphere Austria (CC BY 4.0)"
+                "Quelle: Deutscher Wetterdienst (CC BY 4.0) <https://www.dwd.de/>",
+                "Data source: GeoSphere Austria (CC BY 4.0) <https://data.hub.geosphere.at>"
             ])
         );
         // Where nothing is listed, nobody is credited.
@@ -945,7 +957,7 @@ mod tests {
         assert_eq!(result["latest"]["age_min"], 45);
         assert_eq!(
             result["sources"][0],
-            "Quelle: Deutscher Wetterdienst (CC BY 4.0)"
+            "Quelle: Deutscher Wetterdienst (CC BY 4.0) <https://www.dwd.de/>"
         );
     }
 
@@ -1087,7 +1099,7 @@ mod tests {
             let source = source.as_str().unwrap();
             assert!(!source.contains('\n'), "{source}");
             assert!(
-                source.chars().count() <= MAX_CREDIT_CHARS + MAX_LICENCE_CHARS + 3,
+                source.chars().count() <= MAX_CREDIT_CHARS + MAX_LICENCE_CHARS + MAX_URL_CHARS + 6,
                 "{source}"
             );
         }
@@ -1099,7 +1111,7 @@ mod tests {
         let real: StationsResponse = serde_json::from_str(STATIONS).unwrap();
         assert_eq!(
             wind_stations(&real, place, 30.0, at("2026-11-18T19:00:00Z"))["sources"],
-            json!(["Quelle: Deutscher Wetterdienst (CC BY 4.0)"])
+            json!(["Quelle: Deutscher Wetterdienst (CC BY 4.0) <https://www.dwd.de/>"])
         );
     }
 }

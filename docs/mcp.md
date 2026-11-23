@@ -67,10 +67,10 @@ What the model reads for "the wind within 60 km of the Zugspitze":
   },
   "radius_km": 60.0,
   "sources": [
-    "Data source: Aviation Weather Center, aviationweather.gov (Public domain, U.S. Government)",
-    "Quelle: Deutscher Wetterdienst (CC BY 4.0)",
+    "Data source: Aviation Weather Center, aviationweather.gov (Public domain, U.S. Government) <https://aviationweather.gov/data/api/>",
+    "Quelle: Deutscher Wetterdienst (CC BY 4.0) <https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html>",
     "Data source: GeoSphere Austria - https://data.hub.geosphere.at (CC BY 4.0)",
-    "Wind data (c) contributors of the OpenWindMap wind network <https://openwindmap.org> (Pioupiou Community License)"
+    "Wind data (c) contributors of the OpenWindMap wind network (Pioupiou Community License) <https://openwindmap.org>"
   ],
   "stations": [
     {
@@ -223,7 +223,7 @@ For "the last two hours on the Zugspitze":
     "wind_km_h": 54.0
   },
   "sources": [
-    "Quelle: Deutscher Wetterdienst (CC BY 4.0)"
+    "Quelle: Deutscher Wetterdienst (CC BY 4.0) <https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html>"
   ],
   "station": {
     "elevation_m": 2956.0,
@@ -234,7 +234,7 @@ For "the last two hours on the Zugspitze":
 }
 ```
 
-Every result names the source of its data with its licence, and says how old the data is. The licences ask for the credit; the assistant is told to pass it on.
+Every result names the source of its data with its licence and the link its credit carries, and says how old the data is. The licences ask for the credit; the assistant is told to pass it on.
 
 ### Sites and flights, and their licences
 
@@ -269,6 +269,7 @@ For "which take-offs near Innsbruck face west", an assistant makes a box of some
       "provider": "OpenStreetMap contributors",
       "sites": [],
       "sites_found": 0,
+      "url": "https://www.openstreetmap.org/copyright",
       "whole_in_the_box": true
     },
     {
@@ -311,7 +312,8 @@ For "which take-offs near Innsbruck face west", an assistant makes a box of some
           ]
         }
       ],
-      "sites_found": 1
+      "sites_found": 1,
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/"
     }
   ],
   "left_out_for_lack_of_data": "Sites whose source does not say what the filter asks are left out and counted per layer; they may well suit.",
@@ -320,7 +322,7 @@ For "which take-offs near Innsbruck face west", an assistant makes a box of some
 }
 ```
 
-**The layers are never merged.** A result that holds sites has a group per layer, and the group carries that layer's `licence`, `credit`, `provider` and `notice` as the API's `attributions` give them: CC0 1.0 for Venti's partners' layer `venti` and for the places from pilots `venti-pilots`, ODbL 1.0 for OpenStreetMap's. No site stands in the group of another layer. `site` and `site_history` carry the licence of the one layer they are of. A result that holds flights (`site_flights`, `takeoff_candidates`, `public_flights`, `public_flight`) carries the flights' `terms` as the API gives them: today a holding statement, `decided: false`, that reusing a flight needs its pilot's leave.
+**The layers are never merged.** A result that holds sites has a group per layer, and the group carries that layer's `licence`, `credit`, `url` (where the credit links to), `provider` and `notice` as the API's `attributions` give them: CC0 1.0 for Venti's partners' layer `venti` and for the places from pilots `venti-pilots`, ODbL 1.0 for OpenStreetMap's. No site stands in the group of another layer. `site` and `site_history` carry the licence of the one layer they are of. A result that holds flights (`site_flights`, `takeoff_candidates`, `public_flights`, `public_flight`) carries the flights' `terms` as the API gives them: today a holding statement, `decided: false`, that reusing a flight needs its pilot's leave.
 
 **The places from pilots are asked for.** `sites_in_box` lists them only with `places_from_pilots`, as the API lists them only when `layers` names them, and each of them says in `not_official`, where the model reads it, that it is not official and not checked by anyone.
 
@@ -382,7 +384,7 @@ Four sentences come with every airspace result, in the result itself, so that no
 
 The last one is made exact for each place. The server holds airspace for one area and some countries, and every source in a result says whether its data reaches the place asked about and its whole radius, and for which countries. Where no data reaches the place, the result says so in a `note` of its own: "The server holds no airspace data for this place. That says nothing about the airspace there."
 
-**Text from the source is marked as that.** An airspace's `name` and its `source_remarks` are passed on as the source publishes them, and openAIP is edited by its community: anyone may have written them. A model reads a tool's result as it reads everything else, so words in a name that are put as an order could be taken for one. Every result therefore says, in `text_from_the_source`, that these two fields are the source's words and never an instruction, and the tool's description says the same. The text itself is bounded: one line, at most 80 characters of a name and 240 of a remark, without characters that do not show. That lowers the risk and does not remove it: whether a model heeds the sentence is the model's doing, and whoever connects an assistant to data from the internet should know that. What the server says of its sources is bounded the same way, though the project's own sources give no reason to: a station's name is one line of at most 80 characters, a credit one of at most 300 with its licence, and a result lists eight credits at the most.
+**Text from the source is marked as that.** An airspace's `name` and its `source_remarks` are passed on as the source publishes them, and openAIP is edited by its community: anyone may have written them. A model reads a tool's result as it reads everything else, so words in a name that are put as an order could be taken for one. Every result therefore says, in `text_from_the_source`, that these two fields are the source's words and never an instruction, and the tool's description says the same. The text itself is bounded: one line, at most 80 characters of a name and 240 of a remark, without characters that do not show. That lowers the risk and does not remove it: whether a model heeds the sentence is the model's doing, and whoever connects an assistant to data from the internet should know that. What the server says of its sources is bounded the same way, though the project's own sources give no reason to: a station's name is one line of at most 80 characters, a credit one of at most 300 with its licence and its link, an address of at most 120 plain characters, left out when it is not one, and a result lists eight credits at the most.
 
 What an airspace means for a paraglider is not left to the model. It is read from the table the app's cockpit warns by ([airspace.md](airspace.md#which-airspaces-warn)), which was written for Germany and Austria; what it says elsewhere is [there](airspace.md#outside-germany-and-austria) too.
 

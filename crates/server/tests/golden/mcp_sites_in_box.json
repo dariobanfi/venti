@@ -26,6 +26,7 @@
       "provider": "OpenStreetMap contributors",
       "sites": [],
       "sites_found": 0,
+      "url": "https://www.openstreetmap.org/copyright",
       "whole_in_the_box": true
     },
     {
@@ -68,7 +69,8 @@
           ]
         }
       ],
-      "sites_found": 1
+      "sites_found": 1,
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/"
     }
   ],
   "left_out_for_lack_of_data": "Sites whose source does not say what the filter asks are left out and counted per layer; they may well suit.",

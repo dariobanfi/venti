@@ -27,7 +27,7 @@
     "wind_km_h": 54.0
   },
   "sources": [
-    "Quelle: Deutscher Wetterdienst (CC BY 4.0)"
+    "Quelle: Deutscher Wetterdienst (CC BY 4.0) <https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html>"
   ],
   "station": {
     "elevation_m": 2956.0,

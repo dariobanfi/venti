@@ -32,13 +32,33 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 	await at(0.4, 0.2);
 	await expect(words).toHaveText('Tap the next place to fly to.');
 	await at(0.7, 0.22);
-	await expect(legs).toHaveCount(1);
-	await expect(words).toContainText('A third place inside a dashed area makes an FAI triangle');
-	// A phone's card at the foot is tall by now, with the weather along
-	// the route under the legs, and reaches up to a third of the map from
-	// its top: the third place goes above the first two there, under the
-	// chips of what the map shows.
-	await at(0.55, wide ? 0.32 : 0.12);
+	// A phone's card at the foot is one line of the route once it has a
+	// leg, the rest behind it, so that the map stays free for the next place.
+	const summary = card.locator('[data-route-summary]');
+	if (wide) {
+		await expect(legs).toHaveCount(1);
+		await expect(words).toContainText('A third place inside a dashed area makes an FAI triangle');
+		await expect(summary).toHaveCount(0);
+	} else {
+		await expect(summary).toHaveText(/^1 leg · [\d.,]+ km\s*$/);
+		await expect(summary).toHaveAttribute('aria-expanded', 'false');
+		await expect(words).toHaveCount(0);
+		await expect(legs).toHaveCount(0);
+	}
+	await at(0.55, 0.32);
+	await expect
+		.poll(() => page.evaluate(() => (globalThis as { ventiRoute?: { places: number } }).ventiRoute))
+		.toMatchObject({ places: 3 });
+	if (!wide) {
+		await expect(summary).toHaveText(/^2 legs · [\d.,]+ km\s*$/);
+		// Folded, it covers a small part of the map.
+		const folded = (await page.locator('.forecast-card').filter({ has: summary }).boundingBox())!;
+		expect(folded.height / map.height).toBeLessThan(0.3);
+		await mapDrawn();
+		await keep('213-route-three-places');
+		await summary.click();
+		await expect(summary).toHaveAttribute('aria-expanded', 'true');
+	}
 	await expect(legs).toHaveCount(2);
 	await expect(words).toContainText('km along the route. Flown like this it scores as');
 	await expect(card.getByRole('heading', { level: 3 })).toBeVisible();
@@ -54,9 +74,6 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 		await each.click();
 	}
 	await expect(along).toHaveCount(5);
-	await expect
-		.poll(() => page.evaluate(() => (globalThis as { ventiRoute?: { places: number } }).ventiRoute))
-		.toMatchObject({ places: 3 });
 	await mapDrawn();
 	if (wide) {
 		// The pane at the map's side ends above the credits at the map's foot.
@@ -72,8 +89,11 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 				return credits.y - (pane.y + pane.height);
 			})
 			.toBeGreaterThanOrEqual(0);
+		await keep('213-route-three-places');
+	} else {
+		// Unfolded, all of it, scrolled inside the card.
+		await keep('217-route-unfolded');
 	}
-	await keep('213-route-three-places');
 
 	// Back to the start: the core finds the triangle, closed.
 	await card.getByRole('button', { name: 'Back to the start' }).click();
@@ -89,6 +109,8 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 	// A reload shows the route as it was left.
 	await page.reload();
 	await mapTabDrawn(page, mapDrawn);
+	// A phone's card opens folded again.
+	if (!wide) await summary.click();
 	await expect(legs).toHaveCount(2);
 	await expect(words).toContainText('Flown like this it scores as');
 	await expect

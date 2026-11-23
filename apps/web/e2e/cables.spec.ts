@@ -106,6 +106,7 @@ test('three places that come back near the first make a triangle, and the planne
 	page,
 	mapDrawn,
 	keep,
+	wide,
 	problems
 }) => {
 	await page.goto('/?lat=47.70&lon=11.76');
@@ -119,10 +120,16 @@ test('three places that come back near the first make a triangle, and the planne
 	const map = (await page.locator('canvas.maplibregl-canvas').boundingBox())!;
 	const at = (x: number, y: number) =>
 		page.mouse.click(map.x + map.width * x, map.y + map.height * y);
+	// A phone's card is one line of the route until it is unfolded.
+	const summary = card.locator('[data-route-summary]');
 	await at(0.4, 0.2);
 	await at(0.7, 0.22);
-	await expect(legs).toHaveCount(1);
+	await expect(wide ? legs : summary).toHaveText(wide ? [/./] : /^1 leg · /);
 	await at(0.42, 0.25);
+	if (!wide) {
+		await expect(summary).toHaveText(/^2 legs · /);
+		await summary.click();
+	}
 	await expect(legs).toHaveCount(2);
 
 	await expect(card.locator('[data-closing-words]')).toHaveText(

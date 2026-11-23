@@ -87,7 +87,7 @@ test('the demo pilot sees whom they follow, their feed and what they were told',
 		.getByRole('link', { name: 'Community', exact: true })
 		.click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Community' })).toBeVisible();
-	await expect(page.getByRole('region', { name: 'Plans' })).toBeVisible();
+	await expect(page.getByRole('region', { name: 'Plans', exact: true })).toBeVisible();
 	const cards = rowsOf(page.getByRole('region', { name: 'Following' }), 'Following');
 	await expect(cards.first()).toBeVisible();
 	await expect(cards.first().locator('svg polyline')).toHaveCount(1);

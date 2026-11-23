@@ -6,6 +6,9 @@
 	length and direction. Under them "Undo", "Back to the start" and
 	"Clear". A card at the map's side on a wide screen, a card over the
 	map's foot on a narrow one, so that the map stays in reach of the finger.
+	There it is `compact`: once the route has a leg, one line of its legs
+	and length stands for the rest, which unfolds with a tap, so that the
+	card covers no more of the map than it must.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
@@ -27,13 +30,30 @@
 		 * is shown there until then.
 		 */
 		weather?: Snippet;
+		/**
+		 * A narrow screen's card over the map's foot: the core's words, the
+		 * score, the weather and the legs fold behind one line of the legs
+		 * and the length once there is a leg.
+		 */
+		compact?: boolean;
 	}
 
-	let { planner, onclose, weather }: Props = $props();
+	let { planner, onclose, weather, compact = false }: Props = $props();
 
 	const text = format();
 	const plan = $derived(planner.plan);
 	const score = $derived(plan?.score);
+	const legCount = $derived(plan?.legs.length ?? 0);
+	/** Whether a compact card shows all of it. Folded at first. */
+	let unfolded = $state(false);
+	/** Whether the score, the weather and the legs are shown. */
+	const whole = $derived(!compact || unfolded);
+	/** A compact card's one line: "2 legs · 73.2 km". */
+	const summary = $derived(
+		plan && legCount > 0
+			? `${legCount} ${legCount === 1 ? 'leg' : 'legs'} · ${text.kilometres(plan.distanceM)} km`
+			: undefined
+	);
 
 	/*
 	 * The route as a GPX file, out and in: two entries of the card's menu,
@@ -139,13 +159,29 @@
 		</p>
 	{/if}
 
+	{#if compact && summary}
+		<!-- A phone's card: the route in one line, the rest behind it. -->
+		<button
+			class="summary"
+			type="button"
+			aria-expanded={unfolded}
+			data-route-summary
+			onclick={() => (unfolded = !unfolded)}
+		>
+			<span class="numeric">{summary}</span>
+			<span class="turn" class:up={unfolded} aria-hidden="true">
+				<Icon name="forward" />
+			</span>
+		</button>
+	{/if}
+
 	{#if planner.problem}
 		<p class="problem" role="alert">{planner.problem}</p>
-	{:else if plan}
+	{:else if plan && (whole || legCount === 0)}
 		<p class="words" role="status" data-route-words>{plan.words}</p>
 	{/if}
 
-	{#if score}
+	{#if score && whole}
 		<div class="score">
 			<h3>{score.name}</h3>
 			<dl class="metrics">
@@ -160,14 +196,14 @@
 		</div>
 	{/if}
 
-	{#if weather}
+	{#if weather && whole}
 		<!-- The weather along the route: the core's, once it has it. -->
 		<section class="weather" aria-label="The weather along the route">
 			{@render weather()}
 		</section>
 	{/if}
 
-	{#if plan && plan.legs.length > 0}
+	{#if plan && plan.legs.length > 0 && whole}
 		<ol class="legs" aria-label="Legs">
 			{#each plan.legs as leg, index (index)}
 				<li>
@@ -195,14 +231,18 @@
 		>
 			Back to the start
 		</button>
+		<!-- The sign alone on a phone's card, so that the three stand in one row. -->
 		<button
 			class="button-plain clear"
+			class:sign={compact}
 			type="button"
+			aria-label={compact ? 'Clear' : undefined}
+			title={compact ? 'Clear' : undefined}
 			disabled={planner.places.length === 0}
 			onclick={() => planner.clear()}
 		>
 			<Icon name="trash" />
-			Clear
+			{#if !compact}Clear{/if}
 		</button>
 	</div>
 </section>
@@ -264,6 +304,31 @@
 	.problem {
 		font-size: var(--subheadline);
 		color: var(--danger);
+	}
+
+	/* A row to press, as high as a finger needs, as the weather's "Each
+	   place and leg". */
+	.summary {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
+		min-height: var(--target);
+		margin: calc(var(--space-2) * -1) 0;
+		color: var(--text);
+		font-size: var(--subheadline);
+		font-weight: 600;
+		text-align: left;
+	}
+
+	.summary .turn {
+		display: grid;
+		color: var(--link);
+		transform: rotate(90deg);
+	}
+
+	.summary .turn.up {
+		transform: rotate(-90deg);
 	}
 
 	.score {
@@ -334,5 +399,11 @@
 	.clear :global(svg) {
 		width: 1.125rem;
 		height: 1.125rem;
+	}
+
+	.clear.sign {
+		min-width: var(--target);
+		justify-content: center;
+		padding-inline: 0;
 	}
 </style>

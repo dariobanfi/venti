@@ -140,6 +140,32 @@ export function whenStyled(map: Map, draw: () => void): void {
 	else map.once('load', draw);
 }
 
+/** Two paddings added up, edge by edge. */
+function sum(a: PaddingOptions, b: PaddingOptions): Required<PaddingOptions> {
+	return {
+		top: (a.top ?? 0) + (b.top ?? 0),
+		right: (a.right ?? 0) + (b.right ?? 0),
+		bottom: (a.bottom ?? 0) + (b.bottom ?? 0),
+		left: (a.left ?? 0) + (b.left ?? 0)
+	};
+}
+
+/**
+ * Whether a camera can be fitted to the box at all: a box of real numbers,
+ * and room left on the map once what covers it is taken off. On a narrow
+ * phone with large text a sheet can cover all of a flight's map, and
+ * MapLibre then throws ("Invalid LngLat object: (NaN, NaN)"); the camera
+ * stays where it is until the map has room again.
+ */
+function fits(map: Map, box: Bounds, padding: Required<PaddingOptions>): boolean {
+	const { clientWidth, clientHeight } = map.getContainer();
+	return (
+		[box.west, box.south, box.east, box.north].every(Number.isFinite) &&
+		clientWidth - padding.left - padding.right > 0 &&
+		clientHeight - padding.top - padding.bottom > 0
+	);
+}
+
 /** The space, in pixels, to leave around what the camera is fitted to. */
 const EDGE: Required<PaddingOptions> = { top: 28, right: 36, bottom: 28, left: 36 };
 
@@ -152,6 +178,7 @@ export function showBounds(map: Map, box: Bounds, covered: PaddingOptions): void
 	// without limit.
 	const margin = 0.002;
 	map.setPadding(covered);
+	if (!fits(map, box, sum(covered, EDGE))) return;
 	map.fitBounds(
 		[
 			[box.west - margin, box.south - margin],
@@ -173,18 +200,20 @@ export function showBeside(map: Map, box: Bounds, covered: Partial<PaddingOption
 	// What stands at the end of a line has a name under it, which is wider
 	// than the line: room for half of it at either side.
 	const label = 24;
+	const padding = {
+		top: EDGE.top + (covered.top ?? 0),
+		right: EDGE.right + label + (covered.right ?? 0),
+		bottom: EDGE.bottom + (covered.bottom ?? 0),
+		left: EDGE.left + label + (covered.left ?? 0)
+	};
+	if (!fits(map, box, sum(map.getPadding(), padding))) return;
 	map.fitBounds(
 		[
 			[box.west - margin, box.south - margin],
 			[box.east + margin, box.north + margin]
 		],
 		{
-			padding: {
-				top: EDGE.top + (covered.top ?? 0),
-				right: EDGE.right + label + (covered.right ?? 0),
-				bottom: EDGE.bottom + (covered.bottom ?? 0),
-				left: EDGE.left + label + (covered.left ?? 0)
-			},
+			padding,
 			// A track of a few metres is shown with the land around it.
 			maxZoom: 14.5,
 			duration: 600,

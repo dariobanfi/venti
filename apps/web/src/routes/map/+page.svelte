@@ -1803,10 +1803,11 @@
 			</div>
 		{/if}
 		<!-- On a narrow screen the route planner's card stands over the map's
-		     foot, as the phones' panel does, and leaves the map to the finger. -->
+		     foot, as the phones' panel does, and leaves the map to the finger:
+		     compact, one line of the route until the pilot unfolds it. -->
 		{#if planner.open && !placing && !wide.current}
 			<div class="forecast-card">
-				<RoutePlanCard {planner} onclose={() => planner.close()} weather={alongTheRoute} />
+				<RoutePlanCard {planner} compact onclose={() => planner.close()} weather={alongTheRoute} />
 			</div>
 		{/if}
 		{#if reach.place && !placing && !wide.current}

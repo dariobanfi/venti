@@ -208,7 +208,7 @@ struct SiteList: View {
     private var footnote: String {
         var lines = [SiteScreen.caution]
         if let asOf = sites.asOfUnixS {
-            lines.append("As of \(Format.dayShort(unixSeconds: asOf)): a site added to the source since then is not here yet.")
+            lines.append("As of \(Format.day(unixSeconds: asOf)): a site added to the source since then is not here yet.")
         }
         if !sites.isWhole {
             lines.append("The server does not hold every site its sources have for this part of the map.")

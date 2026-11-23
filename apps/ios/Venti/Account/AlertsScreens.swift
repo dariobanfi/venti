@@ -46,6 +46,7 @@ struct AlertsScreen: View {
     private let words = alertFormWords()
     @Environment(AlertsModel.self) private var alerts
     @Environment(AccountModel.self) private var account
+    @Environment(UnreadModel.self) private var unread
 
     /// The alarm open in the form.
     @State private var editing: AlertView?
@@ -121,10 +122,18 @@ struct AlertsScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
             await alerts.sync()
+            if alerts.problem == nil {
+                await unread.sawAlarms()
+            }
         }
+        // What fired is shown once the sync has brought it: seen up to
+        // there, which takes it off the Community tab's badge.
         .task {
             alerts.read()
             await alerts.sync()
+            if alerts.problem == nil {
+                await unread.sawAlarms()
+            }
         }
     }
 }

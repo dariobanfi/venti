@@ -42,6 +42,64 @@ private actor SiteRequests {
 final class SitesModelTests: XCTestCase {
     private let tegernsee = Bounds(south: 47.60, west: 11.65, north: 47.75, east: 11.90)
 
+    /// A take-off that gives its directions has a fan over them, pointing
+    /// where the wind comes from; one without directions and a landing
+    /// have none. The fan's state is the core's `windFits` for the wind
+    /// of the hour the map shows (plan item 19).
+    func testATakeoffsFanIsOverItsDirectionsAndColouredByTheCoresFit() async throws {
+        let sites = SitesModel(transport: { _ in (200, Data(ServerSites.answer.utf8)) })
+        let server = try XCTUnwrap(URL(string: "http://127.0.0.1:8080"))
+        sites.server = { server }
+        await sites.load(tegernsee, from: server)
+        let (named, bare, landing) = (sites.sites[0], sites.sites[1], sites.sites[2])
+        XCTAssertTrue(SiteFans.hasFan(named))
+        XCTAssertFalse(SiteFans.hasFan(bare))
+        XCTAssertFalse(SiteFans.hasFan(landing))
+
+        // S to SW, the two points whole: from half a point before S to
+        // half a point after SW.
+        let wedges = SiteFans.wedges(of: named.wind)
+        XCTAssertEqual(wedges.count, 1)
+        XCTAssertEqual(wedges[0].from, 168.75, accuracy: 0.01)
+        XCTAssertEqual(wedges[0].to, 236.25, accuracy: 0.01)
+        // A span across north goes on past 360; a single direction is a
+        // point wide.
+        let across = SiteFans.wedges(of: [WindSpan(fromDeg: 315, toDeg: 45), WindSpan(fromDeg: 90, toDeg: 90)])
+        XCTAssertEqual(across[0].from, 303.75, accuracy: 0.01)
+        XCTAssertEqual(across[0].to, 416.25, accuracy: 0.01)
+        XCTAssertEqual(across[1].to - across[1].from, 22.5, accuracy: 0.01)
+
+        XCTAssertEqual(SiteFans.fit(of: named, windFrom: 200), .fits)
+        XCTAssertEqual(SiteFans.fit(of: named, windFrom: 0), .doesNotFit)
+        XCTAssertEqual(SiteFans.fit(of: named, windFrom: nil), .unknown)
+        XCTAssertEqual(SiteFans.name(of: named.wind, fit: .fits), "site-fan-fits-180-225")
+        XCTAssertNotEqual(SiteFans.name(of: named.wind, fit: .fits), SiteFans.name(of: named.wind, fit: .unknown))
+
+        // The core's arrows point where the wind blows to: an arrow to the
+        // NNE is a wind from the SSW; a calm square has no direction.
+        let arrows = """
+        {"type":"FeatureCollection","features":[
+        {"type":"Feature","geometry":{"type":"Point","coordinates":[11.8,47.7]},
+         "properties":{"cell":3,"symbol":"arrow","band":"light","heading":20,"label":"9"}},
+        {"type":"Feature","geometry":{"type":"Point","coordinates":[11.9,47.7]},
+         "properties":{"cell":4,"symbol":"calm","band":"light","heading":0,"label":"1"}}]}
+        """
+        let from = SiteFans.windFrom(arrows: arrows)
+        XCTAssertEqual(from, [3: 200])
+        XCTAssertEqual(SiteFans.windFrom(arrows: ""), [:])
+
+        // Turned with the map, the fan's middle stays on the pin's head.
+        XCTAssertEqual(SiteFans.offset(for: 0).dx, 0, accuracy: 0.001)
+        XCTAssertEqual(SiteFans.offset(for: 0).dy, -SiteFans.headAboveTip, accuracy: 0.001)
+        XCTAssertEqual(SiteFans.offset(for: 90).dx, SiteFans.headAboveTip, accuracy: 0.001)
+        XCTAssertEqual(SiteFans.offset(for: 90).dy, 0, accuracy: 0.001)
+
+        // The map's feature names the fan; none is the empty name.
+        let drawn = OverviewMap.Coordinator.siteFeature(for: named, fan: "site-fan-plain-180-225")
+        XCTAssertEqual(drawn.attribute(forKey: "fan") as? String, "site-fan-plain-180-225")
+        XCTAssertEqual(OverviewMap.Coordinator.siteFeature(for: bare).attribute(forKey: "fan") as? String, "")
+    }
+
     func testSitesAreAskedForOnceAndReadAsTheSourceGivesThem() async throws {
         let asked = SiteRequests()
         let sites = SitesModel(transport: { url in

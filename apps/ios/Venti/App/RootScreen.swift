@@ -71,6 +71,7 @@ struct RootScreen: View {
     @Environment(WatchedFolder.self) private var watched
     @Environment(FlySession.self) private var fly
     @Environment(NearbyModel.self) private var nearby
+    @Environment(UnreadModel.self) private var unread
     @Environment(\.scenePhase) private var scenePhase
     @State private var navigation = AppNavigation()
     @State private var notice: ImportNotice?
@@ -93,9 +94,13 @@ struct RootScreen: View {
             }
             // Pilots among each other, and everyone's flights and the
             // ranking: the pack's league sign, the web's name.
+            // With the count of what is new since the pilot last looked:
+            // the core's badge, and its words for VoiceOver.
             Tab("Community", image: "icon-league", value: AppTab.community) {
                 CommunityScreen()
             }
+            .badge(unread.badge.map { Text(verbatim: $0) })
+            .accessibilityValue(unread.label ?? "", isEnabled: unread.label != nil)
         }
         .environment(navigation)
         // A flight that was being recorded when the app last stopped.
@@ -115,6 +120,9 @@ struct RootScreen: View {
                 // And what the alarms fired since, each new line a
                 // notification: Venti sends nothing by itself.
                 Task { await alerts.sync(notifies: true) }
+                // And how much is new since the pilot last looked, for the
+                // Community tab's badge.
+                Task { await unread.read() }
                 // And what pilots nearby do: the settings, which decide
                 // whether the position is told, and the calls that stand.
                 Task {
@@ -157,6 +165,11 @@ struct RootScreen: View {
         // A call for help or an answer pushed while the app is in front.
         .onChange(of: AlertNotices.taps.helpArrived) {
             Task { await nearby.loadHelp() }
+        }
+        // Any push from Venti while the app is in front: the badge may
+        // have grown.
+        .onChange(of: AlertNotices.taps.pushArrived) {
+            Task { await unread.read() }
         }
         .sheet(item: $navigation.pushed) { target in
             PushedScreen(target: target)

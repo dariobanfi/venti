@@ -980,9 +980,14 @@ struct MapScreen: View {
             return
         }
         let shapes = hours.shapes(hour: UInt32(hour))
+        // The hour's wind square by square, for the take-offs' fans.
+        let from = SiteFans.windFrom(arrows: shapes.arrows)
         hourDrawing = ForecastHourDrawing(
             id: "\(key.date) \(key.layer.stored) \(key.heightM.map(String.init) ?? "ground") \(hour)",
-            shapes: shapes, key: choice.legend
+            shapes: shapes, key: choice.legend,
+            windFrom: { place in
+                from.isEmpty ? nil : hours.cellAt(lat: place.lat, lon: place.lon).flatMap { from[$0] }
+            }
         )
     }
 

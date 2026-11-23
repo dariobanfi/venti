@@ -268,6 +268,12 @@ struct OverviewMap: UIViewRepresentable {
         /// The sites' areas that are drawn: those larger than their sign
         /// at the map's scale.
         private var drawnFields: [SiteFields.Field]?
+        /// The hour of the forecast the fans were coloured by.
+        private var drawnFansHour: String??
+        /// The fans' pictures the style has been given.
+        private var fanPictures: Set<String> = []
+        /// The map's direction the fans were last turned to.
+        private var fansDirection: CLLocationDirection = 0
         private var isStyleLoaded = false
         private var requested = false
         private var aerial = false
@@ -526,7 +532,12 @@ struct OverviewMap: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+            // A new style has none of the fans' pictures, and its fans
+            // point north.
+            fanPictures = []
+            fansDirection = 0
             prepare(style)
+            turnFans(on: mapView)
             MapSetup.showAerial(aerial, on: mapView)
             MapSetup.showThermalMap(thermalMap, on: mapView)
             photos?.update(from: mapView)
@@ -556,13 +567,16 @@ struct OverviewMap: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
             photos?.update(from: mapView)
             drawFields(on: mapView)
+            turnFans(on: mapView)
             tellRegion(of: mapView)
         }
 
         /// While the pilot zooms: a site's area comes when it has grown
-        /// larger than its sign, and goes when it is smaller again.
+        /// larger than its sign, and goes when it is smaller again. While
+        /// the map turns, the fans keep to the north.
         func mapViewRegionIsChanging(_ mapView: MLNMapView) {
             drawFields(on: mapView)
+            turnFans(on: mapView)
         }
 
         func mapView(_ mapView: MLNMapView, didChange mode: MLNUserTrackingMode, animated: Bool) {
@@ -749,6 +763,9 @@ struct OverviewMap: UIViewRepresentable {
             style.addLayer(rings)
             let sites = MLNShapeSource(identifier: Self.sites, shape: empty, options: nil)
             style.addSource(sites)
+            // The directions a take-off works in, a fan round its pin's
+            // head, under the signs.
+            SiteFans.add(to: style, source: sites)
             let signs = MLNSymbolStyleLayer(identifier: Self.sites, source: sites)
             signs.iconImageName = NSExpression(forKeyPath: "picture")
             signs.iconAllowsOverlap = NSExpression(forConstantValue: true)
@@ -909,16 +926,45 @@ struct OverviewMap: UIViewRepresentable {
         /// Draws the flying sites, once the style is there and only when
         /// they have changed.
         private func drawSites(on map: MLNMapView) {
-            guard isStyleLoaded, sites != drawnSites || unsaidSites != drawnUnsaidSites,
-                  let source = map.style?.source(withIdentifier: Self.sites) as? MLNShapeSource
+            guard isStyleLoaded,
+                  sites != drawnSites || unsaidSites != drawnUnsaidSites || hour?.id != drawnFansHour,
+                  let style = map.style, let source = style.source(withIdentifier: Self.sites) as? MLNShapeSource
             else { return }
             drawnSites = sites
             drawnUnsaidSites = unsaidSites
+            drawnFansHour = hour?.id
+            let windFrom = hour?.windFrom ?? { _ in nil }
             source.shape = MLNShapeCollectionFeature(
                 shapes: unsaidSites.map { Self.siteFeature(for: $0, isUnsaid: true) }
-                    + sites.map { Self.siteFeature(for: $0) }
+                    + sites.map { site in
+                        let fan = SiteFans.hasFan(site)
+                            ? fanPicture(of: site, fit: SiteFans.fit(of: site, windFrom: windFrom(site.position)), in: style)
+                            : ""
+                        return Self.siteFeature(for: site, fan: fan)
+                    }
             )
             drawFields(on: map)
+        }
+
+        /// The name of a take-off's fan, its picture given to the style
+        /// the first time it is asked for.
+        private func fanPicture(of site: SiteView, fit: SiteFans.Fit, in style: MLNStyle) -> String {
+            let name = SiteFans.name(of: site.wind, fit: fit)
+            if !fanPictures.contains(name) {
+                style.setImage(SiteFans.picture(of: site.wind, fit: fit), forName: name)
+                fanPictures.insert(name)
+            }
+            return name
+        }
+
+        /// Keeps the fans' north on the map's north while it is turned.
+        private func turnFans(on map: MLNMapView) {
+            let direction = map.direction
+            guard abs(direction - fansDirection) > 0.5,
+                  let fans = map.style?.layer(withIdentifier: SiteFans.layer) as? MLNSymbolStyleLayer
+            else { return }
+            fansDirection = direction
+            SiteFans.turn(fans, to: direction)
         }
 
         /// Draws the places where pilots take off and no site stands, once
@@ -957,7 +1003,7 @@ struct OverviewMap: UIViewRepresentable {
         /// source gives is written on the map: "Take-off" under every
         /// take-off sign would say nothing. A take-off that says nothing
         /// to what the filter asks has the muted pin and no name.
-        static func siteFeature(for site: SiteView, isUnsaid: Bool = false) -> MLNPointFeature {
+        static func siteFeature(for site: SiteView, isUnsaid: Bool = false, fan: String = "") -> MLNPointFeature {
             let feature = MLNPointFeature()
             feature.coordinate = site.position.location
             feature.attributes = [
@@ -965,6 +1011,8 @@ struct OverviewMap: UIViewRepresentable {
                 "picture": SiteSymbols.name(of: site.kind, isUnsaid: isUnsaid),
                 "label": isUnsaid ? "" : Self.siteLabel(for: site),
                 "rank": isUnsaid ? 0 : 1,
+                // The name of its fan's picture; empty for none.
+                "fan": fan,
             ]
             return feature
         }

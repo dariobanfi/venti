@@ -20,7 +20,7 @@ struct VentiApp: App {
             case .ready(
                 let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks,
                 let live, let community, let ground, let groups, let maps, let today, let thermals, let own, let radar,
-                let candidates, let alerts, let cables, let air, let watched, let openPlans, let nearby
+                let candidates, let alerts, let cables, let air, let watched, let openPlans, let nearby, let unread
             ):
                 RootScreen()
                     .environment(logbook)
@@ -48,6 +48,7 @@ struct VentiApp: App {
                     .environment(watched)
                     .environment(openPlans)
                     .environment(nearby)
+                    .environment(unread)
                     .ventiThemed()
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
                     .onAppear(perform: LaunchOptions.quickenAnimations)
@@ -78,7 +79,7 @@ enum Session {
         LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
         TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel, OfflineMapsModel, TodayModel,
         ThermalMapModel, KeptSitesModel, RadarModel, CandidatesModel, AlertsModel, CablesModel, AirModel,
-        WatchedFolder, OpenPlansModel, NearbyModel
+        WatchedFolder, OpenPlansModel, NearbyModel, UnreadModel
     )
     case failed(String)
 
@@ -303,6 +304,9 @@ enum Session {
             // What pilots nearby do for each other: the account's two
             // settings and the calls for help, by Venti's clock.
             let nearby = NearbyModel(account: account, wind: wind)
+            // How much is new for the pilot, for the Community tab's badge:
+            // read again after signing in and out.
+            let unread = UnreadModel(account: account)
             // Apple's push: the token goes to the account on sign-in and
             // comes off it before signing out.
             let push = PhonePush.shared
@@ -311,6 +315,7 @@ enum Session {
             account.beforeSigningOut = { await push.removeBeforeSigningOut() }
             account.onAccountChanged = {
                 Task { await alerts.sync() }
+                Task { await unread.read() }
                 Task { await push.accountChanged() }
                 Task {
                     await nearby.loadSettings()
@@ -332,7 +337,7 @@ enum Session {
             return .ready(
                 logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community, ground,
                 groups, maps, today, thermals, own, radar, candidates, alerts, cables, air, watched, openPlans,
-                nearby
+                nearby, unread
             )
         } catch {
             return .failed(error.words)

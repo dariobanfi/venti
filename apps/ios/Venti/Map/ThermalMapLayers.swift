@@ -219,4 +219,9 @@ struct ForecastHourDrawing {
     let id: String
     let shapes: ThermalMapShapes
     let key: [ThermalMapKey]
+    /// Where the hour's wind comes from at a place, degrees, by the
+    /// square the place lies in (`SiteFans.windFrom(arrows:)`); `nil`
+    /// where the hour has no direction there, and on a layer without
+    /// arrows. The take-offs' fans are coloured by it.
+    var windFrom: (Coordinate) -> Double? = { _ in nil }
 }

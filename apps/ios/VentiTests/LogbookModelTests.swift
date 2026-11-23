@@ -228,6 +228,22 @@ final class LogbookModelTests: XCTestCase {
         )
     }
 
+    /// A flight's day is day, month and year, the month a word and no
+    /// weekday, whatever the iPhone's region (plan item 11), by the clock
+    /// where it was flown.
+    func testAFlightsDayIsDayMonthAndYear() {
+        // 26 September 2026, 12:00 UTC.
+        let noon: Int64 = 1_790_424_000
+        XCTAssertEqual(Format.day(unixSeconds: noon, zone: "Europe/Berlin"), "26 Sep 2026")
+        XCTAssertEqual(Format.day(unixSeconds: noon, zone: "America/New_York"), "26 Sep 2026")
+        // 02:00 UTC on the 27th is still the 26th in California.
+        let night: Int64 = 1_790_474_400
+        XCTAssertEqual(Format.day(unixSeconds: night, zone: "America/Los_Angeles"), "26 Sep 2026")
+        XCTAssertEqual(Format.day(unixSeconds: night, zone: "Europe/Berlin"), "27 Sep 2026")
+        // A single-figure day has no nought before it.
+        XCTAssertEqual(Format.day(unixSeconds: 1_783_123_200 + 12 * 3600, zone: "UTC"), "4 Jul 2026")
+    }
+
     /// The logbook's days are the dates where each flight was flown, in
     /// order of those dates, whatever the iPhone's clock.
     func testTheDaysAreTheDatesWhereTheFlightsWereFlown() throws {

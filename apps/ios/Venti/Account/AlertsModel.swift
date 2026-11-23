@@ -318,6 +318,9 @@ enum AlertNotices {
         /// Counts the calls for help and their answers pushed while the
         /// app was in front: the lists are read again.
         var helpArrived = 0
+        /// Counts every push from Venti that arrived while the app was in
+        /// front: the count of what is new is read again.
+        var pushArrived = 0
     }
 
     @MainActor static let taps = Taps()
@@ -361,10 +364,12 @@ enum AlertNotices {
         func userNotificationCenter(
             _ center: UNUserNotificationCenter, willPresent notification: UNNotification
         ) async -> UNNotificationPresentationOptions {
-            if let pushed = AlertNotices.pushed(notification.request.content.userInfo),
-               pushed.kind.hasPrefix("help")
-            {
+            let pushed = AlertNotices.pushed(notification.request.content.userInfo)
+            if let pushed, pushed.kind.hasPrefix("help") {
                 await MainActor.run { AlertNotices.taps.helpArrived += 1 }
+            }
+            if pushed != nil {
+                await MainActor.run { AlertNotices.taps.pushArrived += 1 }
             }
             return [.banner, .list, .sound]
         }

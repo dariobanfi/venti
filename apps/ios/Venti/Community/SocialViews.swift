@@ -625,10 +625,12 @@ struct CommentsSwitchSection: View {
 
 /// "Notifications", a page of the account: what the pilot was told. A
 /// line about a flight opens that flight, one about a follower that
-/// pilot's page. No badge and no push: it is read when the page shows.
+/// pilot's page. It is read when the page shows, and what it shows is
+/// then seen: off the Community tab's badge on every device.
 struct NotificationsScreen: View {
     @Environment(AccountModel.self) private var account
     @Environment(WindModel.self) private var wind
+    @Environment(UnreadModel.self) private var unread
 
     @State private var told: Notifications?
     @State private var problem: String?
@@ -699,8 +701,10 @@ struct NotificationsScreen: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            told = try await Social(account: account, wind: wind).notifications()
+            let read = try await Social(account: account, wind: wind).notifications()
+            told = read
             problem = nil
+            await unread.sawNotifications(upTo: read.cursor)
         } catch is CancellationError {
             return
         } catch {

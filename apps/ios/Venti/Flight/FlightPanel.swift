@@ -143,8 +143,8 @@ struct FlightPanel: View {
         .accessibilityHint("Shows the two flights side by side in numbers")
     }
 
-    /// What kind of flight it was and on which day: "FAI triangle · Sat,
-    /// Jul 4, 2026". The day alone until the flight is scored.
+    /// What kind of flight it was and on which day: "FAI triangle · 4 Jul
+    /// 2026". The day alone until the flight is scored.
     private var kindAndDay: String {
         let day = Format.day(unixSeconds: flight.startUnixS, zone: flight.timeZone)
         guard let score else { return day }

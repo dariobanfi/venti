@@ -369,7 +369,7 @@ private struct DayHeader: View {
                 .accessibilityIdentifier("logbook-year-\(year.year)")
             }
             HStack(alignment: .firstTextBaseline) {
-                Text(Format.dayInYear(unixSeconds: day.id, zone: day.zone))
+                Text(Format.day(unixSeconds: day.id, zone: day.zone))
                     .font(.venti(.headline))
                     .foregroundStyle(.venti(.text))
                     .accessibilityAddTraits(.isHeader)
@@ -466,7 +466,7 @@ private struct LogbookRow: View {
         if let first = entry.outline.first {
             return Format.place(lat: first.lat, lon: first.lon)
         }
-        return Format.dayInYear(unixSeconds: entry.startUnixS, zone: entry.timeZone)
+        return Format.day(unixSeconds: entry.startUnixS, zone: entry.timeZone)
     }
 
     /// One of the pack's icons, in the quiet ink. Without a `label` it is

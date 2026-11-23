@@ -6380,6 +6380,115 @@ extension VentiUITests {
         XCTAssertTrue(app.navigationBars.buttons["Settings"].appears(timeout: 15))
     }
 
+    /// The marker of what is new (plan item 5): signed in as the demo
+    /// pilot, whose notifications and fired alarm the development server
+    /// counts as new, the Community tab carries the core's badge, with its
+    /// words for VoiceOver as the tab's value; opening the notifications
+    /// takes theirs off, opening the alerts the rest. Signed out there is
+    /// none.
+    func testTheCommunityTabSaysWhatIsNewUntilItIsSeen() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].appears(timeout: 90))
+        let tab = app.tabBars.buttons["Community"]
+        func badge() -> String { (tab.value as? String) ?? "" }
+        XCTAssertFalse(badge().contains("new"), badge())
+
+        signIn(("demo", "demo-pilot-password"), in: app)
+        XCTAssertTrue(waitUntil(timeout: 30) { badge().contains("new") }, badge())
+        let before = badge()
+        keepScreenshots(light: "unread-1-badge", dark: "unread-dark-1-badge")
+
+        // The notifications, from Community's "All".
+        openTab("Community", in: app)
+        bring("community-notifications-all", into: app).tap()
+        XCTAssertTrue(element("notification", in: app).appears(timeout: 30))
+        XCTAssertTrue(waitUntil(timeout: 30) { badge() != before }, badge())
+        usleep(400_000)
+        keepScreenshot("unread-2-notifications-seen")
+
+        // The alerts: nothing is new any more.
+        openAlerts(in: app)
+        XCTAssertTrue(waitUntil(timeout: 30) { !badge().contains("new") }, badge())
+        usleep(400_000)
+        keepScreenshots(light: "unread-3-all-seen", dark: "unread-dark-3-all-seen")
+    }
+
+    /// A flight's day is day, month and year, the month a word and no
+    /// weekday (plan item 11): the sample flight of 4 July 2026 on its
+    /// page, in its details and as the logbook's day.
+    func testAFlightsDayIsDayMonthAndYear() {
+        let app = launch(bundledMap: true)
+        XCTAssertTrue(app.buttons["Show my position"].appears(timeout: 90))
+        openTab("Logbook", in: app)
+        XCTAssertTrue(app.buttons["Add a sample flight"].appears(timeout: 15))
+        app.buttons["Add a sample flight"].tap()
+        XCTAssertTrue(app.buttons["Flight details"].appears(timeout: 30))
+        XCTAssertTrue(labelled(containing: "4 Jul 2026", in: app).appears(timeout: 15))
+        XCTAssertFalse(labelled(containing: "Sat, ", in: app).exists)
+        usleep(400_000)
+        keepScreenshot("dates-1-flight")
+        app.buttons["Flight details"].tap()
+        let date = labelled(containing: "4 Jul 2026", in: app)
+        XCTAssertTrue(date.appears(timeout: 15))
+        usleep(400_000)
+        keepScreenshot("dates-2-details")
+        app.buttons["Done"].tap()
+        usleep(600_000)
+        // The flight's page hides the tab bar: its own back button, the
+        // first in its bar, leads to the logbook's list.
+        let day = app.staticTexts["4 Jul 2026"]
+        for _ in 0..<3 where !day.exists {
+            app.navigationBars.buttons.firstMatch.tap()
+            _ = day.appears(timeout: 5)
+        }
+        XCTAssertTrue(day.appears(timeout: 15))
+        XCTAssertFalse(labelled(containing: "Sat, ", in: app).exists)
+        usleep(400_000)
+        keepScreenshots(light: "dates-3-logbook", dark: "dates-dark-3-logbook")
+    }
+
+    /// The directions a take-off works in, as fans round the pins (plan
+    /// item 19), over two recorded OpenStreetMap take-offs inside the
+    /// recorded forecast's region: the Vorderunnutz (SW) in the middle and
+    /// the Heuberg (SE) east of it. One colour on the wind as measured, and
+    /// by whether the wind fits on an hour of the wind's forecast. A tap on
+    /// a pin still opens its site.
+    func testTheMapDrawsTakeoffDirectionsAsFans() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(
+            bundledMap: true, extra: ["--server", server, "--all-sites", "--map-at", "47.5139,11.7381,10"]
+        )
+        XCTAssertTrue(app.buttons["Show my position"].appears(timeout: 90))
+        XCTAssertTrue(waitForCredit("Sites", in: app))
+        showWhat("layer-wind", in: app)
+        // The line may stand on an hour an earlier test chose.
+        _ = chooseTime(endingWith: "Now", in: app)
+        sleep(2)
+        keepScreenshots(light: "fans-1-measured", dark: "fans-dark-1-measured")
+
+        // An hour of the forecast's wind: the fans by whether it fits.
+        if chooseTime(endingWith: ", 13:00", in: app) {
+            sleep(3)
+            keepScreenshots(light: "fans-2-forecast-hour", dark: "fans-dark-2-forecast-hour")
+        }
+
+        // The pin in the middle, by its head, opens the site.
+        let map = element("overview-map", in: app)
+        let wind = labelled(containing: "Wind it works in", in: app)
+        for _ in 0..<4 where !wind.exists {
+            map.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).withOffset(CGVector(dx: 0, dy: -20)).tap()
+            _ = wind.appears(timeout: 8)
+        }
+        XCTAssertTrue(wind.appears(timeout: 10))
+        usleep(400_000)
+        keepScreenshot("fans-3-site")
+    }
+
     /// The map's one choice of what it shows and the layers sheet: the
     /// chips are the wind, the thermals, the rain and the cloud, one at a
     /// time, the chosen one pressed again showing nothing; the sheet has

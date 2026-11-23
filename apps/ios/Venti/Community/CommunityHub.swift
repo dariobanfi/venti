@@ -746,7 +746,7 @@ struct FeedCard: View {
                                     .compactMap { $0 }.joined(separator: ", ")
                             )
                     }
-                    Text(Format.dayShort(unixSeconds: flight.startUnixS, zone: flight.timeZone))
+                    Text(Format.day(unixSeconds: flight.startUnixS, zone: flight.timeZone))
                         .font(.venti(.subheadline))
                         .foregroundStyle(.venti(.textSecondary))
                 }

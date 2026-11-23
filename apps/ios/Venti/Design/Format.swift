@@ -26,17 +26,21 @@ enum Format {
         return style
     }
 
-    /// "Sat, 4 Jul 2026"
+    /// A day as day, month and year, the month a word and no weekday:
+    /// "26 Sep 2026" (the owner, 2026-11-23, plan item 11), so that 9/10
+    /// is never read two ways. Whatever the iPhone's region: in the
+    /// United States `.dateTime` writes "Sep 26, 2026", in Britain
+    /// "26 Sept 2026". A flight's day is told by the clock where it was
+    /// flown (`zone`), as its times are.
     static func day(unixSeconds: Int64, zone: String? = nil) -> String {
         date(unixSeconds).formatted(
-            style(.dateTime.weekday(.abbreviated).day().month(.abbreviated).year(), zone: zone)
+            Date.VerbatimFormatStyle(
+                format: "\(day: .defaultDigits) \(month: .abbreviated) \(year: .defaultDigits)",
+                locale: Locale(identifier: "en_US_POSIX"),
+                timeZone: timeZone(zone),
+                calendar: Calendar(identifier: .gregorian)
+            )
         )
-    }
-
-    /// A day without its weekday, for a line that has more to say:
-    /// "6 Sep 2026".
-    static func dayShort(unixSeconds: Int64, zone: String? = nil) -> String {
-        date(unixSeconds).formatted(style(.dateTime.day().month(.abbreviated).year(), zone: zone))
     }
 
     /// "Sat, 4 Jul", for lists already grouped by year.

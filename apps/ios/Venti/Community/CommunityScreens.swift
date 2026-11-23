@@ -118,7 +118,7 @@ struct PublicFlightRow: View {
                 // long place ("Sample Wi…").
                 VStack(alignment: .leading, spacing: 0) {
                     Text(
-                        [Format.dayShort(unixSeconds: flight.startUnixS, zone: flight.timeZone), Self.place(of: flight)]
+                        [Format.day(unixSeconds: flight.startUnixS, zone: flight.timeZone), Self.place(of: flight)]
                             .compactMap { $0 }
                             .joined(separator: " · ")
                     )
@@ -164,7 +164,7 @@ struct PublicFlightRow: View {
     /// site the server says the flight took off from with its country's
     /// flag, and the glider after its class. Without the weekday.
     static func detail(of flight: PublicFlight) -> String {
-        [Format.dayShort(unixSeconds: flight.startUnixS, zone: flight.timeZone), place(of: flight), glider(of: flight)]
+        [Format.day(unixSeconds: flight.startUnixS, zone: flight.timeZone), place(of: flight), glider(of: flight)]
             .compactMap { $0 }
             .joined(separator: " · ")
     }
@@ -173,7 +173,7 @@ struct PublicFlightRow: View {
     /// name, after the take-off.
     static func spokenDetail(of flight: PublicFlight) -> String {
         [
-            Format.dayShort(unixSeconds: flight.startUnixS, zone: flight.timeZone), flight.takeoffName,
+            Format.day(unixSeconds: flight.startUnixS, zone: flight.timeZone), flight.takeoffName,
             flight.takeoffCountry.map(Countries.name), glider(of: flight),
         ]
         .compactMap { $0 }

@@ -43,17 +43,6 @@
 	/** The core's words around follows, cheers and comments: the row's name. */
 	const said = $derived(getApp().social?.words);
 
-	/** The server as the pilot knows it: its host name. */
-	const host = $derived(hostOf(signedIn.server));
-
-	function hostOf(address: string): string {
-		try {
-			return new URL(address).host;
-		} catch {
-			return address;
-		}
-	}
-
 	/** Every country, by name, for the picker. */
 	const everyCountry = countries();
 	/** The glider classes in the core's names, "None" first. */
@@ -215,10 +204,6 @@
 			<div class="group-row">
 				<dt>Name</dt>
 				<dd>{signedIn.displayName}</dd>
-			</div>
-			<div class="group-row">
-				<dt>Address</dt>
-				<dd>{host}</dd>
 			</div>
 		</dl>
 	</div>

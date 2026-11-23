@@ -81,7 +81,8 @@ test('a pilot signs in, gets the flights from the server, and signs out', async 
 	await page.keyboard.press('Enter');
 	await expect(metric(page, 'Handle')).toHaveText('@demo');
 	await expect(metric(page, 'Name')).toHaveText('Demo Pilot');
-	await expect(metric(page, 'Address')).toHaveText('localhost:4173');
+	// There is one Venti: the account shows no server address.
+	await expect(page.getByText('Address', { exact: true })).toBeHidden();
 	await expect(page.getByText('Last sync')).toBeHidden();
 	await expect(page.getByRole('button', { name: 'Sync now' })).toBeHidden();
 	await keep('26-account');

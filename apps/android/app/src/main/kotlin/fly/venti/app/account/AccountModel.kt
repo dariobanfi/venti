@@ -115,6 +115,7 @@ class AccountModel(
 
     /** One run of fetching the alarms at a time, or two would both call the same line new. */
     private val alertsRun = Mutex()
+    private val accountChanges = Mutex()
 
     private var lastAutomaticSync: Long? = null
 
@@ -484,11 +485,14 @@ class AccountModel(
         sync(force = true)
     }
 
-    /** Sends one of the core's changes of the account and keeps the account its answer holds. */
-    private suspend fun changeAccount(request: () -> ServerRequest) {
-        val server = account?.server ?: return
-        if (isWorking) return
-        isWorking = true
+    /**
+     * Sends one of the core's changes of the account and keeps the account
+     * its answer holds. Changes go one after another, and a sync running
+     * meanwhile does not stop them: before 2026-11-23 a change made while
+     * the sync after signing in ran was dropped without a word.
+     */
+    private suspend fun changeAccount(request: () -> ServerRequest) = accountChanges.withLock {
+        val server = account?.server ?: return@withLock
         try {
             val answer = ask(withContext(background) { request() }, server, answerWithinMilliseconds = ANSWER_TO_OTHERS_WITHIN_MILLISECONDS)
             withContext(background) { core.accountRead(answer.status16, answer.body) }?.let { account = it }
@@ -496,8 +500,6 @@ class AccountModel(
             throw error
         } catch (error: Exception) {
             problem = words(error)
-        } finally {
-            isWorking = false
         }
     }
 

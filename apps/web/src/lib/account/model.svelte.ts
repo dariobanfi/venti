@@ -269,17 +269,24 @@ export class AccountModel {
 		}
 	}
 
-	async #changeAccount(ask: () => Promise<AccountView | undefined>): Promise<string | undefined> {
-		if (this.working) return undefined;
-		this.working = true;
-		try {
-			this.account = (await ask()) ?? this.account;
-			return undefined;
-		} catch (error) {
-			return words(error);
-		} finally {
-			this.working = false;
-		}
+	/**
+	 * One change of the account after another. A sync running meanwhile does
+	 * not stop it: before 2026-11-23 a change made while the sync ran was
+	 * dropped without a word.
+	 */
+	#changes: Promise<unknown> = Promise.resolve();
+
+	#changeAccount(ask: () => Promise<AccountView | undefined>): Promise<string | undefined> {
+		const change = this.#changes.then(async () => {
+			try {
+				this.account = (await ask()) ?? this.account;
+				return undefined;
+			} catch (error) {
+				return words(error);
+			}
+		});
+		this.#changes = change;
+		return change;
 	}
 
 	/**

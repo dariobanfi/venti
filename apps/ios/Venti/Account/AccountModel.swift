@@ -19,6 +19,8 @@ final class AccountModel {
     private(set) var account: AccountView?
     /// Whether a request or a sync is under way.
     private(set) var isWorking = false
+    /// The account's last change sent, which the next one waits for.
+    @ObservationIgnored private var lastChange: Task<Void, Never>?
     /// What the last sync did, for the account screen.
     private(set) var lastSync: SyncSummary?
     /// What the last sync did in the core's words ("1 sent, 0 fetched"),
@@ -391,19 +393,32 @@ final class AccountModel {
     }
 
     /// Sends one of the core's changes of the account and keeps the
-    /// account its answer holds.
+    /// account its answer holds. Changes go one after another, and a sync
+    /// running meanwhile does not stop them: before 2026-11-23 a change
+    /// made while the sync after signing in ran was dropped without a word.
     private func changeAccount(_ request: () throws -> ServerRequest) async {
-        guard let server = account?.server, !isWorking else { return }
-        isWorking = true
-        defer { isWorking = false }
+        guard let server = account?.server else { return }
+        let made: ServerRequest
         do {
-            let (status, body, _) = try await ask(try request(), of: server, timeout: 30)
-            if let read = try core.accountRead(status: status, body: body) {
-                account = read
-            }
+            made = try request()
         } catch {
             problem = Self.words(for: error)
+            return
         }
+        let before = lastChange
+        let change = Task { @MainActor in
+            await before?.value
+            do {
+                let (status, body, _) = try await self.ask(made, of: server, timeout: 30)
+                if let read = try self.core.accountRead(status: status, body: body) {
+                    self.account = read
+                }
+            } catch {
+                self.problem = Self.words(for: error)
+            }
+        }
+        lastChange = change
+        await change.value
     }
 
     // MARK: Flying sites

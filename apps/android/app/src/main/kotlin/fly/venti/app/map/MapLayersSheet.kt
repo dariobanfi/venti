@@ -263,8 +263,8 @@ private fun ListRowWithValue(view: MapList) {
  * opens every credit in full.
  */
 @Composable
-fun MapCreditsButton(tint: Color, onOpen: () -> Unit, modifier: Modifier = Modifier) {
-    IconButton(onClick = onOpen, modifier = modifier.size(VentiSize.touch).testTag("map-credits")) {
+fun MapCreditsButton(tint: Color, onOpen: () -> Unit, modifier: Modifier = Modifier, tag: String = "map-credits") {
+    IconButton(onClick = onOpen, modifier = modifier.size(VentiSize.touch).testTag(tag)) {
         Icon(painterResource(R.drawable.ic_info), contentDescription = MapWords.core.creditsTitle, tint = tint)
     }
 }

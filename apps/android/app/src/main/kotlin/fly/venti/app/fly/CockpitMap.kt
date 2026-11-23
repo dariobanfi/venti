@@ -207,6 +207,9 @@ class CockpitMap : MapContent {
         // be undone with a gloved hand. Zooming stays, and zooms about the
         // middle, where the glider is, wherever the fingers are.
         map.uiSettings.isScrollGesturesEnabled = false
+        // MapLibre's own credits button is off: the cockpit's (i) lists the
+        // base map's credits with every other (`CockpitScreen`).
+        map.uiSettings.isAttributionEnabled = false
         fun zoomAboutTheMiddle() {
             map.uiSettings.focalPoint = PointF(view.width / 2f, view.height / 2f)
         }

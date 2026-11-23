@@ -353,11 +353,22 @@ class VentiUiTest {
      * among them, and closes them. The credits are one element, its lines
      * its texts.
      */
-    private fun seeInCredits(vararg lines: SemanticsMatcher) {
-        tap(hasTestTag("map-credits"))
+    private fun seeInCredits(vararg lines: SemanticsMatcher) = seeInCreditsBehind("map-credits", null, *lines)
+
+    /**
+     * The same behind the cockpit map's (i), which is all the cockpit says
+     * of whose its map is: nothing of it is written over the map. With a
+     * name, a picture of the credits open is kept.
+     */
+    private fun seeInCockpitCredits(screenshot: String?, vararg lines: SemanticsMatcher) =
+        seeInCreditsBehind("cockpit-credits", screenshot, *lines)
+
+    private fun seeInCreditsBehind(button: String, screenshot: String?, vararg lines: SemanticsMatcher) {
+        tap(hasTestTag(button))
         val credits = hasTestTag("wind-credits")
         waitFor(credits)
         waitForAll(*lines.map { it and credits }.toTypedArray())
+        if (screenshot != null) keepScreenshot(screenshot)
         tap(hasTestTag("credits-close"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(credits) }
     }
@@ -729,19 +740,20 @@ class VentiUiTest {
         waitFor(described("Show the whole flight"))
 
         // The aerial view, one choice with every other map: off until it
-        // is switched on, and the photographs' makers named on the map
-        // while it is on. The development server may have no photographs:
-        // the button's state is what is checked, not the picture.
+        // is switched on, and the photographs' makers named behind the
+        // map's (i) while it is on, never over the map. The development
+        // server may have no photographs: the button's state is what is
+        // checked, not the picture.
         val aerial = hasTestTag("cockpit-aerial")
         waitFor(aerial and isSelected().not())
         tap(aerial)
         waitFor(aerial and isSelected())
-        waitFor(hasTestTag("photos-credit"))
         letTheMapDraw(3)
+        assertFalse(exists(hasTestTag("photos-credit")))
         if (!dark) keepScreenshot("cockpit-aerial")
+        seeInCockpitCredits(if (dark) null else "cockpit-aerial-credits", hasText("Photos: ", substring = true))
         tap(aerial)
         waitFor(aerial and isSelected().not())
-        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("photos-credit")) }
 
         // What lies ahead, seen from the side, from the second round
         // button: the ground of the region that comes with the app, the
@@ -4607,24 +4619,36 @@ class VentiUiTest {
         keepScreenshot("thermals-1-map")
         switchLayer("layer-thermals", on = false)
 
-        // In the cockpit it is on without being asked for, its credit with the map's.
+        // In the cockpit it is on without being asked for, its credit
+        // behind the map's (i) with every other, and nothing written over
+        // the map on any page (owner decision 23: the cockpit is an instrument).
         replayTheSampleFlight()
         waitFor(described("Altitude"))
-        waitFor(hasTestTag("cockpit-thermals-credit"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { TestDevice.showsOnTheMap(scenario, "thermals") }
+        assertFalse(exists(hasText("thermal.kk7.ch", substring = true)))
         letTheMapDraw(3)
         keepScreenshot("thermals-2-cockpit")
+        seeInCockpitCredits(null, hasText("thermal.kk7.ch", substring = true))
         turnTo("Map")
-        waitFor(hasTestTag("cockpit-map-credits") and hasText("thermal.kk7.ch", substring = true))
         letTheMapDraw(3)
+        assertFalse(exists(hasText("thermal.kk7.ch", substring = true)))
         keepScreenshot("thermals-3-cockpit-map-page")
+        seeInCockpitCredits(
+            "thermals-4-cockpit-credits",
+            hasText("thermal.kk7.ch", substring = true),
+            hasText("OpenStreetMap", substring = true),
+        )
 
         // Switched off in the settings, the map and its credit are gone.
         tapInCockpitSettings("cockpit-thermals")
         waitFor(hasTestTag("cockpit-thermals") and isOff())
         tap(hasTestTag("cockpit-settings-close"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !TestDevice.showsOnTheMap(scenario, "thermals") }
+        tap(hasTestTag("cockpit-credits"))
+        waitFor(hasTestTag("wind-credits"))
         assertFalse(exists(hasText("thermal.kk7.ch", substring = true)))
+        tap(hasTestTag("credits-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("wind-credits")) }
         holdToEnd()
     }
 

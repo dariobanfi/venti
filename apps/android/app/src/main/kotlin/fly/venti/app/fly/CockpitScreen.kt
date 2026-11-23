@@ -2,7 +2,10 @@ package fly.venti.app.fly
 
 import fly.venti.core.cockpitSourceWords
 import fly.venti.core.VarioMark
+import fly.venti.app.map.MapCreditsButton
+import fly.venti.app.map.MapCreditsSheet
 import fly.venti.app.map.MapSetup
+import fly.venti.app.map.MapWords
 import androidx.compose.ui.platform.LocalContext
 import fly.venti.core.LiveShareView
 import fly.venti.core.DaylightLeft
@@ -38,7 +41,7 @@ import app.venti.design.VentiSize
 import app.venti.design.VentiTypeStyle
 import app.venti.design.VentiType
 import fly.venti.app.design.Venti
-import fly.venti.app.design.PhotosCredit
+import fly.venti.app.design.Palette
 import androidx.compose.ui.semantics.selected
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -283,6 +286,8 @@ fun CockpitScreen(
     var aerial by remember { mutableStateOf(preferences.mapShowsAerial) }
     // Who made the photographs in view, as the map last said.
     var photos by remember { mutableStateOf<String?>(null) }
+    // Every credit of the map, behind its (i): nothing of it is written over the map.
+    var showsCredits by remember { mutableStateOf(false) }
     val way = fly.way
     val route = fly.score?.route.orEmpty()
     // The airspace the loudest warning is about: the map steps back as far
@@ -411,7 +416,7 @@ fun CockpitScreen(
                                 // the circle is looked at in the close-up.
                                 map.closeUp = showsThermalView
                                 // Not on the first page's small map beside the
-                                // thermal view, which the credit would cover.
+                                // thermal view.
                                 map.showAerial(aerial && page != CockpitPage.Instruments)
                                 map.showThermals(thermals && offersThermals)
                                 map.show(view, way, route, airspaceDistance, fai, showsWholeFlight, task, taskStatus)
@@ -459,47 +464,15 @@ fun CockpitScreen(
                             }
                         }
                         Column(
-                            // Clear of the map's own credits in the corner.
                             modifier = Modifier.align(Alignment.BottomStart).padding(
                                 start = VentiSpace.s2,
-                                bottom = VentiSpace.s6,
+                                bottom = VentiSpace.s1,
                             ),
                             verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
                         ) {
-                            // Who made the photographs, by name, while they show.
-                            if (aerial && page != CockpitPage.Instruments) {
-                                PhotosCredit(photos)
-                            }
-                            // Whose the thermal map is, on every page while it shows.
-                            if (thermals && offersThermals && page != CockpitPage.Map) {
-                                // One short line on the map, no box.
-                                Text(
-                                    MapSetup.THERMALS_CREDIT,
-                                    style = fixed(VentiType.caption),
-                                    color = Venti.colours.textMuted,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    modifier = Modifier.testTag("cockpit-thermals-credit"),
-                                )
-                            }
-                            // Whose cables, take-offs and other aircraft are drawn.
-                            if (page == CockpitPage.Map) {
-                                val credits = (
-                                    listOfNotNull(MapSetup.THERMALS_CREDIT.takeIf { thermals && offersThermals }) +
-                                        cables?.creditLine?.let(::listOf).orEmpty() +
-                                        fly.takeoffs?.credits.orEmpty().map { it.text } +
-                                        fly.othersNear?.credits.orEmpty().map { it.text } +
-                                        fly.climbsNear?.credits.orEmpty().map { it.text }
-                                    ).distinct()
-                                if (credits.isNotEmpty()) {
-                                    Text(
-                                        credits.joinToString(" · "),
-                                        style = fixed(VentiType.label).copy(fontWeight = FontWeight.Normal),
-                                        color = Venti.colours.textMuted,
-                                        modifier = Modifier.testTag("cockpit-map-credits"),
-                                    )
-                                }
-                            }
+                            // No credit is written over the map: the cockpit is an
+                            // instrument (owner decision 23). Every credit is behind
+                            // the (i) at the lower left, on every page.
                             if (page == CockpitPage.Map) Row(
                                 horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
                             ) {
@@ -527,8 +500,14 @@ fun CockpitScreen(
                                     preferences.mapShowsAerial = aerial
                                 }
                             }
+                            // Light on the photographs, which are dark.
+                            MapCreditsButton(
+                                tint = if (aerial && page != CockpitPage.Instruments) Palette.haloOnMap else Palette.inkOnMap,
+                                onOpen = { showsCredits = true },
+                                tag = "cockpit-credits",
+                            )
                         }
-                        // At the lower right, clear of the credits at the
+                        // At the lower right, clear of the (i) at the
                         // lower left and the landing at the upper left: on
                         // the first page the airspace that matters next,
                         // small; on the map's page the distance so far.
@@ -598,6 +577,29 @@ fun CockpitScreen(
         if (isLocked) {
             LockCover(onUnlock = { isLocked = false })
         }
+    }
+
+    if (showsCredits) {
+        // Whose everything on the cockpit's map is, in full: the photographs
+        // while they show, the thermal map, cables, take-offs, other aircraft,
+        // climbs, the airspace with what its providers ask to be said (that it
+        // is not certified), the wind on the ground, then the base map: the
+        // region kept on the phone where the map draws its files, else the
+        // core's lines for the tiles and the terrain.
+        val lines = (
+            listOfNotNull(
+                photos.takeIf { aerial && page != CockpitPage.Instruments },
+                MapSetup.THERMALS_CREDIT.takeIf { thermals && offersThermals },
+                cables?.creditLine,
+            ) +
+                fly.takeoffs?.credits.orEmpty().map { it.text } +
+                fly.othersNear?.credits.orEmpty().map { it.text } +
+                fly.climbsNear?.credits.orEmpty().map { it.text } +
+                airspace.credits.flatMap { listOfNotNull(it.text, it.notice) } +
+                fly.windBelowCredits.map { it.text } +
+                (keptMap?.credits?.takeIf { it.isNotEmpty() } ?: MapWords.baseCredits)
+            ).distinct()
+        MapCreditsSheet(lines, onDismiss = { showsCredits = false })
     }
 
     if (isShowingAirspace) {

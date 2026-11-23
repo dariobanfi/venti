@@ -76,6 +76,9 @@ struct CockpitMap: UIViewRepresentable {
         // be undone with a gloved hand. Zooming stays.
         map.isScrollEnabled = false
         map.isRotateEnabled = false
+        // The cockpit's own credits button stands in the corner in place
+        // of the engine's, and lists the data's credits with the map's.
+        map.attributionButton.isHidden = true
         if let position = view.position {
             map.setCenter(position.location, zoomLevel: Coordinator.cruiseZoom, animated: false)
         }

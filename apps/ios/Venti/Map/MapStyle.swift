@@ -214,10 +214,6 @@ enum MapStyle {
     /// The thermal map's credit, as its licence asks for it beside the
     /// map while it is shown.
     static let thermalMapCredit = "Thermals: thermal.kk7.ch, CC BY-NC-SA 4.0"
-    /// The same in one short line, for a small map: the source and its
-    /// licence, and where even that does not fit the source alone.
-    static let thermalMapShortCredit = "thermal.kk7.ch, CC BY-NC-SA"
-    static let thermalMapShortestCredit = "thermal.kk7.ch"
 
     /// The Venti server the pilot has set, if the address is one.
     static var savedServer: URL? {

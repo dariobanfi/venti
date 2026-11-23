@@ -96,6 +96,9 @@ struct CockpitScreen: View {
     /// Whether the map shows the whole flight instead of following closely.
     @State private var showsWholeFlight = false
     @State private var isShowingDetails = false
+    /// Whose data and whose map the cockpit's map shows, behind its
+    /// credits button: nothing of them is drawn over the map.
+    @State private var isShowingCredits = false
     @AppStorage(Preferences.showsFaiAreas) private var showsFaiAreas = false
     /// The aerial view: one choice for every map of the app.
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
@@ -323,6 +326,10 @@ struct CockpitScreen: View {
                     .presentationDetents([.medium, .large])
                     .ventiFlightThemed()
             }
+            .sheet(isPresented: $isShowingCredits) {
+                MapCreditsSheet(data: creditLines, photos: mapIsAerial ? photos.line : "", region: maps.flyingCredits)
+                    .ventiFlightThemed()
+            }
             .sheet(isPresented: $isShowingAhead) {
                 AirspaceAheadSheet()
                     .presentationDetents([.large])
@@ -538,6 +545,26 @@ struct CockpitScreen: View {
                 }
                 .padding(VentiSpace.s2)
             }
+            // The credits button, small, in the corner on every page: the
+            // credits of the data and the map are behind it, and none is
+            // drawn over the map. Under the round buttons of the map page.
+            .overlay(alignment: .bottomLeading) {
+                Button {
+                    isShowingCredits = true
+                } label: {
+                    Label(mapLayersWords().creditsTitle, systemImage: "info.circle")
+                        .labelStyle(.iconOnly)
+                        .font(.ventiType(.label))
+                        .foregroundStyle(.venti(.textSecondary))
+                        .padding(VentiSpace.s1)
+                        .ventiFloating(in: .circle)
+                        .padding(VentiSpace.s1)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityValue(creditLines.joined(separator: " · "))
+                .accessibilityIdentifier("cockpit-credits")
+            }
             .overlay(alignment: .bottomLeading) {
                 if page == .map {
                     VStack(alignment: .leading, spacing: VentiSpace.s2) {
@@ -565,7 +592,7 @@ struct CockpitScreen: View {
                         }
                     }
                     .padding(VentiSpace.s2)
-                    // Clear of the map's own credits in the corner.
+                    // Clear of the credits button in the corner.
                     .padding(.bottom, VentiSpace.s5)
                 }
             }
@@ -615,77 +642,14 @@ struct CockpitScreen: View {
                 .padding(VentiSpace.s2)
             }
             .overlay(alignment: .bottomTrailing) {
-                VStack(alignment: .trailing, spacing: 0) {
-                    // The airspace that matters next, small, on the first
-                    // page: clear of the landing and the daylight at the
-                    // upper left and of the credits' button at the lower
-                    // left. It stays while a warning is up.
-                    if page == .instruments, let proximity = view.airspaceProximity {
-                        AirspaceProximityBadge(proximity: proximity)
-                            .padding([.top, .horizontal], VentiSpace.s2)
-                            .padding(.bottom, Self.airspaceCredit(airspace.credits) == nil ? VentiSpace.s2 : 0)
-                    }
-                    // Who made the photographs, while they show: in the
-                    // flight theme's smallest size, which is the label's.
-                    if mapIsAerial, !photos.line.isEmpty {
-                        Text(photos.line)
-                            .font(.ventiType(.label))
-                            .multilineTextAlignment(.trailing)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, VentiSpace.s2)
-                            .padding(.vertical, VentiSpace.s1)
-                            .ventiFloating(in: .rect(cornerRadius: VentiRadius.s))
-                            .padding([.top, .horizontal], VentiSpace.s2)
-                            .accessibilityIdentifier("photo-credits")
-                    }
-                    // Whose airspace the map draws: its licence asks for the
-                    // credit next to the data.
-                    if let credit = Self.airspaceCredit(airspace.credits) {
-                        Text(credit)
-                            .font(.ventiType(.label))
-                            .padding(.horizontal, VentiSpace.s2)
-                            .padding(.vertical, VentiSpace.s1)
-                            .ventiFloating(in: .rect(cornerRadius: VentiRadius.s))
-                            .padding(VentiSpace.s2)
-                            .accessibilityIdentifier("cockpit-airspace-credit")
-                    }
-                    // On the first page's small map only the thermal map's,
-                    // which is drawn there too: one short line, the source
-                    // with its licence where that fits, else the source
-                    // alone, as CC BY-NC-SA allows "in any reasonable
-                    // manner". The whole credit is on the other pages and
-                    // under "Data and licences".
-                    if page == .instruments, showsThermalMap {
-                        ViewThatFits(in: .horizontal) {
-                            Text(MapStyle.thermalMapShortCredit)
-                            Text(MapStyle.thermalMapShortestCredit)
-                        }
-                        .font(.ventiType(.label))
-                        .lineLimit(1)
-                        .padding(.horizontal, VentiSpace.s2)
-                        .padding(.vertical, VentiSpace.s1)
-                        .ventiFloating(in: .rect(cornerRadius: VentiRadius.s))
-                        .padding([.bottom, .horizontal], VentiSpace.s2)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(MapStyle.thermalMapCredit)
-                        .accessibilityIdentifier("cockpit-map-credits")
-                    }
-                    // And whose cables, aircraft and take-offs it draws.
-                    if page != .instruments, let credit = otherCredits {
-                        Text(credit)
-                            .font(.ventiType(.label))
-                            .multilineTextAlignment(.trailing)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, VentiSpace.s2)
-                            .padding(.vertical, VentiSpace.s1)
-                            .ventiFloating(in: .rect(cornerRadius: VentiRadius.s))
-                            .padding([.bottom, .horizontal], VentiSpace.s2)
-                            .accessibilityIdentifier("cockpit-map-credits")
-                    }
+                // The airspace that matters next, small, on the first
+                // page: clear of the landing and the daylight at the upper
+                // left and of the credits button at the lower left. It
+                // stays while a warning is up.
+                if page == .instruments, let proximity = view.airspaceProximity {
+                    AirspaceProximityBadge(proximity: proximity)
+                        .padding(VentiSpace.s2)
                 }
-                // Clear of the two round buttons side by side in the other
-                // corner.
-                .padding(.leading, page == .map ? 2 * VentiSize.touchInFlight + VentiSpace.s2 + VentiSpace.s4 : 0)
             }
     }
 
@@ -698,13 +662,17 @@ struct CockpitScreen: View {
         fly.mode != .live
     }
 
-    /// The credits of the cables, the other networks' aircraft and the
-    /// take-offs the map draws, in a line; `nil` while it draws none.
-    private var otherCredits: String? {
+    /// Whose thermal map, airspace, cables, aircraft, climbs and take-offs
+    /// the map draws, a line for each, behind the credits button. Their
+    /// licences ask for the credit at the data: it is one tap away.
+    private var creditLines: [String] {
         var parts: [String] = []
         // The thermal map's licence asks for its credit while it shows.
         if showsThermalMap {
             parts.append(MapStyle.thermalMapCredit)
+        }
+        if let credit = Self.airspaceCredit(airspace.credits) {
+            parts.append(credit)
         }
         if let words = cables.creditWords {
             parts.append(words)
@@ -719,7 +687,7 @@ struct CockpitScreen: View {
         if let takeoffs = fly.takeoffsNear, !takeoffs.takeoffs.isEmpty, !takeoffs.credits.isEmpty {
             parts.append("Sites: \(takeoffs.credits.map(\.provider).formatted(.list(type: .and)))")
         }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        return parts
     }
 
     /// What the cables are asked for by: the glider's place to a tenth of

@@ -878,6 +878,17 @@ final class VentiUITests: XCTestCase {
             if aerial.isSelected {
                 sleep(4)
                 keepScreenshot("cockpit-aerial")
+                // Who made the photographs is not said over the map but
+                // behind its credits button, with the map's own.
+                XCTAssertFalse(element("photo-credits", in: app).exists)
+                app.buttons["cockpit-credits"].tap()
+                let credits = element("wind-credits", in: app)
+                XCTAssertTrue(credits.appears(timeout: 10))
+                XCTAssertTrue(credits.label.contains("Photos: "), credits.label)
+                usleep(400_000)
+                keepScreenshot("cockpit-aerial-credits")
+                app.navigationBars["Credits"].buttons["Done"].tap()
+                XCTAssertTrue(credits.vanishes(timeout: 10))
                 aerial.tap()
                 usleep(700_000)
             }
@@ -4248,11 +4259,15 @@ final class VentiUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
 
         // The cockpit, waiting for the take-off, has that airspace to warn
-        // from, and the map names whose it is.
+        // from, and its map's credits button names whose it is.
         XCTAssertTrue(app.navigationBars["Settings"].appears(timeout: 15))
         app.navigationBars["Settings"].buttons["Done"].tap()
         XCTAssertTrue(element("cockpit-end", in: app).appears(timeout: 30))
-        XCTAssertTrue(element("cockpit-airspace-credit", in: app).appears(timeout: 30))
+        let creditsButton = app.buttons["cockpit-credits"]
+        XCTAssertTrue(creditsButton.appears(timeout: 30))
+        for _ in 0..<30 where !((creditsButton.value as? String) ?? "").contains("Airspace: ") {
+            usleep(500_000)
+        }
         // Standing at the take-off, with positions that have a height:
         // the cockpit checks them against that airspace, and its notice
         // that nothing is checked yet goes.
@@ -4273,7 +4288,19 @@ final class VentiUITests: XCTestCase {
         put(metresNorth: 0, altitude: Self.takeoffGroundM, speed: 0)
         usleep(400_000)
         XCTAssertFalse(element("airspace-proximity-map", in: app).exists)
+        // Nothing of the credits is drawn over the cockpit's map: the
+        // airspace's, "not certified" with it, is behind the small (i) in
+        // the map's corner, with the map's own.
+        XCTAssertFalse(labelled(containing: "not certified", in: app).exists)
         keepScreenshot("airspace-3-cockpit-before-takeoff")
+        creditsButton.tap()
+        let credits = element("wind-credits", in: app)
+        XCTAssertTrue(credits.appears(timeout: 10))
+        XCTAssertTrue(credits.label.contains("Airspace: openAIP, not certified"), credits.label)
+        usleep(400_000)
+        keepScreenshot("airspace-4-cockpit-credits")
+        app.navigationBars["Credits"].buttons["Done"].tap()
+        XCTAssertTrue(credits.vanishes(timeout: 10))
         endTheCockpit(in: app)
 
         // And the map tab's airspace was off all the while.

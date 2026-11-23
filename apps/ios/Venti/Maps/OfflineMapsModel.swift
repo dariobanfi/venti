@@ -212,6 +212,14 @@ final class OfflineMapsModel {
         browsingRegion(at: place).map { region in region.credits.map(\.text) }
     }
 
+    /// Whose base map and terrain the cockpit's map draws: the kept
+    /// region's own credits where it is drawn from one, else `nil`, and
+    /// the credits of the map from the network stand.
+    var flyingCredits: [String]? {
+        guard case .kept(let drawn) = flyingSource else { return nil }
+        return kept.first { $0.id == drawn.id }.map { region in region.credits.map(\.text) }
+    }
+
     /// A kept region as a source for the map's style.
     func source(of region: MapRegionView) -> MapStyle.Source? {
         guard let folder else { return nil }

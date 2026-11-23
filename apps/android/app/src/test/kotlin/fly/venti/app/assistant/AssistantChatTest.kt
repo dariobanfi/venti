@@ -227,7 +227,8 @@ class AssistantChatTest {
         assertEquals(listOf("the wind stations around a place"), chat.entries[1].lookedUp)
         assertEquals(
             "Zugspitze: **54 km/h**, from W, gusts 93, measured 45 minutes ago. " +
-                "Quelle: Deutscher Wetterdienst (CC BY 4.0)",
+                "Quelle: Deutscher Wetterdienst (CC BY 4.0) " +
+                "<https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html>",
             chat.entries[1].text.substringBefore(";"),
         )
         // The server was asked for an area, and for nothing else.

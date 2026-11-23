@@ -26,6 +26,7 @@ import fly.venti.core.stationDay
 import fly.venti.core.stationDayPath
 import fly.venti.core.stationHistory
 import fly.venti.core.stationHistoryPath
+import fly.venti.core.stationMeasuredWords
 import fly.venti.core.windMap
 import fly.venti.core.windMapPath
 import kotlinx.coroutines.CancellationException
@@ -364,6 +365,13 @@ class WindModel(
         val nowUnixS = serverTimeOrZero()
         return withContext(background) { stationHistory(answer.status.asStatus(), answer.body, nowUnixS) }
     }
+
+    /**
+     * What a station's page says under its newest reading, in the core's
+     * words: its age by Venti's running clock, or its time on the pilot's
+     * clock while Venti's clock is unread.
+     */
+    fun measuredWords(station: WindStation): String = stationMeasuredWords(station, nowOrZero, utcOffsetSeconds())
 
     /** The span of days a station's page can show, today last, by this phone's clock. */
     fun stationDays(): StationDays = fly.venti.core.stationDays(now, utcOffsetSeconds())

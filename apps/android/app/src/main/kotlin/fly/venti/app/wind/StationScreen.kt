@@ -126,6 +126,13 @@ fun StationPage(
         }
     }
 
+    // The core's line under the reading. Read again once the history came,
+    // since asking for it reads Venti's clock where it was unread.
+    val measured = remember(station, history) { wind.measuredWords(station) }
+    // The core's sentence where the last 24 hours hold no chart; then there
+    // is no past day to pick either.
+    val noHistory = (history as? History.Ready)?.history?.emptyWords
+
     // The air's card and the chart's explanation stand behind a row at the end.
     var showsMoreAir by rememberSaveable(station.id) { mutableStateOf(false) }
     Column {
@@ -165,7 +172,7 @@ fun StationPage(
         ) {
             item {
                 Now(station)
-                SectionFooter(ageText(station, wind.now))
+                SectionFooter(measured, Modifier.testTag("station-measured"))
             }
             item {
                 // The last 24 hours, or a day the pilot chose, back as far as
@@ -175,7 +182,9 @@ fun StationPage(
                     val shown = (day as? Day.Ready)?.day?.takeIf { it.date == date }?.let { Format.day(it.startUnixS) }
                     SectionHeader(if (date == null) "Last 24 hours" else shown ?: date.orEmpty(), Modifier.weight(1f))
                     // Today is the last 24 hours again.
-                    DayChoice(days, date ?: days.lastDate, onChoose = { chosen -> date = chosen.takeIf { it != days.lastDate } })
+                    if (date != null || noHistory == null) {
+                        DayChoice(days, date ?: days.lastDate, onChoose = { chosen -> date = chosen.takeIf { it != days.lastDate } })
+                    }
                 }
                 Group(Modifier.padding(top = 8.dp)) {
                     row {
@@ -189,13 +198,15 @@ fun StationPage(
                                     Modifier.align(Alignment.Center).padding(vertical = 44.dp),
                                 )
                                 is History.Ready -> {
-                                    val samples = remember(current.history) { WindSample.of(current.history) }
-                                    if (samples.size < 2) {
+                                    val empty = current.history.emptyWords
+                                    if (empty != null) {
                                         Text(
-                                            "Venti has no history for this station yet.",
+                                            empty,
+                                            modifier = Modifier.testTag("station-history-empty"),
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     } else {
+                                        val samples = remember(current.history) { WindSample.of(current.history) }
                                         WindHistoryCharts(samples)
                                     }
                                 }
@@ -277,15 +288,15 @@ private fun DayChart(day: Day, onTryAgain: () -> Unit) {
             TextButton(onClick = onTryAgain) { Text(Common.words.tryAgain) }
         }
         is Day.Ready -> {
-            val samples = remember(day.day) { WindSample.of(day.day.readings) }
             val empty = day.day.emptyWords
-            if (empty != null || samples.size < 2) {
+            if (empty != null) {
                 Text(
-                    empty ?: "Venti has no history for this station yet.",
+                    empty,
                     modifier = Modifier.testTag("station-day-empty"),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
+                val samples = remember(day.day) { WindSample.of(day.day.readings) }
                 WindHistoryCharts(samples, span = day.day.startUnixS..day.day.endUnixS)
             }
         }
@@ -426,17 +437,6 @@ private fun Now(station: WindStation) {
 @Composable
 private fun Measured(caption: String, value: String?, modifier: Modifier, unit: String = "") =
     Metric(caption, value ?: "–", modifier, unit = if (value == null) "" else unit)
-
-/** How old the reading is, and what that means if it is old. */
-private fun ageText(station: WindStation, now: Long): String {
-    val reading = station.latest ?: return "Venti has no reading from this station."
-    val age = StationWords.age(station, reading, now)
-    return if (station.isOld) {
-        "Measured $age. Too old to say what the wind is doing now."
-    } else {
-        "Measured $age."
-    }
-}
 
 /** Whose data the station's is, worded as the provider asks, with the licence. */
 @Composable

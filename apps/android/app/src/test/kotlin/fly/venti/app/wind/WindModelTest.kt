@@ -180,6 +180,25 @@ class WindModelTest {
     }
 
     @Test
+    fun aStationsPageSaysTheCoresLineByVentisClockOrTheReadingsTime() = runBlocking {
+        val server = Server()
+        // A phone whose clock is three hours ahead: its own clock is never used for the age.
+        val clock = Clock((server.clock + 3 * 3600) * 1000)
+        val wind = WindModel("wind.example.org/", still, transport = server::answer, clock = { clock.now }, utcOffsetSeconds = { 3600 })
+        wind.show(alps)
+        wind.load()
+        val station = wind.stations.first { it.latest != null }
+        assertEquals(fly.venti.core.stationMeasuredWords(station, wind.now, 3600), wind.measuredWords(station))
+        assertTrue(wind.measuredWords(station), wind.measuredWords(station).startsWith("Measured "))
+        assertTrue(wind.measuredWords(station), !wind.measuredWords(station).startsWith("Measured at "))
+
+        // Without Venti's clock the line gives the reading's time on the pilot's clock.
+        val unread = WindModel("wind.example.org/", still, transport = server::answer, clock = { clock.now }, utcOffsetSeconds = { 3600 })
+        assertEquals(fly.venti.core.stationMeasuredWords(station, 0, 3600), unread.measuredWords(station))
+        assertTrue(unread.measuredWords(station), unread.measuredWords(station).startsWith("Measured at "))
+    }
+
+    @Test
     fun withoutAServerNothingIsAsked() = runBlocking {
         val server = Server()
         val wind = model(server, address = "  ")

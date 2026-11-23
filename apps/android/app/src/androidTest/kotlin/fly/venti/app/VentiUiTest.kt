@@ -1019,9 +1019,13 @@ class VentiUiTest {
         tap(described("Back"))
         scrollToStation("Osterfelder Nord -Startplatz")
         tap(described("Osterfelder Nord -Startplatz"))
-        // The development server has no history for it: no chart.
+        // The development server has no history for it: the core's sentence
+        // in place of the chart, and no day to pick.
         waitFor(described("Height") and sayingLike("^–$"))
         assertTrue(exists(described("Temperature") and sayingLike("^–$")))
+        waitFor(hasTestTag("station-history-empty") and hasText("Venti has no history for this station yet."))
+        assertTrue(!exists(hasTestTag("station-day")))
+        assertTrue(exists(hasTestTag("station-measured") and hasText("Measured", substring = true)))
         keepScreenshot("$prefix-wind-4c-station-without-height")
 
         // Back to the list, and from there to the map.

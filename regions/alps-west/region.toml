@@ -72,10 +72,15 @@ sources = ["openaip"]
 sources = ["ffvl-sites", "osm-free-flying"]
 priority = ["ffvl-sites", "osm-free-flying"]
 
-# No [cables] yet: the whole Alps hold 157,515 ways of power lines and
-# ropeways, and an Overpass instance took 144 seconds to count them, which
-# is longer than the fetcher gives a request. The query has to be asked in
-# pieces first.
+# Power lines and ropeways from OpenStreetMap, under the ODbL: a layer of
+# its own, as in the first region. The whole Alps hold 157,515 ways of
+# them, too many for one query (an Overpass instance took 144 seconds only
+# to count them), so the adapter asks for the box in tiles of one degree,
+# half a minute apart: 78 requests and an hour or more for the box of the
+# three packs, once a week. One tile that fails keeps the cables of the
+# week before for the whole box.
+[cables]
+sources = ["osm-cables"]
 
 # No [forecasts] yet: the thermal map is made over the box its source is
 # listed for, and the whole Alps are 6,273 cells against the first

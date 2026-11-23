@@ -690,21 +690,18 @@ mod tests {
             );
         }
 
-        // What only the first region names stays in its box. The cables'
-        // answer for the whole Alps is too large for one request, and the
-        // radars' pictures and the thermal map are made over the box of
-        // their job.
-        for source in [
-            "osm-cables",
-            "dwd-radar-ry",
-            "geosphere-inca-rr",
-            "geosphere-tawes",
-        ] {
+        // The cables of the whole Alps are asked for in tiles, over the
+        // box of all three.
+        assert_eq!(area_of("osm-cables"), whole);
+
+        // What only the first region names stays in its box. The radars'
+        // pictures and the thermal map are made over the box of their job.
+        for source in ["dwd-radar-ry", "geosphere-inca-rr", "geosphere-tawes"] {
             assert_eq!(area_of(source), first, "{source}");
         }
         for pack in &packs[1..] {
             assert!(!pack.airspace.is_empty(), "{}", pack.id);
-            assert!(pack.cables.is_empty(), "{}", pack.id);
+            assert!(!pack.cables.is_empty(), "{}", pack.id);
             assert!(pack.forecasts.is_empty(), "{}", pack.id);
             assert!(pack.radar.is_empty(), "{}", pack.id);
         }

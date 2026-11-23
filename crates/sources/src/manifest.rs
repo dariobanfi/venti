@@ -136,6 +136,12 @@ pub struct RateLimit {
     /// retries count against the run's request budget.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry_after_seconds: Option<u32>,
+    /// How long a run waits between two of its requests, in seconds, for a
+    /// provider that is asked many times in one run and wants its requests
+    /// spread out rather than sent at once. Set, the run asks one request
+    /// at a time. Left out, a run asks as fast as its other limits allow.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pause_seconds: Option<u32>,
 }
 
 /// Licence terms of a source.
@@ -294,6 +300,11 @@ impl Manifest {
                  later is given a pause",
             ));
         }
+        if self.rate_limit.pause_seconds == Some(0) {
+            return Err(invalid(
+                "rate_limit.pause_seconds is zero; leave it out instead",
+            ));
+        }
         check_licence(&self.licence, "licence").map_err(|problem| invalid(&problem))?;
         for asset in &self.assets {
             if asset.name.trim().is_empty()
@@ -330,6 +341,14 @@ impl Manifest {
     pub fn retry_after(&self) -> Option<std::time::Duration> {
         self.rate_limit
             .retry_after_seconds
+            .map(|seconds| std::time::Duration::from_secs(u64::from(seconds)))
+    }
+
+    /// How long a run waits between two of its requests, if the manifest
+    /// asks for its requests to be spread out.
+    pub fn pause_between(&self) -> Option<std::time::Duration> {
+        self.rate_limit
+            .pause_seconds
             .map(|seconds| std::time::Duration::from_secs(u64::from(seconds)))
     }
 
@@ -432,6 +451,27 @@ mod tests {
         );
 
         let text = GOOD.replace("per_hour = 240", "per_hour = 240\nretry_after_seconds = 0");
+        assert!(matches!(
+            Manifest::from_toml(&text),
+            Err(ManifestError::Invalid { .. })
+        ));
+    }
+
+    #[test]
+    fn a_manifest_may_ask_for_its_requests_to_be_spread_out() {
+        let manifest = Manifest::from_toml(GOOD).unwrap();
+        assert_eq!(manifest.pause_between(), None);
+        let written = toml::to_string(&manifest).unwrap();
+        assert!(!written.contains("pause_seconds"), "{written}");
+
+        let text = GOOD.replace("per_hour = 240", "per_hour = 240\npause_seconds = 30");
+        let manifest = Manifest::from_toml(&text).unwrap();
+        assert_eq!(
+            manifest.pause_between(),
+            Some(std::time::Duration::from_secs(30))
+        );
+
+        let text = GOOD.replace("per_hour = 240", "per_hour = 240\npause_seconds = 0");
         assert!(matches!(
             Manifest::from_toml(&text),
             Err(ManifestError::Invalid { .. })

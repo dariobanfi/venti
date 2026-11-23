@@ -126,6 +126,10 @@ pub(crate) struct Fetching {
 /// has room for it; the last answer is what the report keeps. A run is
 /// still whole or failed: a retry that works delivers the whole answer,
 /// and one that does not is a failed request like any other.
+///
+/// A source whose manifest sets `rate_limit.pause_seconds` is asked one
+/// request at a time, with that pause before every request but the run's
+/// first, so that a run of many requests is spread over its length.
 pub(crate) async fn fetch_all(
     manifest: &Manifest,
     first: Vec<Request>,
@@ -140,7 +144,12 @@ pub(crate) async fn fetch_all(
         .rate_limit
         .per_second
         .map_or(usize::MAX, |n| n as usize);
-    let concurrency = options.concurrency.min(per_second).max(1);
+    let spacing = manifest.pause_between();
+    let concurrency = if spacing.is_some() {
+        1
+    } else {
+        options.concurrency.min(per_second).max(1)
+    };
     let max_bytes = manifest.max_response_bytes();
     let retry_after = manifest.retry_after();
 
@@ -157,12 +166,19 @@ pub(crate) async fn fetch_all(
             wave.truncate(allowed);
             budget_exhausted = true;
         }
+        let asked_before = requests;
         requests += wave.len();
 
-        let mut responses: Vec<(Request, _)> = stream::iter(wave)
-            .map(|request| async move {
-                let result = fetch.get_within(&request, max_bytes).await;
-                (request, result)
+        let mut responses: Vec<(Request, _)> = stream::iter(wave.into_iter().enumerate())
+            .map(|(index, request)| {
+                let wait = spacing.filter(|_| asked_before + index > 0);
+                async move {
+                    if let Some(wait) = wait {
+                        fetch.pause(wait).await;
+                    }
+                    let result = fetch.get_within(&request, max_bytes).await;
+                    (request, result)
+                }
             })
             .buffer_unordered(concurrency)
             .collect()

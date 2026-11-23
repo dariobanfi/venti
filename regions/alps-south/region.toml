@@ -75,7 +75,12 @@ sources = ["osm-free-flying"]
 # first's record (docs/architecture.md, the decision log, 2026-11-22).
 priority = ["osm-free-flying"]
 
-# No [cables], no [forecasts] and no [radar] yet, for the reasons
+# Power lines and ropeways from OpenStreetMap, as in the two other packs,
+# asked for in tiles (regions/alps-west/region.toml says why).
+[cables]
+sources = ["osm-cables"]
+
+# No [forecasts] and no [radar] yet, for the reasons
 # regions/alps-west/region.toml gives. ICON-D2's grid ends between 43.5°
 # and 43.7° N, in this box's south: there a place's forecast and the map
 # have ICON-EU alone.

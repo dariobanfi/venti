@@ -1,6 +1,6 @@
 //! Running a source of cables.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 use venti_domain::{Cable, SourceId, Timestamp};
@@ -23,7 +23,10 @@ pub struct CableRunReport {
     /// Records and values removed by validation. A rejection names the
     /// cable in its `site` field.
     pub rejected: Vec<SiteRejection>,
-    /// Cables dropped because an earlier one had the same key.
+    /// Cables dropped because an earlier one in the same answer had the
+    /// same key. A cable that the answers to two requests both hold, as
+    /// neighbouring tiles of one box do with a line across their edge, is
+    /// one cable, kept once and not counted here.
     pub duplicates: usize,
     /// Whether the run stopped early because it used up its request budget.
     pub budget_exhausted: bool,
@@ -57,8 +60,15 @@ pub struct CableRunOutput {
 /// The result is a snapshot: every cable of the source that reaches into
 /// `ctx.area`, sorted by key. A cable whose line lies wholly outside the
 /// area is dropped without a word. A cable that names another source, one
-/// that cannot be a line, and a second one with a key already seen are
-/// removed whole and reported.
+/// that cannot be a line, and a second one with a key already seen in the
+/// same answer are removed whole and reported.
+///
+/// An adapter may ask for its area in pieces, one request each. A cable
+/// in the answers to several of them is merged by its key: the copy of the
+/// answer taken first is kept, and the others, with what the adapter left
+/// out of them a second time, are dropped without a word. The set is still
+/// whole or nothing: one request that fails makes the run unhealthy, and
+/// an unhealthy run's set replaces no stored one.
 pub async fn run_cables(
     source: &dyn CableSource,
     fetch: &impl Fetch,
@@ -67,8 +77,11 @@ pub async fn run_cables(
     options: &RunOptions,
 ) -> CableRunOutput {
     let manifest = source.manifest();
-    let mut skipped = Vec::new();
-    let mut found: Vec<Cable> = Vec::new();
+    let mut skipped: Vec<Skipped> = Vec::new();
+    let mut said: BTreeSet<(String, String)> = BTreeSet::new();
+    // Each cable with the number of the answer it came in.
+    let mut found: Vec<(usize, Cable)> = Vec::new();
+    let mut answers = 0;
     let mut as_of: Option<Timestamp> = None;
 
     let take = |request: &Request, response: &Fetched| {
@@ -79,8 +92,13 @@ pub async fn run_cables(
             .unwrap_or(ctx.now)
             .min(ctx.now);
         as_of = Some(as_of.map_or(date, |oldest| oldest.min(date)));
-        found.extend(parsed.cables);
-        skipped.extend(parsed.skipped);
+        found.extend(parsed.cables.into_iter().map(|cable| (answers, cable)));
+        answers += 1;
+        for left_out in parsed.skipped {
+            if said.insert((left_out.what.clone(), left_out.reason.clone())) {
+                skipped.push(left_out);
+            }
+        }
         Ok(Vec::new())
     };
     let fetched = fetch_all(
@@ -97,7 +115,19 @@ pub async fn run_cables(
     let mut rejected = Vec::new();
     let mut duplicates = 0;
     let mut cables: BTreeMap<String, Cable> = BTreeMap::new();
-    for mut cable in found {
+    // The answer each key was first seen in.
+    let mut seen_in: BTreeMap<String, usize> = BTreeMap::new();
+    for (answer, mut cable) in found {
+        match seen_in.get(&cable.local) {
+            Some(&first) if first != answer => continue,
+            Some(_) => {
+                duplicates += 1;
+                continue;
+            }
+            None => {
+                seen_in.insert(cable.local.clone(), answer);
+            }
+        }
         let key = format!("{}:{}", cable.source, cable.local);
         let reject = |reason: String| SiteRejection {
             site: key.clone(),
@@ -123,10 +153,6 @@ pub async fn run_cables(
             })),
         }
         if !cable.touches(&ctx.area) {
-            continue;
-        }
-        if cables.contains_key(&cable.local) {
-            duplicates += 1;
             continue;
         }
         cables.insert(cable.local.clone(), cable);

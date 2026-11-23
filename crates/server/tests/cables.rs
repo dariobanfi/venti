@@ -3,10 +3,19 @@
 //! near the Tegernsee, run through the real adapter). One answer is kept
 //! as a golden file, which is also the example in `docs/api.md`.
 
+use std::sync::Arc;
+
 use axum::http::{StatusCode, header};
 use venti_api_types::v1::{CablesRequest, CablesResponse, ErrorCode};
-use venti_domain::CableKind;
-use venti_sources::testing::assert_golden;
+use venti_domain::{CableKind, SourceId};
+use venti_server::adapters::{Providers, registry_for};
+use venti_server::clock::FixedClock;
+use venti_server::ingest::Collector;
+use venti_server::plan::Job;
+use venti_sources::Kind;
+use venti_sources::testing::{FixtureFetch, MemoryArchive, assert_golden};
+use venti_sources_osm::fixtures;
+use venti_store::{MemoryStore, Store};
 
 mod common;
 
@@ -56,4 +65,46 @@ async fn a_box_is_needed() {
     answer.error(StatusCode::BAD_REQUEST, ErrorCode::InvalidBbox);
     let answer = get(&router, "/v1/cables?bbox=11,47").await;
     answer.error(StatusCode::BAD_REQUEST, ErrorCode::InvalidBbox);
+}
+
+#[tokio::test]
+async fn a_tile_that_fails_leaves_the_stored_cables_as_they_were() {
+    let source = SourceId::new("osm-cables").unwrap();
+    let job = Job {
+        source: source.clone(),
+        kind: Kind::Cables,
+        area: fixtures::cables_tiles_area(),
+    };
+    let store = Arc::new(MemoryStore::new());
+    let first_run = fixtures::cables_tiles_recorded_at();
+    let collect = |fetch: FixtureFetch, at| {
+        Collector::new(
+            registry_for(&Providers::recorded()).unwrap(),
+            store.clone(),
+            fetch,
+            MemoryArchive::default(),
+            Arc::new(FixedClock(at)),
+            None,
+        )
+    };
+    let held = || async {
+        let sets = store.cable_sets(std::slice::from_ref(&source)).await;
+        let set = sets.unwrap().remove(0);
+        (set.fetched_at, set.cables)
+    };
+
+    // Both tiles answer: their seventeen cables are the stored set.
+    let both = FixtureFetch::new().with_all(fixtures::cables_tiles());
+    assert!(collect(both, first_run).collect(&job).await);
+    assert_eq!(held().await, (first_run, 17));
+
+    // A week later the northern tile is refused three times. The southern
+    // one's answer is not half a set to store: the week before's stays.
+    let north = fixtures::cables_tiles()[1].0.clone();
+    let busy = FixtureFetch::new()
+        .with_all(fixtures::cables_tiles())
+        .refusing(&north, 502, 3);
+    let a_week_later = first_run + chrono::Duration::days(7);
+    assert!(!collect(busy, a_week_later).collect(&job).await);
+    assert_eq!(held().await, (first_run, 17));
 }

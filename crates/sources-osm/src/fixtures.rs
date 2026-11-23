@@ -98,3 +98,51 @@ pub fn cables_recorded() -> Vec<(String, &'static [u8])> {
         include_bytes!("../tests/fixtures/overpass_cables_tegernsee.json").as_slice(),
     )]
 }
+
+/// When the tile south of Munich was recorded: shortly after the answer
+/// came. A run over the two tiles uses this as its time.
+///
+/// # Panics
+///
+/// Never: the date is a constant.
+pub fn cables_tiles_recorded_at() -> Timestamp {
+    Utc.with_ymd_and_hms(2026, 11, 23, 16, 24, 0)
+        .single()
+        .expect("a valid date")
+}
+
+/// A small box south of Munich across the grid line at 48° N, which the
+/// cable adapter asks for in two tiles: 47.97 to 48° N and 48 to 48.03° N,
+/// both from 11.42 to 11.6° E. Three lines cross from one into the other.
+///
+/// # Panics
+///
+/// Never: the edges are constants that form a box.
+pub fn cables_tiles_area() -> BoundingBox {
+    BoundingBox::new(47.97, 11.42, 48.03, 11.6).expect("a valid box")
+}
+
+/// The answers for the two tiles of [`cables_tiles_area`], each with the
+/// URL it answers, the southern tile first. The southern one was recorded;
+/// the northern one was not, and is made by hand from it: the three ways
+/// of the southern answer with points in the northern tile, as the
+/// instance sends a way, whole. `tests/fixtures/NOTICE.txt` says more.
+///
+/// # Panics
+///
+/// Never: the address is a constant the adapter accepts.
+pub fn cables_tiles() -> Vec<(String, &'static [u8])> {
+    let source = OsmCables::new(INTERPRETER).expect("the default interpreter is an address");
+    let south = BoundingBox::new(47.97, 11.42, 48.0, 11.6).expect("a valid box");
+    let north = BoundingBox::new(48.0, 11.42, 48.03, 11.6).expect("a valid box");
+    vec![
+        (
+            source.url(&south),
+            include_bytes!("../tests/fixtures/overpass_cables_tile_south.json").as_slice(),
+        ),
+        (
+            source.url(&north),
+            include_bytes!("../tests/fixtures/overpass_cables_tile_north.json").as_slice(),
+        ),
+    ]
+}

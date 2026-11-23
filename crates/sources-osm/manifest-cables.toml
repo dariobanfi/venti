@@ -2,23 +2,28 @@ id = "osm-cables"
 provider = "OpenStreetMap contributors"
 kinds = ["cables"]
 # OpenStreetMap covers the world and the adapter asks for a box, not for
-# countries. These are the countries the first region's box takes in.
-countries = ["AT", "CH", "DE", "HR", "HU", "IT", "LI", "SI", "SK"]
+# countries. These are the countries the box of the three packs of the Alps
+# takes in.
+countries = ["AT", "BA", "CH", "DE", "FR", "HR", "HU", "IT", "LI", "MC", "SI", "SK", "SM"]
 # Power lines and ropeways change rarely, and the answer for a region is
-# large: one request a week.
+# large: one run a week.
 cadence_seconds = 604800
 auth = "none"
-# The answer for the small box of the recording near the Tegernsee was
-# 8 kB. Every power line, minor line and ropeway of the first region was
-# not asked for: an estimate of some tens of megabytes, to verify at the
-# first run against an instance of the operator's own.
-max_response_kb = 131072
+# The adapter asks for a box in tiles of one degree, one request each: the
+# whole Alps are 78. An answer for a tile is estimated at some 2 to 3 MB,
+# some 9 MB where lines are dense (the module documentation of the adapter
+# has the numbers), within the 32 MB a source may take when its manifest says
+# nothing else. To verify at the first run of the whole Alps.
 
-# As for the sites: one query at a time, few a day, and after an answer
-# that asks to come back later one more try, two minutes on.
+# One query at a time, half a minute between two, so that the instance has
+# room for others: a run of the whole Alps takes an hour or more. At most
+# 120 requests an hour, which is also a run's budget: the 78 tiles, and 42
+# for those the instance asks to send again, two minutes on, up to three
+# times each.
 [rate_limit]
 per_second = 1
-per_hour = 2
+per_hour = 120
+pause_seconds = 30
 retry_after_seconds = 120
 
 [licence]

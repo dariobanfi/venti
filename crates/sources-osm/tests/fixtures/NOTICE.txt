@@ -97,3 +97,32 @@ line.
 To record it again: send the query above, keep the tags listed, then run
 the tests with VENTI_UPDATE_GOLDEN=1 and review what changed. The test
 "the_box_near_the_tegernsee_holds_what_was_recorded" pins the counts.
+
+overpass_cables_tile_south.json is data of OpenStreetMap, © OpenStreetMap
+contributors, under the Open Database License, as above. It was recorded
+on 2026-11-23 at 16:23 UTC from the main public instance,
+https://overpass-api.de/api/interpreter, whose copy of OpenStreetMap was
+of 2026-11-23 16:22:05 UTC: one request with the User-Agent
+venti-server/0.1.0 and the cable adapter's query for the southern of the
+two tiles of a box south of Munich across 48° N:
+
+    [out:json][timeout:90][bbox:47.97,11.42,48,11.6];
+    (way["power"~"^(line|minor_line)$"];way["aerialway"];
+     way["man_made"="cable"];);
+    out tags geom qt;
+
+The answer was 13,581 bytes, seventeen ways, and took 33 s on an instance
+that was busy. Of its tags only those the adapter reads are kept, as
+above; the file is written the same way.
+
+overpass_cables_tile_north.json was not recorded. The query for the
+northern tile, [bbox:48,11.42,48.03,11.6], sent twenty seconds later, was
+answered with HTTP 502 ("currently at capacity"), and no third request
+was sent that day. The file is made by hand from the southern answer: its
+header, and the three ways of it that have points in the northern tile
+(43400090, 1066909551 and 390598434), as the instance sends a way, whole
+and with all its points. A real answer for that tile holds these and more.
+It stands for the case it is used for, a line in the answers of two
+tiles; record it, and the southern one again, when an instance answers:
+send the two queries, keep the tags listed, and run the tests with
+VENTI_UPDATE_GOLDEN=1.

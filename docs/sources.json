@@ -460,14 +460,18 @@
     {
       "countries": [
         "AT",
+        "BA",
         "CH",
         "DE",
+        "FR",
         "HR",
         "HU",
         "IT",
         "LI",
+        "MC",
         "SI",
-        "SK"
+        "SK",
+        "SM"
       ],
       "id": "osm-cables",
       "kinds": [

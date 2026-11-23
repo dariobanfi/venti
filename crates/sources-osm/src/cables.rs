@@ -3,13 +3,33 @@
 //! A second dataset of the same provider, under the same licence, with a
 //! manifest of its own (`osm-cables`). It is never merged with the sites.
 //!
-//! # The request
+//! # The requests
 //!
-//! One GET to the Overpass instance's interpreter, as for the sites, with
-//! a query for the box of the run that selects the ways tagged
+//! One GET to the Overpass instance's interpreter for each tile of the
+//! run's box, with a query for the tile that selects the ways tagged
 //! `power=line` or `power=minor_line`, every way tagged `aerialway`, and
 //! the ways tagged `man_made=cable`, with their tags and the positions of
-//! their points (`out tags geom`).
+//! all their points (`out tags geom`), also of those outside the tile.
+//!
+//! The tiles are the cells of a fixed grid of whole degrees ([`TILE_DEG`]),
+//! cut to the box: the whole Alps, 43.5 to 48.5° N and 5 to 17.2° E, are
+//! 78 tiles. One query for all of them is too much: on 2026-11-22 the box
+//! held 157,515 ways, which an instance took 144 s only to count, more than
+//! the server gives a request, and the first region's 60,752 took 54 s.
+//! That is 2,600 ways and 2.4 s to a square degree over the whole box, and
+//! 3,500 ways and 3.1 s over the first region. A tile of one degree three
+//! times as dense as the first region holds some 10,000 ways and is counted
+//! in some 10 s, well within the query's 90 s and the fetcher's 120 s even
+//! if sending the points takes as long again. At 870 bytes a way (a box
+//! around Innsbruck, 2026-11-22) its answer is some 9 MB, and an average
+//! tile's some 2 to 3 MB, against the 32 MB the manifest allows. Tiles of
+//! half a degree would be four times the requests for no need, tiles of
+//! two degrees four times the work of one, near the 90 s. *To verify* at
+//! the first run of the whole Alps; an instance that is busy takes far
+//! longer (33 s for a tile of 0.03° by 0.18° on 2026-11-23). A line across
+//! the edge of two tiles is in the answers to both; the pipeline keeps it
+//! once. A box smaller than a cell that crosses no grid line is one tile,
+//! the box itself.
 //!
 //! # What is read
 //!
@@ -38,8 +58,12 @@ use venti_sources::{CableSource, Manifest, ParsedCables, PlanCtx, Request, Skipp
 
 use crate::{QUERY_TIMEOUT_S, elevation, encode, time};
 
-/// The request's tag: there is one request.
+/// The beginning of every request's tag, which then names its tile.
 const TAG: &str = "cables";
+
+/// The size of a tile, in degrees of latitude and of longitude: the grid's
+/// lines are at the whole degrees.
+const TILE_DEG: f64 = 1.0;
 
 /// The cables of OpenStreetMap.
 #[derive(Debug, Clone)]
@@ -72,6 +96,45 @@ impl OsmCables {
     }
 }
 
+/// The tiles of `area`: the cells of the grid of [`TILE_DEG`] that it
+/// touches, each cut to the area, from south to north and in each row from
+/// west to east. An edge of the area that lies on a grid line makes no
+/// tile of no height or width.
+pub(crate) fn tiles(area: &BoundingBox) -> Vec<BoundingBox> {
+    let lines = |from: f64, to: f64| {
+        let mut edges = vec![from];
+        let mut line = (from / TILE_DEG).floor() * TILE_DEG + TILE_DEG;
+        while line < to {
+            edges.push(line);
+            line += TILE_DEG;
+        }
+        edges.push(to);
+        edges
+    };
+    let rows = lines(area.south(), area.north());
+    let columns = lines(area.west(), area.east());
+    let mut tiles = Vec::new();
+    for row in rows.windows(2) {
+        for column in columns.windows(2) {
+            if let Ok(tile) = BoundingBox::new(row[0], column[0], row[1], column[1]) {
+                tiles.push(tile);
+            }
+        }
+    }
+    tiles
+}
+
+/// The tag of the request for a tile, which names it in a run's report.
+fn tag(tile: &BoundingBox) -> String {
+    format!(
+        "{TAG} {},{},{},{}",
+        tile.south(),
+        tile.west(),
+        tile.north(),
+        tile.east()
+    )
+}
+
 /// The query for the cables inside a box, in Overpass QL.
 fn query(area: &BoundingBox) -> String {
     format!(
@@ -91,7 +154,10 @@ impl CableSource for OsmCables {
     }
 
     fn plan(&self, ctx: &PlanCtx) -> Vec<Request> {
-        vec![Request::new(TAG, self.url(&ctx.area))]
+        tiles(&ctx.area)
+            .iter()
+            .map(|tile| Request::new(tag(tile), self.url(tile)))
+            .collect()
     }
 
     fn parse(
@@ -100,7 +166,7 @@ impl CableSource for OsmCables {
         body: &[u8],
         _ctx: &PlanCtx,
     ) -> Result<ParsedCables, SourceError> {
-        if request.tag != TAG {
+        if request.tag.split(' ').next() != Some(TAG) {
             return Err(SourceError::UnknownRequest(request.tag.clone()));
         }
         let answer: Answer = serde_json::from_slice(body)
@@ -289,6 +355,45 @@ mod tests {
     }
 
     #[test]
+    fn a_box_is_asked_for_in_tiles_of_the_whole_degrees() {
+        // The whole Alps: rows from 43.5, 44, ... 48 to 48.5, columns from
+        // 5, 6, ... 17 to 17.2.
+        let alps = BoundingBox::new(43.5, 5.0, 48.5, 17.2).unwrap();
+        let all = tiles(&alps);
+        assert_eq!(all.len(), 6 * 13);
+        assert_eq!(all[0], BoundingBox::new(43.5, 5.0, 44.0, 6.0).unwrap());
+        assert_eq!(all[12], BoundingBox::new(43.5, 17.0, 44.0, 17.2).unwrap());
+        assert_eq!(all[13], BoundingBox::new(44.0, 5.0, 45.0, 6.0).unwrap());
+        assert_eq!(
+            *all.last().unwrap(),
+            BoundingBox::new(48.0, 17.0, 48.5, 17.2).unwrap()
+        );
+        // The tiles cover the box once: their areas add up to its own.
+        let size = |b: &BoundingBox| (b.north() - b.south()) * (b.east() - b.west());
+        let sum: f64 = all.iter().map(size).sum();
+        assert!((sum - size(&alps)).abs() < 1e-9, "{sum}");
+        // The first region alone, and the two others.
+        let tiles_of = |s, w, n, e| tiles(&BoundingBox::new(s, w, n, e).unwrap()).len();
+        assert_eq!(tiles_of(46.3, 9.4, 48.5, 17.2), 3 * 9);
+        assert_eq!(tiles_of(43.5, 5.0, 48.5, 9.4), 6 * 5);
+        assert_eq!(tiles_of(43.5, 9.4, 46.3, 17.2), 4 * 9);
+        // An edge on a grid line makes no empty tile.
+        assert_eq!(tiles_of(47.0, 11.0, 48.0, 13.0), 2);
+        // A small box that crosses no grid line is asked for as it is.
+        let small = BoundingBox::new(47.66, 11.70, 47.74, 11.82).unwrap();
+        assert_eq!(tiles(&small), [small]);
+        let source = OsmCables::new(crate::DEFAULT_INTERPRETER).unwrap();
+        let ctx = PlanCtx {
+            now: crate::fixtures::cables_recorded_at(),
+            area: small,
+        };
+        let plan = source.plan(&ctx);
+        assert_eq!(plan.len(), 1);
+        assert_eq!(plan[0].tag, "cables 47.66,11.7,47.74,11.82");
+        assert_eq!(plan[0].url, source.url(&small));
+    }
+
+    #[test]
     fn the_kinds_are_read_from_the_tags() {
         assert_eq!(
             kind(&tags(&[("power", "line")]), false),
@@ -340,5 +445,20 @@ mod tests {
             venti_sources::LicenceFamily::ShareAlike
         );
         assert!(OsmCables::new("ftp://x").is_err());
+    }
+
+    #[test]
+    fn a_run_of_the_whole_alps_fits_its_budget_with_room_to_ask_again() {
+        let source = OsmCables::new(crate::DEFAULT_INTERPRETER).unwrap();
+        let manifest = source.manifest();
+        let alps = BoundingBox::new(43.5, 5.0, 48.5, 17.2).unwrap();
+        let tiles = tiles(&alps).len();
+        assert_eq!(manifest.requests_per_run(), Some(120));
+        assert_eq!(120 - tiles, 42);
+        // Half a minute between two requests: never more in an hour than
+        // the hourly limit, and the 78 tiles in 39 minutes of pauses alone.
+        let pause = manifest.pause_between().unwrap();
+        assert_eq!(pause.as_secs(), 30);
+        assert_eq!(3600 / pause.as_secs(), 120);
     }
 }

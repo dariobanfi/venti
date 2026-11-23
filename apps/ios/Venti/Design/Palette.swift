@@ -48,6 +48,11 @@ enum Palette {
     /// and the faint fill of a site that is mapped as an area.
     static var siteOnMap: UIColor { UIColor(VentiTheme.light.primary) }
 
+    /// A take-off's fan on the cockpit's map: the flight theme's muted
+    /// ink, one neutral colour, there being no hour of the forecast in
+    /// flight to colour it by.
+    static var siteFanInFlightOnMap: UIColor { UIColor(VentiTheme.flight.textMuted) }
+
     /// A take-off that says nothing to what the filter of the sites asks,
     /// shown apart from the ones that fit: the pack's pair for something
     /// that is not to be chosen (`.v-btn[disabled]`), the muted ink on the

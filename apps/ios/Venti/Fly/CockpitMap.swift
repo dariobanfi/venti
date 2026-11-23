@@ -4,7 +4,8 @@ import SwiftUI
 import VentiCore
 
 /// The cockpit's map: the glider, the track behind it coloured by climb,
-/// the thermals it has left, each with its climb, the take-off, and a line
+/// the thermals it has left, each with its climb, the take-off, the
+/// take-offs around with the fans of their directions, and a line
 /// to the place the cockpit is navigating to. It
 /// keeps the glider in the middle by itself, north up, zooms in while the
 /// glider circles, and out again as far as it takes to show the airspace
@@ -105,6 +106,7 @@ struct CockpitMap: UIViewRepresentable {
         context.coordinator.showThermalMap(thermalMap, on: map)
         context.coordinator.show(route, on: map)
         context.coordinator.show(view, way: way, on: map)
+        context.coordinator.showAround(on: map)
     }
 
     @MainActor
@@ -150,6 +152,8 @@ struct CockpitMap: UIViewRepresentable {
         private var drawnClosing: [Coordinate]??
         var takeoffs: [CockpitTakeoff] = []
         private var drawnTakeoffs: [CockpitTakeoff]?
+        /// The fans' pictures the style has been given.
+        private var fanPictures: Set<String> = []
         var others: [OtherNearView] = []
         private var drawnOthers: [OtherNearView]?
         var climbs: [ClimbNearView] = []
@@ -264,17 +268,22 @@ struct CockpitMap: UIViewRepresentable {
             style.addLayer(closingLine)
 
             // The take-offs around, as the map tab's signs, named only
-            // close in.
+            // close in, each over the fan of the directions it works in
+            // (`SiteFans`), in one neutral colour: no hour of the forecast
+            // colours it in flight. The map stays north up, and so do the
+            // fans.
             for picture in SiteSymbols.all {
                 style.setImage(picture.image, forName: picture.name)
             }
             let takeoffSigns = MLNShapeSource(identifier: "cockpit-takeoffs", shape: nil, options: nil)
             style.addSource(takeoffSigns)
+            fanPictures = []
+            SiteFans.add(to: style, source: takeoffSigns, scale: Self.takeoffScale)
             let signs = MLNSymbolStyleLayer(identifier: "cockpit-takeoffs", source: takeoffSigns)
             signs.iconImageName = NSExpression(forKeyPath: "picture")
             signs.iconAllowsOverlap = NSExpression(forConstantValue: true)
             signs.iconAnchor = NSExpression(forConstantValue: "bottom")
-            signs.iconScale = NSExpression(forConstantValue: 0.7)
+            signs.iconScale = NSExpression(forConstantValue: Self.takeoffScale)
             style.addLayer(signs)
             let signNames = MLNSymbolStyleLayer(identifier: "cockpit-takeoff-names", source: takeoffSigns)
             signNames.text = NSExpression(forKeyPath: "label")
@@ -604,7 +613,15 @@ struct CockpitMap: UIViewRepresentable {
             }
         }
 
-        /// The smallest box that holds every one of these places.
+        /// Draws what is around the glider when it has changed, also while
+        /// the glider stands still: the take-offs come a moment after the
+        /// place they are found around, and a held replay or a pilot on
+        /// the ground does not move on to draw them.
+        func showAround(on map: MLNMapView) {
+            guard isStyleLoaded, let style = map.style else { return }
+            drawAround(in: style)
+        }
+
         /// Draws the cables, the closing circle, the take-offs and the
         /// other networks' aircraft, each only when it has changed.
         private func drawAround(in style: MLNStyle) {
@@ -622,7 +639,11 @@ struct CockpitMap: UIViewRepresentable {
             }
             if takeoffs != drawnTakeoffs, let source = style.source(withIdentifier: "cockpit-takeoffs") as? MLNShapeSource {
                 drawnTakeoffs = takeoffs
-                source.shape = MLNShapeCollectionFeature(shapes: takeoffs.map(Self.takeoffFeature))
+                source.shape = MLNShapeCollectionFeature(
+                    shapes: takeoffs.map { takeoff in
+                        Self.takeoffFeature(for: takeoff, fan: fanPicture(of: takeoff.site, in: style))
+                    }
+                )
             }
             if climbs != drawnClimbs {
                 drawnClimbs = climbs
@@ -646,17 +667,42 @@ struct CockpitMap: UIViewRepresentable {
         /// The layer of the climbs of others.
         static let climbsLayer = "cockpit-climbs"
 
-        static func takeoffFeature(for takeoff: CockpitTakeoff) -> MLNPointFeature {
+        /// How large the take-offs' signs and fans are drawn: smaller than
+        /// on the map tab, under the glider and its trail.
+        static let takeoffScale = 0.7
+
+        /// The name of a take-off's fan, its picture given to the style the
+        /// first time it is asked for; empty for a site with none.
+        private func fanPicture(of site: SiteView, in style: MLNStyle) -> String {
+            let name = Self.fanName(of: site)
+            if !name.isEmpty, !fanPictures.contains(name) {
+                style.setImage(SiteFans.picture(of: site.wind, fit: .inFlight), forName: name)
+                fanPictures.insert(name)
+            }
+            return name
+        }
+
+        /// The name of the fan the cockpit draws round a take-off's pin,
+        /// in flight's one colour; empty where it has none
+        /// (`SiteFans.hasFan`).
+        static func fanName(of site: SiteView) -> String {
+            SiteFans.hasFan(site) ? SiteFans.name(of: site.wind, fit: .inFlight) : ""
+        }
+
+        static func takeoffFeature(for takeoff: CockpitTakeoff, fan: String) -> MLNPointFeature {
             let feature = MLNPointFeature()
             feature.coordinate = takeoff.site.position.location
             feature.attributes = [
                 "id": takeoff.site.id,
                 "picture": SiteSymbols.name(of: takeoff.site.kind, isUnsaid: false),
                 "label": takeoff.site.isNamed ? takeoff.site.name : "",
+                // The name of its fan's picture; empty for none.
+                "fan": fan,
             ]
             return feature
         }
 
+        /// The smallest box that holds every one of these places.
         static func box(around places: [Coordinate]) -> Bounds {
             let (lats, lons) = (places.map(\.lat), places.map(\.lon))
             return Bounds(

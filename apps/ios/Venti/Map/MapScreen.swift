@@ -987,7 +987,8 @@ struct MapScreen: View {
             shapes: shapes, key: choice.legend,
             windFrom: { place in
                 from.isEmpty ? nil : hours.cellAt(lat: place.lat, lon: place.lon).flatMap { from[$0] }
-            }
+            },
+            colorsFans: !from.isEmpty
         )
     }
 
@@ -1188,6 +1189,7 @@ struct MapScreen: View {
             measured: measured, radar: radar, thermals: thermals, day: forecastDay, hours: dayHours,
             hour: forecastHour, gusts: $gusts, heightM: forecastLevel,
             isInView: what == .thermals && forecastHour == nil ? isForecastInView : true,
+            showsFansKey: !hidesSites && hourDrawing?.colorsFans == true,
             tryRadarAgain: {
                 Task {
                     await radar.load()

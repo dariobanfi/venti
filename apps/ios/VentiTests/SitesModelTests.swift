@@ -98,6 +98,13 @@ final class SitesModelTests: XCTestCase {
         let drawn = OverviewMap.Coordinator.siteFeature(for: named, fan: "site-fan-plain-180-225")
         XCTAssertEqual(drawn.attribute(forKey: "fan") as? String, "site-fan-plain-180-225")
         XCTAssertEqual(OverviewMap.Coordinator.siteFeature(for: bare).attribute(forKey: "fan") as? String, "")
+
+        // The cockpit's map: the same fans in flight's one colour, a
+        // picture of its own; none for a take-off without directions or
+        // a landing.
+        XCTAssertEqual(CockpitMap.Coordinator.fanName(of: named), "site-fan-flight-180-225")
+        XCTAssertEqual(CockpitMap.Coordinator.fanName(of: bare), "")
+        XCTAssertEqual(CockpitMap.Coordinator.fanName(of: landing), "")
     }
 
     func testSitesAreAskedForOnceAndReadAsTheSourceGivesThem() async throws {

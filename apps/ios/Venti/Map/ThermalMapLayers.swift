@@ -224,4 +224,7 @@ struct ForecastHourDrawing {
     /// where the hour has no direction there, and on a layer without
     /// arrows. The take-offs' fans are coloured by it.
     var windFrom: (Coordinate) -> Double? = { _ in nil }
+    /// Whether the hour has a wind direction anywhere, and so colours the
+    /// fans: the map's panel then has their key.
+    var colorsFans = false
 }

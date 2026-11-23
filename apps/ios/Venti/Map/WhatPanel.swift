@@ -36,6 +36,9 @@ struct WhatPanel: View {
     @Binding var heightM: Int32?
     /// Whether the forecast shown has squares in the part of the map in view.
     let isInView: Bool
+    /// Whether the hour's wind colours the take-offs' fans, which then
+    /// have their key under the layer's.
+    let showsFansKey: Bool
     let tryRadarAgain: () -> Void
     let tryForecastAgain: () -> Void
     let tryHoursAgain: () -> Void
@@ -66,6 +69,9 @@ struct WhatPanel: View {
             controls
             if !key.steps.isEmpty {
                 KeyStrip(steps: key.steps, veil: key.veil)
+            }
+            if showsFansKey {
+                FansKey()
             }
             states
             if isOpen {
@@ -412,6 +418,73 @@ private struct KeyStrip: View {
                     .strokeBorder(.venti(.borderStrong), lineWidth: 1)
             }
             .frame(height: VentiSpace.s3)
+    }
+}
+
+/// The key of the take-offs' fans while the hour's wind colours them
+/// (`SiteFans`): the fan in the good colour where the wind fits, hollow in
+/// the muted ink where it does not, as the map draws them. On one line
+/// where it fits, else the two on lines of their own.
+private struct FansKey: View {
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: VentiSpace.s2) {
+                Text("Take-off:")
+                swatch(fits: true)
+                Text("wind fits")
+                swatch(fits: false)
+                Text("doesn't fit")
+            }
+            VStack(alignment: .leading, spacing: VentiSpace.s1) {
+                Text("Take-off:")
+                HStack(spacing: VentiSpace.s2) {
+                    swatch(fits: true)
+                    Text("wind fits")
+                }
+                HStack(spacing: VentiSpace.s2) {
+                    swatch(fits: false)
+                    Text("doesn't fit")
+                }
+            }
+        }
+        .font(.ventiType(.caption))
+        .foregroundStyle(.venti(.textSecondary))
+        .lineLimit(1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Take-off")
+        .accessibilityValue("Filled: wind fits; hollow: doesn't fit")
+        .accessibilityIdentifier("what-fans-key")
+    }
+
+    /// A fan's wedge, pointing up, in the colours the map gives it.
+    private func swatch(fits: Bool) -> some View {
+        FanWedge()
+            .fill(Color(uiColor: fits ? Palette.goodOnMap : Palette.haloOnMap))
+            .overlay {
+                FanWedge()
+                    .stroke(
+                        Color(uiColor: fits ? Palette.haloOnMap : Palette.notFlyableOnMap),
+                        style: StrokeStyle(lineWidth: fits ? 1 : 1.5, lineJoin: .round)
+                    )
+            }
+            .frame(width: VentiSpace.s4, height: VentiSpace.s3)
+            .accessibilityHidden(true)
+    }
+}
+
+/// A quarter of a circle from its middle at the foot, pointing up: the
+/// shape of a fan's span in its key.
+private struct FanWedge: Shape {
+    func path(in rect: CGRect) -> Path {
+        let centre = CGPoint(x: rect.midX, y: rect.maxY)
+        let radius = min(rect.height, rect.width / (2 * sin(.pi / 4)))
+        var path = Path()
+        path.move(to: centre)
+        path.addArc(
+            center: centre, radius: radius, startAngle: .degrees(-135), endAngle: .degrees(-45), clockwise: false
+        )
+        path.closeSubpath()
+        return path
     }
 }
 

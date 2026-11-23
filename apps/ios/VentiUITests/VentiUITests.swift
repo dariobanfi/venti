@@ -6471,9 +6471,11 @@ extension VentiUITests {
         sleep(2)
         keepScreenshots(light: "fans-1-measured", dark: "fans-dark-1-measured")
 
-        // An hour of the forecast's wind: the fans by whether it fits.
+        // An hour of the forecast's wind: the fans by whether it fits,
+        // with their key in the panel where the hour has a direction.
         if chooseTime(endingWith: ", 13:00", in: app) {
             sleep(3)
+            XCTAssertTrue(element("what-fans-key", in: app).appears(timeout: 10))
             keepScreenshots(light: "fans-2-forecast-hour", dark: "fans-dark-2-forecast-hour")
         }
 
@@ -6487,6 +6489,42 @@ extension VentiUITests {
         XCTAssertTrue(wind.appears(timeout: 10))
         usleep(400_000)
         keepScreenshot("fans-3-site")
+    }
+
+    /// The cockpit's map draws the take-offs it holds with their fans, in
+    /// flight's one colour (plan item 19): the sample flight by the
+    /// Wallberg, its first glide, held. The take-offs are the map tab's,
+    /// which are there before the cockpit opens: the cockpit's credits
+    /// name their source. On 2026-11-24 the one recorded take-off in view
+    /// there gave no directions, so no fan was on the screenshots; the
+    /// map tab's shot has the fans' key on the forecast's hour.
+    func testTheCockpitMapDrawsTakeoffDirectionsAsFans() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(
+            bundledMap: true,
+            extra: ["--server", server, "--all-sites", "--map-at", "47.664,11.797,12"]
+                + Self.replay(from: 30, holdingAfter: 0)
+        )
+        XCTAssertTrue(app.buttons["Show my position"].appears(timeout: 90))
+        XCTAssertTrue(waitForCredit("Sites", in: app))
+        sleep(2)
+        keepScreenshot("cockpit-fans-0-map-tab")
+        replayTheSampleFlight(in: app)
+        sleep(2)
+        keepScreenshot("cockpit-fans-1-first-page")
+
+        nextPage(in: app)
+        sleep(2)
+        keepScreenshot("cockpit-fans-2-map-page")
+
+        // The take-offs drawn are named among the cockpit's credits.
+        app.buttons["cockpit-credits"].tap()
+        let credits = element("wind-credits", in: app)
+        XCTAssertTrue(credits.appears(timeout: 10))
+        XCTAssertTrue(credits.label.contains("Sites: "), credits.label)
+        app.navigationBars["Credits"].buttons["Done"].tap()
     }
 
     /// The map's one choice of what it shows and the layers sheet: the

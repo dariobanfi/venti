@@ -770,7 +770,7 @@ private struct CockpitAerialButton: View {
 }
 
 /// "End" at the end of the top line: the session ends when it is held for
-/// a second, so that a glove, a line or a drop of rain ends nothing. It
+/// 0.7 s, so that a glove, a line or a drop of rain ends nothing. It
 /// fills while the finger stays. A pilot who has the screen read out ends
 /// with the usual double tap, which is deliberate enough. The landing ends
 /// a flight by itself; this is for the pilot who ends it first.
@@ -778,7 +778,7 @@ private struct EndControl: View {
     let action: () -> Void
 
     /// How long the finger has to stay, in seconds.
-    private static let hold = 1.0
+    private static let hold = 0.7
 
     @State private var isHeld = false
     /// Counts the holds that were long enough, for the tap that says so.

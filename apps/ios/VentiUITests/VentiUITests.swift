@@ -256,7 +256,7 @@ final class VentiUITests: XCTestCase {
     private func endTheCockpit(in app: XCUIApplication) {
         let end = element("cockpit-end", in: app)
         XCTAssertTrue(end.appears(timeout: 10))
-        end.press(forDuration: 1.6)
+        end.press(forDuration: 1.1)
     }
 
     /// The Fly tab is the cockpit: choosing it opens the cockpit, which

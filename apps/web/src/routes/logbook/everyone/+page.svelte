@@ -206,6 +206,7 @@
 						<label for="{id}-from">From</label>
 						<input
 							id="{id}-from"
+							class="text-field"
 							type="date"
 							value={asked.from}
 							onchange={(event) =>
@@ -216,6 +217,7 @@
 						<label for="{id}-to">to</label>
 						<input
 							id="{id}-to"
+							class="text-field"
 							type="date"
 							value={asked.to}
 							onchange={(event) =>
@@ -229,6 +231,7 @@
 					<label for="{id}-who">Pilot</label>
 					<input
 						id="{id}-who"
+						class="text-field"
 						type="search"
 						placeholder={everyone?.pilotsWords?.searchPlaceholder ?? ''}
 						autocomplete="off"
@@ -422,17 +425,12 @@
 		color: var(--text-secondary);
 	}
 
+	/* The pack's field (`.text-field`), narrower: room for a date as the
+	   browser writes it, and both fields in one row of a phone. */
 	input {
-		/* Room for a date as the browser writes it, and both fields in one
-		   row of a phone. */
 		width: 8.5rem;
 		min-height: 2.25rem;
 		padding: 0 0.5rem;
-		border: 0;
-		border-radius: 0.625rem;
-		background: var(--fill);
-		color: var(--text);
-		font: inherit;
 		font-variant-numeric: tabular-nums;
 	}
 

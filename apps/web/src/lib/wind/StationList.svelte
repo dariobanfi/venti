@@ -53,6 +53,7 @@
 		</div>
 	{:else}
 		<input
+			class="text-field"
 			type="search"
 			placeholder="Station"
 			aria-label="Station"
@@ -96,19 +97,7 @@
 
 <style>
 	input {
-		width: 100%;
-		min-height: 2.5rem;
 		margin-bottom: 0.75rem;
-		padding: 0 0.875rem;
-		border: 0;
-		border-radius: 0.75rem;
-		background: var(--fill);
-		color: var(--text);
-		font: inherit;
-	}
-
-	input::placeholder {
-		color: var(--text-secondary);
 	}
 
 	.card {

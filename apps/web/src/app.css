@@ -546,8 +546,30 @@ button.group-row.destructive {
 	border-radius: 0.75rem;
 }
 
-/* A switch in a row: the browser's checkbox, drawn as the iPhone draws its
-   toggle. The whole row takes the click. */
+/* A field typed into on its own, as the search over a list: the pack's
+   `.v-field input` (design/components/components.css), the surface inside
+   an edge of `border-strong` 1.5 px wide, the pack's own width. It stands
+   out from the page and from a card in both themes. A page may size it. */
+.text-field {
+	width: 100%;
+	min-height: var(--target);
+	padding: 0 var(--space-4);
+	border: 1.5px solid var(--color-border-strong);
+	border-radius: var(--radius-control);
+	background: var(--surface);
+	color: var(--text);
+	font: inherit;
+}
+
+.text-field::placeholder {
+	color: var(--icon-quiet);
+}
+
+/* A switch in a row: the browser's checkbox, drawn as a track and a knob.
+   The whole row takes the click. Off, the track is the pack's inset fill
+   inside the `border-strong` edge of its fields and outline buttons, and
+   the knob is that edge's colour: it reads against a card and the page in
+   both themes. On, the track is the chosen control's and the knob its ink. */
 .toggle {
 	cursor: pointer;
 }
@@ -559,30 +581,36 @@ button.group-row.destructive {
 	width: 3.1875rem;
 	height: 1.9375rem;
 	margin: 0;
-	border-radius: 999px;
-	background: var(--fill-strong);
+	border-radius: var(--radius-pill);
+	background: var(--fill);
+	box-shadow: inset 0 0 0 1.5px var(--color-border-strong);
 	cursor: pointer;
-	transition: background 0.2s;
+	transition:
+		background 0.2s,
+		box-shadow 0.2s;
 }
 
 .toggle input::after {
 	content: '';
 	position: absolute;
-	top: 0.125rem;
-	left: 0.125rem;
-	width: 1.6875rem;
-	height: 1.6875rem;
+	top: 0.25rem;
+	left: 0.25rem;
+	width: 1.4375rem;
+	height: 1.4375rem;
 	border-radius: 50%;
-	background: var(--color-surface);
-	box-shadow: var(--shadow-float);
-	transition: transform 0.2s;
+	background: var(--color-border-strong);
+	transition:
+		transform 0.2s,
+		background 0.2s;
 }
 
 .toggle input:checked {
 	background: var(--accent);
+	box-shadow: none;
 }
 
 .toggle input:checked::after {
+	background: var(--on-accent);
 	transform: translateX(1.25rem);
 }
 

@@ -261,8 +261,9 @@
 				<!-- Finding a pilot, for everyone. -->
 				<section class="part" aria-labelledby="{id}-find">
 					<header><h2 id="{id}-find">Find a pilot</h2></header>
-					<div class="group-card find">
+					<div class="find">
 						<input
+							class="text-field"
 							type="search"
 							aria-labelledby="{id}-find"
 							aria-controls="{id}-found"
@@ -275,7 +276,7 @@
 								{#if answered}{search.problem ?? search.found?.words ?? ''}{/if}
 							</p>
 							{#if answered && search.found && search.found.pilots.length > 0}
-								<ul aria-label="Pilots found">
+								<ul class="group-card" aria-label="Pilots found">
 									{#each search.found.pilots as pilot (pilot.handle)}
 										<li>
 											<a class="group-row" href={pilotHref(pilot.handle)}>
@@ -446,28 +447,18 @@
 		min-width: 0;
 	}
 
-	.find input {
-		width: 100%;
-		min-height: var(--target);
-		border: 0;
-		border-radius: var(--radius-card) var(--radius-card) 0 0;
-		padding: 0 var(--space-4);
-		background: transparent;
-		color: var(--text);
-	}
-
+	/* The pack's field on the page, the found pilots in a card under it. */
 	.result {
-		padding: 0 var(--space-4);
 		font-size: var(--footnote);
 		color: var(--text-secondary);
 	}
 
 	.result:not(:empty) {
-		padding-block: var(--space-2);
-		box-shadow: inset 0 0.5px 0 var(--separator);
+		padding: var(--space-2) var(--space-1) 0;
 	}
 
 	.find ul {
+		margin-top: var(--space-2);
 		list-style: none;
 	}
 

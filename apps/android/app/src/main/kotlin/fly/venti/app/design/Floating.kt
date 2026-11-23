@@ -39,8 +39,9 @@ private val CHIP_HEIGHT = VentiSpace.s6 + VentiSpace.s1
 
 /**
  * The pack's chip (`.v-chip`): switches a layer of the map on and off.
- * Drawn 36 high, a pill, the primary ground with its ink when on, the
- * surface with the float shadow when off, and 48 high to the finger.
+ * Drawn 36 high, a pill, the primary ground with its ink and the pack's
+ * tick before the word when on, the surface with the float shadow when
+ * off, and 48 high to the finger.
  * One that does not float over a map (on a page) has no shadow, and a
  * border while it is off.
  */
@@ -73,6 +74,8 @@ fun LayerChip(
                 horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
             ) {
                 Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(VentiSize.icon - VentiSpace.s1 - VentiSpace.s1 / 2))
+                // On, the pack's tick before the word, as the web has it after the layer's sign.
+                if (isOn) ChipTick()
                 Text(title, style = MaterialTheme.typography.labelLarge, maxLines = 1)
             }
         }

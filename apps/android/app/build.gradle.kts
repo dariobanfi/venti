@@ -21,6 +21,34 @@ val ventiServer: String? = providers.gradleProperty("venti.server").orNull?.trim
 val googleClientId: String = providers.gradleProperty("venti.googleClientId").orNull
     ?: "490070141586-8k1a3mrggi5fb87iirrcfhq7eint5ef3.apps.googleusercontent.com"
 
+/**
+ * Push to the phone through Firebase Cloud Messaging: the four values the
+ * app starts Firebase with, read from `app/google-services.json`, the file
+ * the Firebase console gives for the app `fly.venti.app` (apps/android/
+ * AGENTS.md, "Push to the phone"). Google's own Gradle plugin is not used:
+ * without the file the build goes on with the four empty, and the app then
+ * starts no Firebase and registers no phone. The file stays out of the
+ * repository (.gitignore).
+ */
+val firebase: Map<String, String> = run {
+    val file = layout.projectDirectory.file("google-services.json").asFile
+    if (!file.isFile) return@run emptyMap()
+    @Suppress("UNCHECKED_CAST")
+    val json = groovy.json.JsonSlurper().parse(file) as Map<String, Any?>
+    val project = json["project_info"] as Map<String, Any?>
+    val clients = json["client"] as List<Map<String, Any?>>
+    val client = clients.firstOrNull { each ->
+        val info = each["client_info"] as Map<String, Any?>
+        (info["android_client_info"] as Map<String, Any?>)["package_name"] == "fly.venti.app"
+    } ?: error("app/google-services.json has no client for the package fly.venti.app")
+    mapOf(
+        "FIREBASE_APP_ID" to (client["client_info"] as Map<String, Any?>)["mobilesdk_app_id"].toString(),
+        "FIREBASE_API_KEY" to ((client["api_key"] as List<Map<String, Any?>>).first()["current_key"]).toString(),
+        "FIREBASE_PROJECT_ID" to project["project_id"].toString(),
+        "FIREBASE_SENDER_ID" to project["project_number"].toString(),
+    )
+}
+
 
 android {
     namespace = "fly.venti.app"
@@ -46,6 +74,9 @@ android {
             abiFilters += coreAbis.get()
         }
         buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
+        for (name in listOf("FIREBASE_APP_ID", "FIREBASE_API_KEY", "FIREBASE_PROJECT_ID", "FIREBASE_SENDER_ID")) {
+            buildConfigField("String", name, "\"${firebase[name].orEmpty()}\"")
+        }
     }
 
     buildTypes {
@@ -121,6 +152,9 @@ dependencies {
     implementation(libs.androidx.camera.view)
     // Which way up a photo chosen as the pilot's picture was taken.
     implementation(libs.androidx.exifinterface)
+    // Push to the phone: Firebase Cloud Messaging, started by the app
+    // itself only where the build had app/google-services.json.
+    implementation(libs.firebase.messaging)
     // The generated bridge calls the core through JNA. On a phone that is
     // the Android archive, with JNA's own native library for each ABI.
     implementation(libs.jna) { artifact { type = "aar" } }

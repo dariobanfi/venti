@@ -36,6 +36,18 @@
 # way up a chosen photo was taken, is Apache-2.0 and came into the app
 # already with CameraX (1.3.2, the version CameraX brings); it is named
 # here because the app now uses it itself.
+#
+# Push to the phone (2026-11-23, owner decision 24): Firebase Cloud
+# Messaging's com.google.firebase:firebase-messaging 26.0.1, published
+# 2026-10-21 (Google's Maven, the POM's Last-Modified), is Apache-2.0 in its
+# POM, and so are the firebase-common, -components, -installations,
+# -datatransport and encoders libraries it brings. It also brings Google
+# Play services' play-services-base, -basement, -cloud-messaging, -stats
+# and -tasks, which are under the "Android Software Development Kit
+# License", as googleid is: to verify in their POMs. The app starts
+# Firebase only where the build had app/google-services.json; Google's
+# Gradle plugin is not taken. Automatic token generation and analytics are
+# switched off in the manifest.
 
 [versions]
 agp = "9.5.1"
@@ -53,6 +65,7 @@ googleid = "1.1.1"
 zxing = "3.5.3"
 camera = "1.5.1"
 exifinterface = "1.3.2"
+firebase-messaging = "26.0.1"
 junit = "4.13.2"
 test-core = "1.7.0"
 test-runner = "1.7.0"
@@ -76,6 +89,7 @@ androidx-credentials-play-services = { module = "androidx.credentials:credential
 googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 androidx-exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "exifinterface" }
+firebase-messaging = { module = "com.google.firebase:firebase-messaging", version.ref = "firebase-messaging" }
 androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camera" }
 androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camera" }
 androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camera" }

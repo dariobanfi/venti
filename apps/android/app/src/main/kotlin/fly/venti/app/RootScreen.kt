@@ -14,6 +14,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.window.Popup
 import app.venti.design.VentiSpace
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import fly.venti.app.design.VentiTheme
 import fly.venti.app.design.Venti
 import fly.venti.app.design.Appearance
@@ -85,6 +89,13 @@ import fly.venti.app.sites.SiteSources
 import fly.venti.app.sites.SiteSheet
 import fly.venti.app.task.RouteMapPlanner
 import fly.venti.core.Coordinate
+import fly.venti.core.FlightPhase
+import fly.venti.core.PhoneTarget
+import fly.venti.app.fly.FlySession
+import fly.venti.app.nearby.HelpOpening
+import fly.venti.app.nearby.HelpSheet
+import fly.venti.app.nearby.NearbyTiming
+import fly.venti.app.today.PilotPosition
 import fly.venti.app.today.TodayScreen
 import fly.venti.app.wind.WindServer
 import fly.venti.core.Bounds
@@ -114,6 +125,10 @@ fun RootScreen(
     opensToday: Boolean = false,
     /** Called once it has. */
     onTodayOpened: () -> Unit = {},
+    /** What a tapped push is about: help, an open plan, or what an alarm fired. */
+    opensTarget: PhoneTarget? = null,
+    /** Called once it is shown. */
+    onTargetOpened: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -127,6 +142,16 @@ fun RootScreen(
             navigation.showAlerts()
             onAlertsOpened()
         }
+    }
+
+    LaunchedEffect(opensTarget) {
+        when (opensTarget) {
+            null -> return@LaunchedEffect
+            is PhoneTarget.Alert -> navigation.showAlerts()
+            is PhoneTarget.OpenPlan -> navigation.showOpenPlan(opensTarget.id)
+            is PhoneTarget.Help -> navigation.help = HelpOpening.One(opensTarget.id)
+        }
+        onTargetOpened()
     }
 
     LaunchedEffect(opensToday) {
@@ -199,6 +224,40 @@ fun RootScreen(
     LaunchedEffect(account) {
         session.scope.launch { account.refresh() }
     }
+    // Signed in, the phone's push token is registered on the account
+    // (where the build has push) and the settings for pilots nearby are
+    // read; signed out, what was read is forgotten.
+    val nearby = session.nearby
+    LaunchedEffect(account.isSignedIn) {
+        if (account.isSignedIn) {
+            session.scope.launch { session.push?.register() }
+            nearby.loadSettings()
+        } else {
+            nearby.signedOut()
+        }
+    }
+    // While the pilot may be asked for help and the app is in front, Venti
+    // is told roughly where the phone is, now and every ten minutes, and
+    // never from the back; nothing is asked of the pilot from here.
+    LaunchedEffect(lifecycle, nearby) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            val position = PilotPosition(context.applicationContext)
+            snapshotFlow { nearby.mayBeAsked }.collectLatest { mayBeAsked ->
+                while (mayBeAsked) {
+                    position.readIfAllowed()
+                    withTimeoutOrNull(NearbyTiming.POSITION_WAIT_MILLISECONDS) { snapshotFlow { position.place }.filterNotNull().first() }
+                    position.place?.let { nearby.tellPosition(it) }
+                    delay(NearbyTiming.POSITION_EVERY_MILLISECONDS)
+                }
+            }
+        }
+    }
+    // And where the glider landed, once the cockpit sees it on the ground.
+    val landedAt = fly.view?.takeIf { it.phase == FlightPhase.LANDED && fly.mode !is FlySession.Mode.Replay }?.position
+    LaunchedEffect(landedAt != null) {
+        landedAt?.let { session.scope.launch { nearby.tellPosition(it) } }
+    }
+
     // The watched folder, XCTrack's as a rule: what is new there comes in
     // whenever the app comes to the front, without a word.
     LaunchedEffect(lifecycle) {
@@ -279,6 +338,7 @@ fun RootScreen(
             onOpenAirspace = { navigation.flyRoute = FlyRoute.Airspace },
             onOpenMaps = { navigation.flyRoute = FlyRoute.OfflineMaps },
             onOpenTask = { navigation.flyRoute = FlyRoute.Task },
+            onAskForHelp = { at -> navigation.help = HelpOpening.Home(landedAt = at) },
             onReplay = { speed ->
                 val text = try {
                     session.files.text(AppFiles.SAMPLE_FLIGHT)
@@ -313,6 +373,27 @@ fun RootScreen(
         val alerts = remember(session) { AlertsEntry(session.alerts, onSignIn = { navigation.showAccount() }) }
         CompositionLocalProvider(LocalAlerts provides alerts, LocalAir provides session.air) {
             Sections(session, navigation, onNotice = { notice = it })
+        }
+    }
+
+    // Help after landing, over the cockpit or any tab.
+    navigation.help?.let { opening ->
+        androidx.compose.runtime.key(opening) {
+            HelpSheet(
+                nearby,
+                account,
+                session.scope,
+                opening,
+                onDismiss = { navigation.help = null },
+                onSignIn = {
+                    navigation.leaveFly()
+                    navigation.showAccount()
+                },
+                onOpenPilot = { handle, _ ->
+                    navigation.leaveFly()
+                    navigation.showPilot(handle)
+                },
+            )
         }
     }
 
@@ -466,6 +547,7 @@ private fun Sections(
                             // What a notification is about opens on the League tab.
                             onOpenFlight = openPublicFlightById,
                             onOpenPilot = { handle -> navigation.showPilot(handle) },
+                            nearby = session.nearby,
                         )
                     }
                     SettingsRoute.Alerts -> AlertsScreen(
@@ -703,6 +785,10 @@ private fun Sections(
                         onOpenNotifications = { navigation.open(LeagueRoute.Notifications) },
                         onOpenFlightById = openPublicFlightById,
                         onSignIn = { navigation.showAccount() },
+                        nearby = session.nearby,
+                        onOpenHelp = { navigation.help = it },
+                        opensOpenPlan = navigation.openPlanAsked,
+                        onOpenPlanOpened = { navigation.openPlanAsked = null },
                     )
                 }
                 LeagueRoute.Feed -> kept.SaveableStateProvider("feed") {

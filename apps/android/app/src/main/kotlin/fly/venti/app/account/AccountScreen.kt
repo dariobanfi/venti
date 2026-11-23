@@ -76,6 +76,8 @@ import androidx.compose.ui.unit.dp
 import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
 import fly.venti.app.R
+import fly.venti.app.nearby.NearbyModel
+import fly.venti.app.nearby.NearbySettings
 import fly.venti.app.community.Countries
 import fly.venti.app.community.NotificationsScreen
 import fly.venti.app.community.SocialModel
@@ -100,7 +102,6 @@ import fly.venti.core.syncSummaryInWords
 import fly.venti.core.tokenForm
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import java.net.URI
 import fly.venti.app.design.Common
 
 /**
@@ -124,6 +125,8 @@ fun AccountScreen(
     onOpenFlight: (String) -> Unit = {},
     /** Opens the page of the pilot a notification is about, by their handle. */
     onOpenPilot: (String) -> Unit = {},
+    /** What pilots nearby do: its two settings are the account's. `null` for none. */
+    nearby: NearbyModel? = null,
 ) {
     // What the server says of the account now, asked when its page opens:
     // its name, and whether it is one of Venti's partners for flying sites.
@@ -192,6 +195,7 @@ fun AccountScreen(
                     onAlerts = onAlerts,
                     notifications = social?.words?.notificationsTitle,
                     onNotifications = { showsNotifications = true },
+                    nearby = nearby,
                 )
                 signUp != null -> ChooseHandle(account, signUp.second, wind.registration, scope)
                 else -> SignInForm(account, (wind.server as? WindServer.Usable)?.url, wind.googleSignIn, scope)
@@ -208,9 +212,6 @@ fun AccountScreen(
         )
     }
 }
-
-/** A server's name as a pilot knows it: without `https://` and what follows the name. */
-private fun host(server: String): String = runCatching { URI(server).host }.getOrNull() ?: server
 
 /**
  * Signing in: "Continue with Google" first where the server offers it, and
@@ -255,7 +256,6 @@ private fun SignInForm(
         return
     }
 
-    SectionHeader(host(server))
     if (offersGoogle) {
         // Google's button, drawn to its branding guidelines, with the core's
         // words. Google's own sheet opens over the screen.
@@ -473,6 +473,7 @@ private fun SignedIn(
     /** The core's name of the row that opens what the pilot was told; `null` for no such row. */
     notifications: String?,
     onNotifications: () -> Unit,
+    nearby: NearbyModel?,
 ) {
     val context = LocalContext.current
     val google = remember { googleWords() }
@@ -485,7 +486,6 @@ private fun SignedIn(
     Group {
         row { ValueRow("Handle", "@${signedIn.handle}") }
         row { ValueRow("Name", signedIn.displayName) }
-        row { ValueRow("Server", host(signedIn.server)) }
         // The Google account it signs in with, shown to the pilot alone.
         signedIn.googleEmail?.let { email ->
             row { ValueRow("Google", email, Modifier.testTag("account-google-email")) }
@@ -582,6 +582,11 @@ private fun SignedIn(
 
     if (account.isSignedIn) {
         WhoSeesFlights(signedIn, account, scope)
+    }
+
+    // What pilots nearby do: new open plans near a place, and being asked for help.
+    if (account.isSignedIn && nearby != null) {
+        NearbySettings(nearby, scope)
     }
 
     if (account.isSignedIn) {

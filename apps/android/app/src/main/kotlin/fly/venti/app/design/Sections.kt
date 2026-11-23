@@ -21,11 +21,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import app.venti.design.VentiSpace
 
@@ -105,44 +107,68 @@ fun ValueRow(
     valueDetail: String? = null,
     onClick: (() -> Unit)? = null,
 ) {
-    Row(
+    // The title keeps the room of its longest word, and the value takes
+    // what is left before it does: a long value (an email address) wraps,
+    // never the title letter by letter ("Go / ogl / e" at 360 dp and text
+    // at 130 %).
+    Layout(
         modifier = modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .heightIn(min = 52.dp)
             .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            if (detail != null) {
-                Text(
-                    detail,
-                    style = MaterialTheme.typography.bodyMedium.numbers,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        content = {
+            ValueRowTitle(title, detail)
+            ValueRowValue(value, valueDetail)
+        },
+    ) { (titlePart, valuePart), constraints ->
+        val gap = 12.dp.roundToPx()
+        val width = constraints.maxWidth
+        val titleLeast = titlePart.minIntrinsicWidth(Constraints.Infinity)
+        val valued = valuePart.measure(Constraints(maxWidth = (width - gap - titleLeast).coerceAtLeast(0)))
+        val titled = titlePart.measure(Constraints(maxWidth = (width - gap - valued.width).coerceAtLeast(0)))
+        val height = maxOf(titled.height, valued.height, constraints.minHeight)
+        layout(width, height) {
+            titled.placeRelative(0, (height - titled.height) / 2)
+            valued.placeRelative(width - valued.width, (height - valued.height) / 2)
         }
-        Spacer(Modifier.width(12.dp))
-        Column(horizontalAlignment = Alignment.End) {
+    }
+}
+
+@Composable
+private fun ValueRowTitle(title: String, detail: String?) {
+    Column {
+        Text(title, style = MaterialTheme.typography.bodyLarge)
+        if (detail != null) {
             Text(
-                value,
-                style = MaterialTheme.typography.bodyLarge.numbers,
-                color = if (valueDetail == null) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
+                detail,
+                style = MaterialTheme.typography.bodyMedium.numbers,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ValueRowValue(value: String, valueDetail: String?) {
+    Column(horizontalAlignment = Alignment.End) {
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyLarge.numbers,
+            color = if (valueDetail == null) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            textAlign = TextAlign.End,
+        )
+        if (valueDetail != null) {
+            Text(
+                valueDetail,
+                style = MaterialTheme.typography.bodyMedium.numbers,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.End,
             )
-            if (valueDetail != null) {
-                Text(
-                    valueDetail,
-                    style = MaterialTheme.typography.bodyMedium.numbers,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.End,
-                )
-            }
         }
     }
 }

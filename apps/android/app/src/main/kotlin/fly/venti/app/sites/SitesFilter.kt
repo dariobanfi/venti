@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
+import fly.venti.app.design.ChipTick
 import fly.venti.app.design.Group
 import fly.venti.app.design.PillShape
 import fly.venti.app.design.SegmentedPills
@@ -374,12 +375,15 @@ internal fun Choice(words: String, isOn: Boolean, tag: String, ticks: Boolean = 
             color = if (isOn) colours.primary else colours.surfaceRaised,
             contentColor = if (isOn) colours.onPrimary else colours.text,
         ) {
-            Text(
-                words,
-                style = MaterialTheme.typography.labelLarge,
-                maxLines = 1,
+            Row(
                 modifier = Modifier.padding(horizontal = VentiSpace.s3, vertical = VentiSpace.s2),
-            )
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(VentiSpace.s1),
+            ) {
+                // On, the pack's tick before the word, in every theme.
+                if (isOn) ChipTick()
+                Text(words, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+            }
         }
     }
 }

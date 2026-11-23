@@ -19,11 +19,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -64,11 +64,16 @@ import androidx.compose.ui.unit.dp
 import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
 import app.venti.design.VentiType
+import fly.venti.app.design.OnChip
 import fly.venti.app.R
 import fly.venti.app.account.AccountModel
 import fly.venti.app.design.Common
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
+import fly.venti.app.design.LinkRow
+import fly.venti.app.nearby.HelpOpening
+import fly.venti.app.nearby.HelpWords
+import fly.venti.app.nearby.NearbyModel
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.Venti
 import fly.venti.app.design.text
@@ -154,8 +159,14 @@ fun CommunityPage(
     /** Opens a public flight a notification is about, by its address on the server. */
     onOpenFlightById: (String) -> Unit,
     onSignIn: () -> Unit,
+    /** Help after landing: the requests that stand, for the calls the pilot was asked. */
+    nearby: NearbyModel? = null,
+    /** Opens the sheet of help after landing. */
+    onOpenHelp: (HelpOpening) -> Unit = {},
 ) {
     val signedIn = social.isSignedIn
+    // The calls for help that stand, the pilot's own and those they were asked.
+    LaunchedEffect(nearby, signedIn) { if (signedIn) nearby?.loadHelp() }
     val own = account.account?.takeIf { signedIn }
     // The pilot's own picture, for their face among who is in.
     LaunchedEffect(own?.handle, own?.picturePath) { own?.let { PilotPictures.know(it.handle, it.picturePath) } }
@@ -207,11 +218,36 @@ fun CommunityPage(
     var wanted by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(community, wanted) { community.findPilots(wanted) }
 
+    // A call for help that comes in is shown: the list keeps its place by
+    // the first row's key, which would leave the new cards above the view.
+    val list = rememberLazyListState()
+    val askedCount = nearby?.help?.asked.orEmpty().count { it.stands }.takeIf { signedIn } ?: 0
+    LaunchedEffect(askedCount) { if (askedCount > 0) list.animateScrollToItem(0) }
     LazyColumn(
+        state = list,
         modifier = Modifier.fillMaxSize().testTag("community"),
         contentPadding = PaddingValues(start = VentiSpace.s4, end = VentiSpace.s4, top = VentiSpace.s2, bottom = VentiSpace.s6),
         verticalArrangement = Arrangement.spacedBy(VentiSpace.s3),
     ) {
+        // Pilots nearby who landed and asked this pilot for help: first, while they stand.
+        val asked = nearby?.help?.asked.orEmpty().filter { it.stands }.takeIf { signedIn }.orEmpty()
+        if (asked.isNotEmpty()) {
+            item(key = "help-asked-head") { PartHead(HelpWords.ASKED, Modifier.testTag("community-help-asked")) {} }
+            items(asked, key = { "help-${it.id}" }) { request ->
+                Group {
+                    row {
+                        PilotLine(
+                            request.pilot.name,
+                            null,
+                            title = request.pilot.name,
+                            line = listOfNotNull(request.note?.takeIf { it.isNotBlank() }, request.line).joinToString(" · "),
+                            modifier = Modifier.testTag("community-help-request"),
+                            onClick = { onOpenHelp(HelpOpening.One(request.id)) },
+                        )
+                    }
+                }
+            }
+        }
         if (signedIn) {
             // The plans of the pilot's groups.
             item(key = "plans-head") {
@@ -351,6 +387,27 @@ fun CommunityPage(
             nearPilots != null -> item(key = "near-empty") { Quietly(nearPilots.empty, Modifier.testTag("pilots-near-empty")) }
             near.problem != null -> item(key = "near-problem") { Quietly(near.problem, Modifier.testTag("pilots-near-problem")) }
             else -> item(key = "near-loading") { Waiting() }
+        }
+
+        // Help after landing: asking the pilots nearby for a lift or a hand.
+        if (nearby != null) {
+            item(key = "help") {
+                val mine = nearby.help?.mine?.firstOrNull { it.stands }.takeIf { signedIn }
+                Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
+                    Group {
+                        row {
+                            LinkRow(
+                                HelpWords.ENTRY,
+                                R.drawable.ic_chevron_right,
+                                Modifier.testTag("community-help"),
+                                leading = R.drawable.venti_landing,
+                                onClick = { onOpenHelp(HelpOpening.Home()) },
+                            )
+                        }
+                    }
+                    mine?.let { SectionFooter(it.line, Modifier.testTag("community-help-mine")) }
+                }
+            }
         }
 
         // Finding a pilot by name.
@@ -611,10 +668,10 @@ private fun PlanCard(
                 }
             }
             Spacer(Modifier.size(VentiSpace.s3))
-            FilterChip(
+            OnChip(
                 selected = plan.amIn,
                 onClick = {
-                    if (isWorking) return@FilterChip
+                    if (isWorking) return@OnChip
                     isWorking = true
                     problem = null
                     scope.launch {
@@ -626,12 +683,7 @@ private fun PlanCard(
                     }
                 },
                 enabled = !isWorking,
-                label = { Text(CommunityPageWords.I_AM_IN) },
-                leadingIcon = if (plan.amIn) {
-                    { Icon(painterResource(R.drawable.ic_check), contentDescription = null, modifier = Modifier.size(VentiSpace.s4)) }
-                } else {
-                    null
-                },
+                label = CommunityPageWords.I_AM_IN,
                 modifier = Modifier.heightIn(min = VentiSize.touch).testTag("plan-card-in"),
             )
             problem?.let { said ->

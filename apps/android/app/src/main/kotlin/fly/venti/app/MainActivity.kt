@@ -38,7 +38,10 @@ import fly.venti.app.alerts.AlertNotifications
 import fly.venti.app.design.VentiTheme
 import fly.venti.app.map.MapSetup
 import fly.venti.app.map.MapStyle
+import fly.venti.app.nearby.PushNotifications
 import fly.venti.app.widget.TakeoffWidget
+import fly.venti.core.PhoneTarget
+import fly.venti.core.phoneMessageTarget
 
 /** The app's one screen-holder. Everything on screen is Compose inside it. */
 class MainActivity : ComponentActivity() {
@@ -50,6 +53,9 @@ class MainActivity : ComponentActivity() {
 
     /** Whether a tap on the home-screen widget opened the app, and Today is yet to come to the front. */
     private var opensToday: Boolean by mutableStateOf(false)
+
+    /** What a tapped push opens (help, an open plan, what fired), until it has been shown. */
+    private var opensTarget: PhoneTarget? by mutableStateOf(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val options = LaunchOptions.from(intent)
@@ -76,6 +82,7 @@ class MainActivity : ComponentActivity() {
             incoming = flightFiles(intent)
             opensAlerts = intent.getBooleanExtra(AlertNotifications.OPENS_WHAT_FIRED, false)
             opensToday = intent.getBooleanExtra(TakeoffWidget.OPENS_TODAY, false)
+            opensTarget = pushTarget(intent)
         }
 
         setContent {
@@ -102,6 +109,8 @@ class MainActivity : ComponentActivity() {
                             onAlertsOpened = { opensAlerts = false },
                             opensToday = opensToday,
                             onTodayOpened = { opensToday = false },
+                            opensTarget = opensTarget,
+                            onTargetOpened = { opensTarget = null },
                         )
                         is Session.Failed -> DataFailure(session.message)
                     }
@@ -117,6 +126,18 @@ class MainActivity : ComponentActivity() {
         incoming = flightFiles(intent)
         opensAlerts = intent.getBooleanExtra(AlertNotifications.OPENS_WHAT_FIRED, false)
         opensToday = intent.getBooleanExtra(TakeoffWidget.OPENS_TODAY, false)
+        opensTarget = pushTarget(intent)
+    }
+
+    /**
+     * What a tapped push is about: the `kind` and `id` of its data, which
+     * Firebase hands over as extras of the intent when the system showed
+     * it, and which the app's own notification carries the same way.
+     */
+    private fun pushTarget(intent: Intent?): PhoneTarget? {
+        val kind = intent?.getStringExtra(PushNotifications.KIND) ?: return null
+        val id = intent.getStringExtra(PushNotifications.ID) ?: return null
+        return runCatching { phoneMessageTarget(kind, id) }.getOrNull()
     }
 
     private fun showBars(forcedDark: Boolean?) {

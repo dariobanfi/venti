@@ -6511,6 +6511,156 @@ class VentiUiTest {
     @Test
     fun aPictureFromGoogleIsShownAndRemoved() = inEveryLook { thePictureOfTheAccount("light", dark = false) }
 
+    /**
+     * An "on" chip carries the pack's tick before its word, an off one
+     * none (the owner, 2026-11-23): the wind's chip on the map, which is
+     * on when the map opens, and off when pressed again. Skipped without a
+     * server, where the map has no such chips.
+     */
+    @Test
+    fun anOnChipCarriesATick() = inEveryLook {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        val wind = hasTestTag("what-wind")
+        fun ticked() = screen.onAllNodes(hasTestTag("chip-tick") and hasAnyAncestor(wind), useUnmergedTree = true)
+            .fetchSemanticsNodes().isNotEmpty()
+        waitFor(wind and isOn())
+        assertTrue(ticked())
+        keepScreenshot("light-chip-tick-1-on")
+        tap(wind)
+        waitFor(wind and isOff())
+        assertFalse(ticked())
+        keepScreenshot("light-chip-tick-2-off")
+        // Back to the wind, as the other tests find the map.
+        tap(wind)
+        waitFor(wind and isOn())
+    }
+
+    /** Signs in with a made-up Google account of the development server, made at the first time. */
+    private fun signInWithGoogle() {
+        openTheGoogleSignIn()
+        tap(hasTestTag("account-google"))
+        waitFor(hasTestTag("account-google-create") or hasText("Sync now"))
+        if (exists(hasTestTag("account-google-create"))) {
+            screen.onNode(hasTestTag("account-google-create")).performScrollTo()
+            tap(hasTestTag("account-google-create"))
+        }
+        waitFor(hasText("Sync now"))
+    }
+
+    /** From the account's page to Community. */
+    private fun toCommunity() {
+        tap(described("Back"))
+        waitFor(tab("Community"))
+        tap(tab("Community"))
+        waitFor(hasTestTag("league-community") and isSelected())
+    }
+
+    /**
+     * Help after landing, between two made-up Google accounts standing at
+     * Musterkogel West: the one says on the account's page that pilots
+     * nearby may ask them for help (and switches on new open plans near,
+     * whose distances are chips), which tells Venti where the phone is;
+     * the other asks from Community with a note and sees that one pilot
+     * was asked; the first finds the call on Community, says "I can help"
+     * and sees where the caller is; the caller sees who can help, and
+     * closes it. New accounts each run, so that a second run on the same
+     * server is not one request too many. Skipped without a server.
+     */
+    private fun walkTheHelp(prefix: String) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        TestDevice.allowToRecordAFlight()
+        TestDevice.standAt(47.3, 10.9)
+        val run = System.currentTimeMillis().toString(36)
+        val helper = "helper.$run@example.com"
+        val caller = "caller.$run@example.com"
+        try {
+            // The helper: may be asked for help, and is told of new open plans near.
+            launch { putExtra(LaunchOptions.SERVER, server); putExtra(LaunchOptions.GOOGLE_TEST_ACCOUNT, helper) }
+            signInWithGoogle()
+            val help = hasTestTag("nearby-help")
+            screen.onNode(help).performScrollTo()
+            waitFor(help and isOff() and hasText("Pilots nearby may ask me for help"))
+            tap(help)
+            waitFor(help and isOn())
+            val plans = hasTestTag("nearby-open-plans")
+            tap(plans)
+            waitFor(plans and isOn())
+            waitFor(hasTestTag("nearby-radius-30") and isSelected())
+            tap(hasTestTag("nearby-radius-50"))
+            waitFor(hasTestTag("nearby-radius-50") and isSelected())
+            screen.onNode(help).performScrollTo()
+            keepScreenshot("$prefix-help-1-settings")
+            // The position goes to Venti while the app is in front.
+            TestDevice.letTheAppRun(screen, 8)
+            app?.close()
+
+            // The caller: from Community, the core's words first, a note, and the call.
+            launch { putExtra(LaunchOptions.SERVER, server); putExtra(LaunchOptions.GOOGLE_TEST_ACCOUNT, caller) }
+            signInWithGoogle()
+            toCommunity()
+            scrollInCommunity(hasTestTag("community-help"))
+            tap(hasTestTag("community-help"))
+            waitFor(hasTestTag("help-emergency") and hasAnyDescendant(hasText("Call 112 first", substring = true)))
+            waitFor(hasTestTag("help-note"))
+            screen.onNode(hasTestTag("help-note")).performTextInput("By the made-up river, anyone driving back? $run")
+            waitFor(hasTestTag("help-ask") and isEnabled())
+            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+            waitFor(hasTestTag("help-ask"))
+            keepScreenshot("$prefix-help-2-ask")
+            press(hasTestTag("help-ask"))
+            // At least the helper: on a server a run used before, the helpers of that run too.
+            waitFor(hasTestTag("help-mine-line") and hasText("Asked ", substring = true) and hasText("nearby", substring = true))
+            keepScreenshot("$prefix-help-3-asked")
+            tap(hasTestTag("help-done"))
+            app?.close()
+
+            // The helper: the call on Community, "I can help", and where.
+            launch { putExtra(LaunchOptions.SERVER, server); putExtra(LaunchOptions.GOOGLE_TEST_ACCOUNT, helper) }
+            signInWithGoogle()
+            toCommunity()
+            val call = hasTestTag("community-help-request") and hasText(run, substring = true)
+            scrollInCommunity(call)
+            waitFor(call)
+            keepScreenshot("$prefix-help-4-on-community")
+            tap(call)
+            waitFor(hasTestTag("help-one"))
+            waitFor(hasTestTag("help-can"))
+            // How far, from the helper's position as Venti keeps it: the middle of its square of 0.05°.
+            assertTrue(exists(hasTestTag("help-line") and hasText("from you", substring = true)))
+            assertTrue(exists(hasTestTag("help-cannot")))
+            assertFalse(exists(hasTestTag("help-where")))
+            keepScreenshot("$prefix-help-5-asked-of-me")
+            tap(hasTestTag("help-can"))
+            waitFor(hasTestTag("help-where"))
+            waitFor(hasTestTag("help-line") and hasText("You said you can help"))
+            screen.onNode(hasTestTag("help-directions")).performScrollTo()
+            keepScreenshot("$prefix-help-6-can-help")
+            tap(hasTestTag("help-done"))
+            app?.close()
+
+            // The caller: who can help, then "I'm fine, close".
+            launch { putExtra(LaunchOptions.SERVER, server); putExtra(LaunchOptions.GOOGLE_TEST_ACCOUNT, caller) }
+            signInWithGoogle()
+            toCommunity()
+            scrollInCommunity(hasTestTag("community-help-mine"))
+            waitFor(hasTestTag("community-help-mine") and hasText("1 can help", substring = true))
+            tap(hasTestTag("community-help"))
+            waitFor(hasTestTag("help-helper"))
+            screen.onNode(hasTestTag("help-close")).performScrollTo()
+            keepScreenshot("$prefix-help-7-who-can-help")
+            tap(hasTestTag("help-close"))
+            waitFor(hasTestTag("help-ask"))
+        } finally {
+            TestDevice.noMadeUpPosition()
+        }
+    }
+
+    @Test
+    fun pilotsNearbyAskForHelpAfterLanding() = inEveryLook { walkTheHelp("light") }
+
 }
 
 /** The made-up Google account of the sign-in test; the development server makes its token. */

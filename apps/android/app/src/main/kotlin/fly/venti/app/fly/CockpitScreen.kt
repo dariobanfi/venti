@@ -127,7 +127,9 @@ import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.waypoints.place
 import fly.venti.core.AirspaceCheck
 import fly.venti.core.CockpitView
+import fly.venti.core.Coordinate
 import fly.venti.core.FlightPhase
+import fly.venti.app.nearby.HelpWords
 import fly.venti.core.LandingOption
 import fly.venti.core.LandingReading
 import fly.venti.core.LiftCentreView
@@ -228,6 +230,11 @@ fun CockpitScreen(
     onOpenTask: () -> Unit = {},
     /** Called with how many times faster the sample flight is to be replayed, from the settings. */
     onReplay: (Double) -> Unit = {},
+    /**
+     * Opens help after landing, with where the glider landed: offered under
+     * "Landed" once the glider is down, never in a replay.
+     */
+    onAskForHelp: (Coordinate?) -> Unit = {},
     /** Called when the pilot has held the button that ends the session. */
     onFinish: () -> Unit,
 ) {
@@ -353,6 +360,7 @@ fun CockpitScreen(
                     isReplay,
                     onAirspace = { isShowingAirspace = true },
                     onGroundWinds = openGroundWinds,
+                    onHelp = { onAskForHelp(view.position) },
                 )
                 when (page) {
                     CockpitPage.Instruments -> InstrumentsPage(view, way, onWinds = openWinds)
@@ -748,6 +756,8 @@ private fun Alerts(
     isReplay: Boolean,
     onAirspace: () -> Unit,
     onGroundWinds: () -> Unit,
+    /** Opens help after landing: offered once landed, not in a replay. */
+    onHelp: () -> Unit,
 ) {
     val notice = PhaseWords.notice(view, isReplay)
     val warning = fly.windWarning
@@ -767,6 +777,10 @@ private fun Alerts(
         warning?.let { GroundWindBanner(it, onOpen = onGroundWinds, onPutAway = fly::putWindWarningAway) }
         carriedBack?.let { CarriedBackBanner(it) }
         notice?.let { (title, detail) -> PhaseNotice(view, title, detail) }
+        // After landing, and only then: pilots nearby may give a lift or a hand.
+        if (view.phase == FlightPhase.LANDED && !isReplay) {
+            QuietButton(HelpWords.ENTRY, R.drawable.venti_landing, Modifier.fillMaxWidth().testTag("cockpit-help"), onClick = onHelp)
+        }
     }
 }
 

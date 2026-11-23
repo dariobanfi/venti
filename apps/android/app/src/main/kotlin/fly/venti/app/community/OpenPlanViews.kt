@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -38,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
 import app.venti.design.VentiType
+import fly.venti.app.design.OnChip
 import fly.venti.app.R
 import fly.venti.app.design.Venti
 import fly.venti.app.design.text
@@ -202,12 +202,12 @@ internal fun OpenPlanCard(
                 }
             }
             Spacer(Modifier.size(VentiSpace.s3))
-            FilterChip(
+            OnChip(
                 selected = plan.amIn,
                 onClick = {
                     // Saying so needs an account: the way to one.
-                    if (!model.isSignedIn) return@FilterChip onSignIn()
-                    if (isWorking) return@FilterChip
+                    if (!model.isSignedIn) return@OnChip onSignIn()
+                    if (isWorking) return@OnChip
                     isWorking = true
                     problem = null
                     scope.launch {
@@ -219,12 +219,7 @@ internal fun OpenPlanCard(
                     }
                 },
                 enabled = !isWorking,
-                label = { Text(OpenPlanWords.I_AM_IN) },
-                leadingIcon = if (plan.amIn) {
-                    { Icon(painterResource(R.drawable.ic_check), contentDescription = null, modifier = Modifier.size(VentiSpace.s4)) }
-                } else {
-                    null
-                },
+                label = OpenPlanWords.I_AM_IN,
                 modifier = Modifier.heightIn(min = VentiSize.touch).testTag("open-plan-card-in"),
             )
             problem?.let { said ->

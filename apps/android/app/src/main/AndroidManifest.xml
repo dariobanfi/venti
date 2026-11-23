@@ -168,6 +168,32 @@
             </intent-filter>
         </activity>
 
+        <!-- Push to the phone (Firebase Cloud Messaging): the app asks for
+             a token itself, once signed in, and never at start; nothing
+             is measured for Google. Without app/google-services.json at
+             build time Firebase is not started and this stays silent.
+             What arrives while the app is in the back is shown by the
+             system on the channel "Pilots nearby", with Venti's sign. -->
+        <meta-data
+            android:name="firebase_messaging_auto_init_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="firebase_analytics_collection_deactivated"
+            android:value="true" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="nearby" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <service
+            android:name=".nearby.PushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- Keeps a flight being recorded with the screen off. -->
         <service
             android:name=".fly.RecordingService"

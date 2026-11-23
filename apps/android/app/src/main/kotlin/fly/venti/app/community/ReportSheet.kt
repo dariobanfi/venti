@@ -70,6 +70,9 @@ data class Reported(
         /** An open plan, which everyone reads: its place and its note. */
         fun openPlan(id: String) = Reported(ReportSubject.OpenPlan(id), "Report this plan")
 
+        /** A call for help after landing, by one it was sent to: its note, never where. */
+        fun helpRequest(id: String) = Reported(ReportSubject.HelpRequest(id), "Report this request")
+
         /** A site of Venti's own layers, under the core's words for it. */
         fun site(id: String) = Reported(ReportSubject.Site(id), siteWords().report)
 

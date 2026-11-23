@@ -42,6 +42,10 @@ import fly.venti.app.live.LiveModel
 import fly.venti.app.live.AirModel
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.map.MapSetup
+import fly.venti.app.nearby.NearbyModel
+import fly.venti.app.nearby.PhonePush
+import fly.venti.app.nearby.PushNotifications
+import fly.venti.app.nearby.PushRegistration
 import fly.venti.app.settings.GliderWords
 import fly.venti.app.settings.MemoryPreferences
 import fly.venti.app.settings.Preferences
@@ -126,6 +130,10 @@ sealed interface Session {
         val files: AppFiles,
         /** Where work runs that must outlast the screen that started it: an import, a request. */
         val scope: CoroutineScope,
+        /** What pilots nearby do: the account's settings for it, the position told, help after landing. */
+        val nearby: NearbyModel,
+        /** This phone's push token on the account; `null` in a test. */
+        val push: PushRegistration?,
     ) : Session
 
     /** The data folder could not be opened; the text says why. */
@@ -367,6 +375,22 @@ sealed interface Session {
                 scope.launch { alerts.read() }
             }
             if (!isUnderTest && !account.isSignedIn) AlertsCheck.cancel(app)
+            // What pilots nearby do: the settings, the position told
+            // while the pilot may be asked for help, and help after
+            // landing; whether a request still stands by Venti's clock.
+            val nearby = NearbyModel(account, clockMs = { wind.serverTimeOrZero() * 1000 })
+            // Push to the phone, where the build had the Firebase
+            // project's file; a test registers nothing. Before signing out
+            // the position is forgotten and the phone removed.
+            val push = if (isUnderTest) null else PushRegistration(app, account)
+            if (!isUnderTest) {
+                PhonePush.start(app)
+                PushNotifications.prepare(app)
+            }
+            account.onSigningOut = {
+                nearby.forgetPosition()
+                push?.remove()
+            }
             // The sites that pilots make are sent to the app's Venti, where
             // that server takes them.
             val siteEdit = logbook.makeSiteEdit(account)
@@ -439,6 +463,7 @@ sealed interface Session {
             return Ready(
                 logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, air, community, social, account, groups, openPlans, alerts, siteEdit, tasks,
                 leagues, maps, ground, today, keptSites, thermalMap, radar, cables, WatchedFolder(AndroidFolders(app), preferences, logbook), preferences, files, scope,
+                nearby, push,
             )
         }
     }

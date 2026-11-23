@@ -106,6 +106,13 @@ class AccountModel(
      */
     var onAlertsFetched: (List<FiredLine>) -> Unit = {}
 
+    /**
+     * Called before this phone signs out, while the token still holds:
+     * the phone's push token is removed from the account and the position
+     * told for help forgotten. A failure there does not stop signing out.
+     */
+    var onSigningOut: suspend () -> Unit = {}
+
     /** One run of fetching the alarms at a time, or two would both call the same line new. */
     private val alertsRun = Mutex()
 
@@ -286,6 +293,7 @@ class AccountModel(
             // The server is told if it can be reached; the phone forgets
             // the session either way.
             val server = account?.server
+            if (isSignedIn) quietly { onSigningOut() }
             val request = withContext(background) { runCatching { core.signOutRequest() }.getOrNull() }
             if (server != null && request != null) {
                 quietly { ask(request, server) }

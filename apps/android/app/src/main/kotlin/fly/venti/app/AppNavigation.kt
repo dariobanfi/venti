@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
+import fly.venti.app.nearby.HelpOpening
 
 /**
  * The app's sections, as the design language's tab bar has them, with its
@@ -117,6 +118,12 @@ class AppNavigation {
     /** The screen opened from the cockpit's settings, if any. */
     var flyRoute: FlyRoute? by mutableStateOf(null)
 
+    /** The sheet of help after landing, over any tab or the cockpit, while it is open. */
+    var help: HelpOpening? by mutableStateOf(null)
+
+    /** An open plan to show on Community, from a notification, until Community has opened it. */
+    var openPlanAsked: String? by mutableStateOf(null)
+
     /**
      * Whether the tab bar shows: on the sections' first screens, and on the
      * settings and the assistant, which are pages of the Today tab. A
@@ -198,6 +205,13 @@ class AppNavigation {
     fun showAccount() {
         showSettings()
         settingsRoute = SettingsRoute.Account
+    }
+
+    /** Opens an open plan's page on Community: from a notification of a new plan near. */
+    fun showOpenPlan(id: String) {
+        tab = AppTab.League
+        leaguePath.clear()
+        openPlanAsked = id
     }
 
     /** Opens the pilot's alarms and what they fired: from a notification of what fired. */

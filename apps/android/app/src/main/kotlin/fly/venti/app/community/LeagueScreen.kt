@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -58,7 +57,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
+import fly.venti.app.design.OnChip
 import fly.venti.app.R
+import fly.venti.app.nearby.HelpOpening
+import fly.venti.app.nearby.NearbyModel
 import fly.venti.app.design.Format
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.Venti
@@ -118,6 +120,12 @@ fun LeagueScreen(
     /** A public flight by its address on the server, from a notification. */
     onOpenFlightById: (String) -> Unit,
     onSignIn: () -> Unit,
+    /** Help after landing, for Community. */
+    nearby: NearbyModel? = null,
+    onOpenHelp: (HelpOpening) -> Unit = {},
+    /** An open plan a notification is about, to open on Community. */
+    opensOpenPlan: String? = null,
+    onOpenPlanOpened: () -> Unit = {},
 ) {
     // Which list shows: Community, everyone's flights, or the ranking.
     var showing by rememberSaveable { mutableStateOf(LeagueList.Community) }
@@ -127,6 +135,13 @@ fun LeagueScreen(
     var plans by remember { mutableStateOf<PlansOpening?>(null) }
     // An open plan's sheet, opened from Community.
     var openPlan by remember { mutableStateOf<OpenPlanOpening?>(null) }
+    LaunchedEffect(opensOpenPlan) {
+        opensOpenPlan?.let { id ->
+            showing = LeagueList.Community
+            openPlan = OpenPlanOpening.Plan(id)
+            onOpenPlanOpened()
+        }
+    }
     Scaffold(
         modifier = Modifier.padding(bottom = bars.calculateBottomPadding()),
         topBar = {
@@ -180,6 +195,8 @@ fun LeagueScreen(
                     onOpenNotifications = onOpenNotifications,
                     onOpenFlightById = onOpenFlightById,
                     onSignIn = onSignIn,
+                    nearby = nearby,
+                    onOpenHelp = onOpenHelp,
                 )
                 else -> PublicFlightsList(community, onOpen = onOpenFlight, onOpenPilot = onOpenPilot)
             }
@@ -336,21 +353,21 @@ private fun RankingList(
                     ) {
                         // The whole year first, in the core's name for it: "All of 2026".
                         ranked.periods.firstOrNull { it.name == ranked.season }?.wholeName?.takeIf { it.isNotEmpty() }?.let { whole ->
-                            FilterChip(
+                            OnChip(
                                 selected = ranked.month == null,
                                 onClick = { scope.launch { community.rank(ranked.season, null) } },
-                                label = { Text(whole, maxLines = 1) },
+                                label = whole,
                                 modifier = Modifier.testTag("ranking-whole-year"),
                             )
                         }
                         for (month in ranked.months) {
                             val isChosen = month.month == ranked.month
-                            FilterChip(
+                            OnChip(
                                 selected = isChosen,
                                 onClick = {
                                     scope.launch { community.rank(ranked.season, if (isChosen) null else month.month) }
                                 },
-                                label = { Text(month.name, maxLines = 1) },
+                                label = month.name,
                                 modifier = Modifier.semantics { contentDescription = month.words },
                             )
                         }

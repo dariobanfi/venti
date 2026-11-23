@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -24,6 +23,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import app.venti.design.VentiSpace
+import fly.venti.app.design.OnChip
 import fly.venti.app.R
 import fly.venti.app.design.Group
 import fly.venti.app.design.LinkRow
@@ -71,10 +71,10 @@ fun PilotTotalsSection(
                 horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
             ) {
                 for (choice in choices) {
-                    FilterChip(
+                    OnChip(
                         selected = choice.year == shown.year,
                         onClick = { onYear(choice.year) },
-                        label = { Text(choice.name, maxLines = 1) },
+                        label = choice.name,
                     )
                 }
             }

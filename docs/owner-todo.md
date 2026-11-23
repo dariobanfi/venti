@@ -4,7 +4,7 @@ A short list to pick up when there is time. Each line says what to do and where 
 
 ## Only you can do these
 
-- [ ] **Native iPhone push is still missing** (decision 25): it waits until you join Apple's paid Developer Program. That day: make an APNs key (.p8) under Certificates, Identifiers & Profiles → Keys and put it in `deploy/data/push/` with `VENTI_APNS_KEY_FILE`, `VENTI_APNS_KEY_ID`, `VENTI_APNS_TEAM_ID` in `deploy/.env` ([running-a-server.md](running-a-server.md#push-to-the-phone-apps)); turn on Push Notifications for the App ID `fly.venti.app`; set `VENTI_ENTITLEMENTS = Config/VentiPush.entitlements` in `apps/ios/Config/Local.xcconfig`. Until then iPhones get push only through the website on the Home Screen. Android's half is done (Firebase project `venti-ea3e9`, the app's file and the server's key in place, the local stack sending).
+- [ ] **Native iPhone push is still missing** (decision 25): it waits until you join Apple's paid Developer Program. That day: make an APNs key (.p8) under Certificates, Identifiers & Profiles → Keys and put it in `deploy/data/push/` with `VENTI_APNS_KEY_FILE`, `VENTI_APNS_KEY_ID`, `VENTI_APNS_TEAM_ID` in `deploy/.env` ([running-a-server.md](running-a-server.md#push-to-the-phone-apps)); turn on Push Notifications for the App ID `fly.venti.app`; set `VENTI_ENTITLEMENTS = Config/VentiPush.entitlements` in `apps/ios/Config/Local.xcconfig`. Until then iPhones get no push; the code for it is in the app. Android's half is done (Firebase project `venti-ea3e9`, the app's file and the server's key in place, the local stack sending).
 
 
 - [ ] **Météo-France:** make a free account at its API portal and a key, so its stations can be collected (16). The adapter is not written until then.

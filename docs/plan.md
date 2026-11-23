@@ -236,7 +236,7 @@ Each step's state is what the repository showed on 2026-11-22, with the commits 
 
 **Left open by the sessions on 2026-11-22**, found that day and not yet built; none waits for the owner:
 
-- Neither phone's "Data and licences" names the Rust crates compiled into the core, and neither carries the full text of MapLibre's BSD licence, which it asks a binary to reproduce.
+- Neither phone's "Data and licences" names the Rust crates compiled into the core, and neither carries the full text of MapLibre's BSD licence, which it asks a binary to reproduce. Half closed on 2026-11-23: `licences/core-notices.txt` lists the core's 61 crates with their licences and copyright lines, written by `tools/licences/notices.py` and kept in step by `crates/core/tests/licence_notices.rs` (`cargo test` needs Python 3.11 or newer); the apps do not show it yet. Its MPL-2.0 text is the licence's wording with a squeezed layout, to verify against mozilla.org's.
 - On Android the layers sheet offers "Wind stations" only while the wind layer is shown, and its Forecast and Radar chips only where their models are; the iPhone shows them whenever there is a server. Android's credits for the aerial photographs are written by hand where the iPhone reads them from the shared style.
 - With no airspace reading the iPhone's large strip in the cockpit stays and shows "– –", and Android hides it.
 - The words of the watched folder, of "Last sync" and "In step since", of the widgets and of the credits pages are each shell's own and belong in the core.

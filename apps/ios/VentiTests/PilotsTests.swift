@@ -38,6 +38,9 @@ final class PilotsTests: XCTestCase {
                     .joined()
                 return (200, Data(PilotsAnswers.ranking.replacingOccurrences(of: #"{"counted""#, with: "{\(span)\"counted\"").utf8))
             }
+            if address.contains("/v1/pilots/near") {
+                return (200, Data(PilotsAnswers.near.utf8))
+            }
             return (404, Data())
         }
         let address = address
@@ -91,6 +94,36 @@ final class PilotsTests: XCTestCase {
         XCTAssertNil(search.words)
         addresses = await asked.addresses
         XCTAssertEqual(addresses.count, 2)
+    }
+
+    /// The pilots near a place: asked for that place, read by the core
+    /// into lines with each pilot's picture or initials; and the face's
+    /// initials and the picture's address where the core gives none.
+    func testThePilotsNearAPlaceAreAskedAndReadWithTheirPictures() async throws {
+        let asked = Asked()
+        let community = community(noting: asked)
+        let near = try await community.pilotsNear(Coordinate(lat: 47.66, lon: 11.8))
+        let addresses = await asked.addresses
+        XCTAssertEqual(addresses, ["http://127.0.0.1:8080/v1/pilots/near?lat=47.66&lon=11.8"])
+        XCTAssertEqual(near.words, "Within 25 km, the last 12 months")
+        XCTAssertEqual(near.pilots.map(\.name), ["Mara Muster", "jonas"])
+        XCTAssertEqual(near.pilots[0].picturePath, "/v1/pictures/0000000000000000000000p001")
+        XCTAssertEqual(near.pilots[0].words, "2 flights from here · Wallberg")
+        XCTAssertNil(near.pilots[1].picturePath)
+        XCTAssertEqual(near.pilots[1].initials, "J")
+        XCTAssertEqual(
+            PictureAddress.url(near.pilots[0].picturePath, on: address)?.absoluteString,
+            "http://127.0.0.1:8080/v1/pictures/0000000000000000000000p001"
+        )
+        XCTAssertNil(PictureAddress.url(nil, on: address))
+        XCTAssertNil(PictureAddress.url("/v1/pictures/x", on: nil))
+
+        // Initials as the web makes them: the first and the last word.
+        XCTAssertEqual(Initials.of("Mara Muster"), "MM")
+        XCTAssertEqual(Initials.of("  lena  van der Probe "), "LP")
+        XCTAssertEqual(Initials.of("jonas"), "J")
+        XCTAssertEqual(Initials.of("(Ines) Beispiel"), "IB")
+        XCTAssertEqual(Initials.of("–"), "?")
     }
 
     func testTheRankingIsOfAYearOrOneOfItsMonths() async throws {
@@ -209,6 +242,19 @@ final class PilotsTests: XCTestCase {
 /// What a server says: the answers of `crates/server/tests/golden`, the
 /// ranking without its pilots.
 private enum PilotsAnswers {
+    /// Pilots near the Tegernsee, as `pilots_near.json` has them.
+    static let near = """
+        {"pilots": [
+          {"pilot": {"handle": "mara", "display_name": "Mara Muster",
+                     "picture": "/v1/pictures/0000000000000000000000p001"},
+           "flights": 2,
+           "takeoffs": [{"site": {"id": "venti:0000000000000000000000s001", "name": "Wallberg"},
+                         "position": {"lat": 47.66, "lon": 11.8}, "flights": 2}]},
+          {"pilot": {"handle": "jonas", "display_name": "jonas"}, "flights": 1, "takeoffs": []}
+        ],
+         "radius_km": 25, "months": 12}
+        """
+
     static let terms = #"{"text": "These flights are their pilots'.", "decided": false}"#
 
     static let found = #"{"pilots": [{"pilot": {"handle": "lena", "display_name": "Lena Probe"}, "flights": 3}]}"#

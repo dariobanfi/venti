@@ -430,13 +430,20 @@ struct MapTimeStrip: View {
     /// a radar's picture.
     private static let wide = VentiSpace.s6
     private static let narrow = VentiSpace.s4
+    private static let gap: CGFloat = 2
+    /// The space before a day that begins after other cells.
+    private static let dayGap = VentiSpace.s2
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .bottom, spacing: 2) {
+                let rooms = MapTimeLine.rooms(
+                    cells, wide: Self.wide, narrow: Self.narrow, gap: Self.gap, dayGap: Self.dayGap
+                )
+                HStack(alignment: .bottom, spacing: Self.gap) {
                     ForEach(cells.indices, id: \.self) { index in
-                        cell(index)
+                        cell(index, room: rooms[index])
+                            .padding(.leading, cells[index].startsDay ? Self.dayGap : 0)
                             .id(index)
                     }
                 }
@@ -458,19 +465,22 @@ struct MapTimeStrip: View {
         .accessibilityIdentifier("map-time")
     }
 
-    private func cell(_ index: Int) -> some View {
+    private func cell(_ index: Int, room: CGFloat?) -> some View {
         let cell = cells[index]
         let isChosen = index == chosen
         let width = cell.isNarrow ? Self.narrow : Self.wide
         return VStack(alignment: .leading, spacing: 2) {
             // The day's name, a full hour or "Now" over the cell, running
-            // on over the cells after it.
+            // on over the cells after it up to the next word, never into
+            // it (`MapTimeLine.rooms`).
             Text(cell.over ?? " ")
                 .font(.ventiType(.caption))
                 .fontWeight(cell.isNow ? .semibold : .regular)
                 .foregroundStyle(.venti(cell.isNow ? .text : .textSecondary))
                 .lineLimit(1)
-                .fixedSize()
+                .truncationMode(.tail)
+                .fixedSize(horizontal: room == nil, vertical: false)
+                .frame(width: room, alignment: .leading)
                 .frame(width: width, alignment: .leading)
                 .accessibilityHidden(true)
             Button {

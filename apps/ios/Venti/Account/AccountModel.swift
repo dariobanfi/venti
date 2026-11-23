@@ -324,6 +324,24 @@ final class AccountModel {
         await changeAccount { try core.countryRequest(country: country) }
     }
 
+    /// Whether the pilot is among the pilots near a place: the account's
+    /// setting, on until they switch it off.
+    func setShownNearPlaces(_ shown: Bool) async {
+        await changeAccount { try core.shownNearPlacesRequest(shown: shown) }
+    }
+
+    /// Sends a picture as the pilot's own: the bytes as they are, in
+    /// JPEG, PNG or WebP. A picture the core refuses, for its kind or its
+    /// size, is the `problem` in the core's words.
+    func setPicture(_ bytes: Data, mediaType: String) async {
+        await changeAccount { try core.pictureRequest(picture: bytes, mediaType: mediaType) }
+    }
+
+    /// Removes the pilot's picture: their initials stand in its place.
+    func removePicture() async {
+        await changeAccount { try core.pictureRemovalRequest() }
+    }
+
     /// The app's glider setting changed: the account takes the class,
     /// quietly. Without an answer it is told again at the next read.
     func gliderClassChanged(_ kind: GliderClassKind?) async {

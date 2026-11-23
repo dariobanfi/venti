@@ -317,6 +317,17 @@ final class CommunityModel {
         return try pilotsFound(status: UInt16(clamping: status), body: body)
     }
 
+    /// The pilots who shared flights from near a place, as the core lists
+    /// them: within Venti's own distance, the last months.
+    func pilotsNear(_ place: Coordinate) async throws -> PilotsNear {
+        let path = try pilotsNearPath(lat: place.lat, lon: place.lon, radiusKm: nil)
+        guard let server = server(), let url = URL(string: server.absoluteString + path) else {
+            throw URLError(.badURL)
+        }
+        let (status, body) = try await transport(url)
+        return try VentiCore.pilotsNear(status: UInt16(clamping: status), body: body)
+    }
+
     /// What a pilot's public flights add up to, overall and season by
     /// season.
     func statistics(of handle: String) async throws -> PilotStatistics {

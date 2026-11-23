@@ -76,39 +76,3 @@ final class PilotSearch {
         isSearching = false
     }
 }
-
-/// What a search for a pilot found, in place of the list of flights: the
-/// core's line for each pilot, which opens the pilot's page, and under
-/// them its line about the result. Where nobody was found, or nothing was
-/// asked, that line stands alone.
-struct PilotsFoundSection: View {
-    let search: PilotSearch
-
-    var body: some View {
-        let pilots = search.found?.pilots ?? []
-        Section {
-            ForEach(pilots, id: \.handle) { pilot in
-                NavigationLink {
-                    PilotFlightsScreen(pilot: PilotRoute(handle: pilot.handle, name: pilot.name))
-                } label: {
-                    Text(pilot.words)
-                }
-                .accessibilityIdentifier("found-pilot")
-            }
-            if pilots.isEmpty, let words = search.words ?? search.found?.words {
-                Text(words)
-                    .foregroundStyle(.venti(.textSecondary))
-                    .accessibilityIdentifier("pilots-found-words")
-            }
-            if search.isSearching {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-            }
-        } footer: {
-            if !pilots.isEmpty, let words = search.found?.words {
-                Text(words)
-                    .accessibilityIdentifier("pilots-found-words")
-            }
-        }
-    }
-}

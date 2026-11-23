@@ -185,6 +185,12 @@ final class ThermalHoursTests: XCTestCase {
                 if case .hour(let date, _) = $0.stop { return date == day.date }
                 return false
             }
+            // Today's name gives way to "Now" over the stations right
+            // before it, and a today with no hours left is left out.
+            if day.today, day.date == map.days.first?.date {
+                XCTAssertNotEqual(ofDay.first?.over, day.name)
+                continue
+            }
             XCTAssertFalse(ofDay.isEmpty, day.date)
             XCTAssertEqual(ofDay.first?.over, day.name)
             XCTAssertTrue(ofDay.allSatisfy { $0.label.hasPrefix("\(day.name), ") })
@@ -200,6 +206,65 @@ final class ThermalHoursTests: XCTestCase {
             XCTAssertEqual(forecast.first?.isNow, true)
             XCTAssertEqual(forecast.first?.stop, .hour(map.days[0].date, Int(today.firstHour)))
         }
+    }
+
+    private func lineDay(_ date: String, _ name: String, today: Bool) -> ThermalMapDay {
+        ThermalMapDay(date: date, name: name, today: today, model: "", runUnixS: 0, whole: true, note: "", cells: [])
+    }
+
+    private func lineHours(_ date: String, first: UInt32, _ clock: [UInt8]) -> ThermalMapHoursView {
+        ThermalMapHoursView(
+            date: date, layer: .wind, heightM: nil, title: "",
+            hours: clock.map { ThermalMapHourMark(timeUnixS: 0, clockHour: $0, label: "\($0):00") },
+            firstHour: first, model: "", runUnixS: 0, whole: true, note: "", credits: []
+        )
+    }
+
+    /// In the evening, when today has one hour left: "Now" over the
+    /// stations, today's name giving way to it, each day a little apart;
+    /// on the thermals' line "Now" on today's hour. The web's test of
+    /// `23a3577f`.
+    func testTheWordsOverTheLineStayApartInTheEvening() {
+        let words = mapLayersWords()
+        let days = [lineDay("2026-11-22", "Today", today: true), lineDay("2026-11-23", "Tomorrow", today: false)]
+        let hours = [
+            "2026-11-22": lineHours("2026-11-22", first: 2, [9, 10, 11]),
+            "2026-11-23": lineHours("2026-11-23", first: 0, [9, 10]),
+        ]
+        let said = { (cells: [MapTimeCell]) in cells.map { $0.isNow ? "Now" : ($0.over ?? "") } }
+        let wind = MapTimeLine.cells(what: .wind, radar: nil, stations: true, days: days, hours: hours, words: words)
+        XCTAssertEqual(said(wind), ["Now", "", "Tomorrow", ""])
+        XCTAssertEqual(wind.map(\.startsDay), [false, true, true, false])
+        let thermals = MapTimeLine.cells(
+            what: .thermals, radar: nil, stations: true, days: days, hours: hours, words: words
+        )
+        XCTAssertEqual(said(thermals), ["", "Now", "Tomorrow", "", ""])
+        XCTAssertEqual(thermals.map(\.short), ["Day", "11", "Day", "9", "10"])
+        XCTAssertFalse(thermals[0].startsDay)
+
+        // Each word reaches up to the next and no further; the last as
+        // far as it needs.
+        let rooms = MapTimeLine.rooms(wind, wide: 32, narrow: 16, gap: 2, dayGap: 8)
+        XCTAssertEqual(rooms, [2 * 32 + 2 + 2 * 8, nil, nil, nil])
+        let thermalRooms = MapTimeLine.rooms(thermals, wide: 32, narrow: 16, gap: 2, dayGap: 8)
+        XCTAssertEqual(thermalRooms, [nil, 32 + 8, nil, nil, nil])
+    }
+
+    /// A today whose hours are all past is left out, its day as a whole
+    /// too; hours not read yet are not hours past.
+    func testATodayWithNoHoursLeftIsLeftOut() {
+        let words = mapLayersWords()
+        let days = [lineDay("2026-11-22", "Today", today: true), lineDay("2026-11-23", "Tomorrow", today: false)]
+        let past = [
+            "2026-11-22": lineHours("2026-11-22", first: 1, [9]),
+            "2026-11-23": lineHours("2026-11-23", first: 0, [9, 10]),
+        ]
+        let thermals = MapTimeLine.cells(what: .thermals, radar: nil, stations: false, days: days, hours: past, words: words)
+        XCTAssertEqual(thermals.map(\.short), ["Day", "9", "10"])
+        XCTAssertEqual(thermals[0].over, "Tomorrow")
+        XCTAssertEqual(thermals[0].label, "Tomorrow")
+        let reading = MapTimeLine.cells(what: .thermals, radar: nil, stations: false, days: days, hours: [:], words: words)
+        XCTAssertEqual(reading.map(\.over), ["Today", "Tomorrow"])
     }
 
     /// The thermals' line: the day as a whole before each day's hours; a

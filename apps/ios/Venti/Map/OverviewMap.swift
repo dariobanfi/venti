@@ -108,6 +108,12 @@ struct OverviewMap: UIViewRepresentable {
     /// Called with a cell's place among `flown`'s when the pilot taps it.
     var onFlownCell: (Int) -> Void = { _ in }
 
+    /// Where the map opens: the northern Alps between Lake Constance and
+    /// Salzburg, or where a UI test asks for (`--map-at`).
+    static var start: Coordinate {
+        LaunchOptions.mapAt.map { Coordinate(lat: $0.lat, lon: $0.lon) } ?? Coordinate(lat: 47.45, lon: 11.6)
+    }
+
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
@@ -121,7 +127,7 @@ struct OverviewMap: UIViewRepresentable {
         map.attributionButton.isHidden = true
         // The northern Alps between Lake Constance and Salzburg, or where
         // a UI test asks for.
-        let at = LaunchOptions.mapAt ?? (lat: 47.45, lon: 11.6, zoom: 7.4)
+        let at = LaunchOptions.mapAt ?? (lat: Self.start.lat, lon: Self.start.lon, zoom: 7.4)
         map.setCenter(CLLocationCoordinate2D(latitude: at.lat, longitude: at.lon), zoomLevel: at.zoom, animated: false)
 
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))

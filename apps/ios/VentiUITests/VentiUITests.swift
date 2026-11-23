@@ -2985,7 +2985,7 @@ final class VentiUITests: XCTestCase {
         // What the pilots of the server share with everyone: on the
         // League tab. The server's development mode has public flights
         // of several made-up pilots.
-        openTab("League", in: app)
+        openTab("Community", in: app)
         let everyone = app.buttons["Everyone"]
         XCTAssertTrue(everyone.waitForExistence(timeout: 15))
         everyone.tap()
@@ -3103,9 +3103,12 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Notifications"].waitForExistence(timeout: 15))
 
         // The feed: the flights of the pilots followed, each with what
-        // pilots made of it.
-        openTab("League", in: app)
-        let following = app.buttons["Following"]
+        // pilots made of it, as cards on Community and whole a tap away.
+        openTab("Community", in: app)
+        XCTAssertTrue(element("feed-card", in: app).waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("social-4-community")
+        let following = bring("community-following-all", into: app)
         XCTAssertTrue(following.waitForExistence(timeout: 15))
         following.tap()
         let rows = app.descendants(matching: .any).matching(identifier: "feed-row")
@@ -3127,6 +3130,8 @@ final class VentiUITests: XCTestCase {
             app.swipeUp()
         }
         XCTAssertTrue(lenas.waitForExistence(timeout: 10))
+        // Clear of the tab bar, which floats over the list's foot.
+        bringUp(lenas, in: app)
         lenas.tap()
         let cheer = element("flight-cheer", in: app)
         XCTAssertTrue(cheer.waitForExistence(timeout: 40))
@@ -3167,11 +3172,12 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("social-6-cheered")
 
         app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
+        app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(following.waitForExistence(timeout: 15))
 
-        // A pilot's page, from the field over everyone's flights: the
-        // counts, and the button that follows them.
-        app.buttons["Everyone"].tap()
+        // A pilot's page, from the field over Community: the counts, and
+        // the button that follows them.
         let field = app.searchFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 15))
         field.tap()
@@ -3200,13 +3206,14 @@ final class VentiUITests: XCTestCase {
         let dark = launch(bundledMap: true, dark: true, extra: ["--server", server])
         XCTAssertTrue(dark.buttons["Show my position"].waitForExistence(timeout: 90))
         signIn(("demo", "demo-pilot-password"), in: dark)
-        openTab("League", in: dark)
-        let inTheDark = dark.buttons["Following"]
-        XCTAssertTrue(inTheDark.waitForExistence(timeout: 15))
-        inTheDark.tap()
+        openTab("Community", in: dark)
+        XCTAssertTrue(element("feed-card", in: dark).waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("social-9-community-dark")
+        bring("community-following-all", into: dark).tap()
         XCTAssertTrue(element("feed-row", in: dark).waitForExistence(timeout: 30))
         sleep(1)
-        keepScreenshot("social-9-feed-dark")
+        keepScreenshot("social-10-feed-dark")
     }
 
     /// A long press on the map shows the server's forecast for the place
@@ -3588,15 +3595,16 @@ final class VentiUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Notifications"].waitForExistence(timeout: 15))
 
-        openTab("League", in: app)
-        let following = app.buttons["Following"]
-        XCTAssertTrue(following.waitForExistence(timeout: 15))
-        following.tap()
+        openTab("Community", in: app)
+        XCTAssertTrue(element("feed-card", in: app).waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("larger-dark-social-4-community")
+        bring("community-following-all", into: app).tap()
         XCTAssertTrue(element("feed-row", in: app).waitForExistence(timeout: 30))
         sleep(1)
-        keepScreenshot("larger-dark-social-4-feed")
+        keepScreenshot("larger-dark-social-5-feed")
+        app.navigationBars.buttons.firstMatch.tap()
 
-        app.buttons["Everyone"].tap()
         let field = app.searchFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 15))
         field.tap()
@@ -3606,7 +3614,182 @@ final class VentiUITests: XCTestCase {
         timo.tap()
         XCTAssertTrue(element("pilot-follow", in: app).waitForExistence(timeout: 30))
         sleep(1)
-        keepScreenshot("larger-dark-social-5-pilot")
+        keepScreenshot("larger-dark-social-6-pilot")
+    }
+
+    /// The pilot's picture on the account's page: initials first, a
+    /// picture sent ("--sample-picture" stands in for the photo picker,
+    /// which a test cannot reach), the switch for being among the pilots
+    /// near, the picture removed again; then Community's pilots near the
+    /// map's middle by the Tegernsee, where the development mode's Mara
+    /// has a picture, her page with it, and its report.
+    func testThePilotsPictureAndThePilotsNear() async throws {
+        try await pictureAndPilotsNear(dark: false, larger: false, prefix: "picture")
+    }
+
+    /// The same in the dark, with the text size above the largest
+    /// standard one.
+    func testThePilotsPictureAndThePilotsNearInTheDarkWithLargerText() async throws {
+        try await pictureAndPilotsNear(dark: true, larger: true, prefix: "picture-dark-larger")
+    }
+
+    private func pictureAndPilotsNear(dark: Bool, larger: Bool, prefix: String) async throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        // Where the iPhone is, should it be allowed to say: the same place as the
+        // map's middle, so that "pilots near" is of one place either way.
+        XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 47.66, longitude: 11.8))
+        let pilot = try await makeAccount(on: server, named: "Picture Tester", handlePrefix: "face")
+        let app = launch(
+            bundledMap: true, dark: dark,
+            extra: ["--server", server, "--sample-picture", "--map-at", "47.66,11.8,11"]
+                + (larger ? Self.largerText : [])
+        )
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(pilot, in: app)
+        openAccount(in: app)
+
+        // Initials while there is no picture.
+        let face = element("account-picture", in: app)
+        XCTAssertTrue(face.waitForExistence(timeout: 30))
+        XCTAssertEqual(face.value as? String, "Initials")
+        sleep(1)
+        keepScreenshot("\(prefix)-1-initials")
+
+        // A picture sent: Venti's answer names it, and it is drawn.
+        element("account-picture-change", in: app).tap()
+        let pictured = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'account-picture' AND value == 'Picture'")).firstMatch
+        XCTAssertTrue(pictured.waitForExistence(timeout: 30))
+        XCTAssertTrue(element("account-picture-remove", in: app).exists)
+        sleep(2)
+        keepScreenshot("\(prefix)-2-picture")
+
+        // Among the pilots near a place: on until switched off.
+        let near = bring("account-shown-near", into: app)
+        XCTAssertTrue(near.waitForExistence(timeout: 10))
+        XCTAssertEqual(near.value as? String, "1")
+        sleep(1)
+        keepScreenshot("\(prefix)-3-shown-near")
+
+        // Removed again: the initials.
+        bring("account-picture-remove", into: app, down: true).tap()
+        let initials = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'account-picture' AND value == 'Initials'")).firstMatch
+        XCTAssertTrue(initials.waitForExistence(timeout: 30))
+
+        // Community: the pilots near the map's middle, Mara with her
+        // picture among them.
+        openTab("Community", in: app)
+        let mara = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'near-pilot' AND label CONTAINS 'Mara Muster'")).firstMatch
+        for _ in 0..<6 where !isOnScreen(mara, in: app) {
+            if mara.exists { app.swipeUp() } else { usleep(500_000) }
+        }
+        XCTAssertTrue(mara.waitForExistence(timeout: 30))
+        XCTAssertTrue(element("near-words", in: app).label.contains("Within"), element("near-words", in: app).label)
+        sleep(2)
+        keepScreenshot("\(prefix)-4-pilots-near")
+
+        // Her page has her picture, and a way to report it.
+        mara.tap()
+        let picture = element("pilot-picture", in: app)
+        XCTAssertTrue(picture.waitForExistence(timeout: 30))
+        XCTAssertEqual(picture.value as? String, "Picture")
+        sleep(2)
+        keepScreenshot("\(prefix)-5-pilot-page")
+        app.buttons["More"].tap()
+        let report = app.buttons["Report picture"]
+        XCTAssertTrue(report.waitForExistence(timeout: 10))
+        report.tap()
+        XCTAssertTrue(element("report-reason", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Report picture"].exists)
+        sleep(1)
+        keepScreenshot("\(prefix)-6-report-picture")
+        app.buttons["Cancel"].tap()
+    }
+
+    /// Community as the demo pilot: a plan posted from it is a card with
+    /// its day, its place, the pilot's face and "I am in", which steps
+    /// out and in again; the flights of the pilots followed as cards; and
+    /// the newest of what the pilot was told.
+    func testCommunityGathersPlansFeedAndNotifications() throws {
+        try communityAsTheDemoPilot(dark: false, larger: false, prefix: "community-hub")
+    }
+
+    /// The same in the dark, with the text size above the largest
+    /// standard one.
+    func testCommunityGathersPlansFeedAndNotificationsInTheDarkWithLargerText() throws {
+        try communityAsTheDemoPilot(dark: true, larger: true, prefix: "community-hub-dark-larger")
+    }
+
+    private func communityAsTheDemoPilot(dark: Bool, larger: Bool, prefix: String) throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, dark: dark, extra: ["--server", server] + (larger ? Self.largerText : []))
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(("demo", "demo-pilot-password"), in: app)
+        openTab("Community", in: app)
+
+        // A plan for today, from the bar's "New plan".
+        let add = element("community-new-plan", in: app)
+        XCTAssertTrue(add.waitForExistence(timeout: 30))
+        add.tap()
+        let place = element("plan-place", in: app)
+        XCTAssertTrue(place.waitForExistence(timeout: 10))
+        place.tap()
+        let name = "Wallberg \(Int.random(in: 100...999))"
+        place.typeText(name)
+        app.buttons["Save"].tap()
+        let card = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'plan-card' AND label CONTAINS %@", name)).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 30))
+        XCTAssertTrue(card.label.contains("Today"), card.label)
+        sleep(2)
+        keepScreenshot("\(prefix)-1-plans")
+
+        // Its author is in from the start; "I am in" steps out and in.
+        let isIn = app.buttons
+            .matching(NSPredicate(format: "identifier == 'plan-card-in' AND value == %@", name)).firstMatch
+        XCTAssertTrue(isIn.waitForExistence(timeout: 10))
+        // The cards stand side by side: the new one is brought in.
+        for _ in 0..<6 where !isOnScreen(isIn, in: app) {
+            element("plan-card", in: app).swipeLeft()
+            usleep(500_000)
+        }
+        XCTAssertTrue(isIn.isSelected)
+        isIn.tap()
+        for _ in 0..<40 where isIn.isSelected {
+            usleep(250_000)
+        }
+        XCTAssertFalse(isIn.isSelected)
+        isIn.tap()
+        for _ in 0..<40 where !isIn.isSelected {
+            usleep(250_000)
+        }
+        XCTAssertTrue(isIn.isSelected)
+
+        // The feed's cards and the newest lines told, further down.
+        let feedCard = bring("feed-card", into: app)
+        XCTAssertTrue(feedCard.waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("\(prefix)-2-feed")
+        let told = bring("community-notification", into: app)
+        XCTAssertTrue(told.waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("\(prefix)-3-pilots-near-and-told")
+
+        // The card opens the plan.
+        app.swipeDown()
+        app.swipeDown()
+        app.swipeDown()
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        card.tap()
+        XCTAssertTrue(element("plan-in", in: app).waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("\(prefix)-4-plan")
     }
 
     /// "Glider and cockpit" in the dark with larger text, and the
@@ -4081,7 +4264,7 @@ final class VentiUITests: XCTestCase {
         // development mode takes the report and keeps it nowhere.
         app.buttons["Done"].tap()
         app.navigationBars.buttons.firstMatch.tap()
-        openTab("League", in: app)
+        openTab("Community", in: app)
         let everyone = app.buttons["Everyone"]
         XCTAssertTrue(everyone.waitForExistence(timeout: 15))
         everyone.tap()
@@ -4242,7 +4425,7 @@ final class VentiUITests: XCTestCase {
         }
         let app = launch(bundledMap: true, extra: ["--server", server])
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
-        openTab("League", in: app)
+        openTab("Community", in: app)
         let everyone = app.buttons["Everyone"]
         XCTAssertTrue(everyone.waitForExistence(timeout: 15))
         everyone.tap()
@@ -4313,7 +4496,7 @@ final class VentiUITests: XCTestCase {
         }
         let app = launch(bundledMap: true, dark: dark, extra: ["--server", server])
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
-        openTab("League", in: app)
+        openTab("Community", in: app)
 
         // The ranking of 2026, and under the years its months that have
         // one, after the year itself. May is far right in the row.
@@ -4341,10 +4524,8 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("\(prefix)-1-ranking-of-a-month")
 
         // A pilot is found by two letters of the name, in the field over
-        // everyone's flights.
-        let everyone = app.buttons["Everyone"]
-        everyone.tap()
-        XCTAssertTrue(element("public-flight-row", in: app).waitForExistence(timeout: 30))
+        // Community.
+        app.navigationBars.buttons["Community"].tap()
         let field = app.searchFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 15))
         field.tap()
@@ -4360,9 +4541,15 @@ final class VentiUITests: XCTestCase {
         let points = totals.matching(NSPredicate(format: "label CONTAINS %@", "Points, best 3 flights")).firstMatch
         XCTAssertTrue(points.waitForExistence(timeout: 30))
         XCTAssertEqual(points.value as? String, "28.19")
+        // Under the pilot's face and name: a list builds a row once it
+        // is scrolled to.
         let site = labelled(containing: "Musterkogel West, 2 flights", in: app)
+        let months = element("flown-months", in: app)
+        for _ in 0..<4 where !(site.exists && months.exists) {
+            drawUp(in: app)
+        }
         XCTAssertTrue(site.waitForExistence(timeout: 15))
-        XCTAssertTrue(element("flown-months", in: app).exists)
+        XCTAssertTrue(months.exists)
         sleep(1)
         keepScreenshot("\(prefix)-3-pilot-totals")
 
@@ -6001,6 +6188,8 @@ extension VentiUITests {
         XCTAssertFalse(labelled(containing: "until you share", in: app).exists)
         let newFlights = app.switches["account-new-flights-public"]
         _ = bring("account-new-flights-public", into: app)
+        // Clear of the tab bar: the picture stands over the account now.
+        bringUp(newFlights, in: app)
         XCTAssertTrue(isOn(newFlights))
         XCTAssertTrue(labelled(containing: "Switch off to keep new flights to yourself.", in: app).exists)
         sleep(1)
@@ -6057,8 +6246,7 @@ extension VentiUITests {
 
         // The pilot's page among everyone's flights: the flag by the
         // name, which VoiceOver reads as the country, and the class.
-        openTab("League", in: app)
-        app.buttons["Everyone"].tap()
+        openTab("Community", in: app)
         let search = app.searchFields.firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 15))
         search.tap()

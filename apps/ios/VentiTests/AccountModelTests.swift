@@ -1,3 +1,4 @@
+import UIKit
 import VentiCore
 import XCTest
 
@@ -619,6 +620,95 @@ final class AccountModelTests: XCTestCase {
         await account.signIn(server: address, handle: "demo", password: "demo-pilot-password")
         let again = await sent.requests.filter { $0.httpMethod == "PATCH" }.count
         XCTAssertEqual(again, patches)
+    }
+
+    /// The pilot's picture, sent as a JPEG and removed, and the switch for
+    /// being among the pilots near a place: each the core's request, and
+    /// the account its answer holds.
+    func testThePilotsPictureIsSentAndRemovedAndTheNearSwitchIsKept() async throws {
+        let core = try makeCore()
+        let (sent, box) = (Sent(), TokenBox())
+        let withPicture = """
+            {"account": {"handle": "demo", "display_name": "Demo Pilot", "created_at": "2026-11-18T19:05:00Z",
+              "new_flights_public": true, "shown_near_places": true,
+              "picture": "/v1/pictures/aaaaaaaaaaaaaaaaaaaaaaaaaa"}}
+            """
+        let noPicture = """
+            {"account": {"handle": "demo", "display_name": "Demo Pilot", "created_at": "2026-11-18T19:05:00Z",
+              "new_flights_public": true, "shown_near_places": true}}
+            """
+        let notNear = """
+            {"account": {"handle": "demo", "display_name": "Demo Pilot", "created_at": "2026-11-18T19:05:00Z",
+              "new_flights_public": true, "shown_near_places": false}}
+            """
+        let settings = settingsServer(noting: sent)
+        let account = AccountModel(
+            core: core,
+            transport: { request in
+                switch (request.httpMethod ?? "", request.url?.path ?? "") {
+                case ("PUT", "/v1/account/picture"):
+                    await sent.add(request)
+                    return (200, Data(withPicture.utf8), nil)
+                case ("DELETE", "/v1/account/picture"):
+                    await sent.add(request)
+                    return (200, Data(noPicture.utf8), nil)
+                case ("PATCH", "/v1/account") where String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("shown_near_places") == true:
+                    await sent.add(request)
+                    return (200, Data(notNear.utf8), nil)
+                default:
+                    return try await settings(request)
+                }
+            },
+            readToken: { box.token }, saveToken: { box.token = $0 }
+        )
+        let address = try XCTUnwrap(URL(string: "https://venti.example.org"))
+        await account.signIn(server: address, handle: "demo", password: "demo-pilot-password")
+        XCTAssertNil(account.account?.picturePath)
+        XCTAssertEqual(account.account?.shownNearPlaces, true)
+
+        // A photo of 3,000 by 2,000 goes as a JPEG of 1,000 by 667.
+        let photo = UIGraphicsImageRenderer(size: CGSize(width: 3000, height: 2000), format: {
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            return format
+        }()).pngData { context in
+            UIColor.gray.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 3000, height: 2000))
+        }
+        let jpeg = try XCTUnwrap(PictureUpload.jpeg(photo))
+        let sized = try XCTUnwrap(UIImage(data: jpeg))
+        XCTAssertEqual(sized.size, CGSize(width: 1000, height: 667))
+        XCTAssertEqual(Array(jpeg.prefix(2)), [0xFF, 0xD8])
+        XCTAssertNil(PictureUpload.jpeg(Data("no picture".utf8)))
+
+        await account.setPicture(jpeg, mediaType: PictureUpload.mediaType)
+        XCTAssertNil(account.problem)
+        let put = await sent.requests.last
+        XCTAssertEqual(put?.httpMethod, "PUT")
+        XCTAssertEqual(put?.value(forHTTPHeaderField: "Content-Type"), "image/jpeg")
+        XCTAssertEqual(put?.value(forHTTPHeaderField: "Authorization"), "Bearer venti_test_token")
+        XCTAssertEqual(put?.httpBody, jpeg)
+        XCTAssertEqual(account.account?.picturePath, "/v1/pictures/aaaaaaaaaaaaaaaaaaaaaaaaaa")
+
+        // A kind the server does not take is refused in the core's words, and
+        // nothing is sent.
+        let count = await sent.requests.count
+        await account.setPicture(Data([1, 2, 3]), mediaType: "image/gif")
+        XCTAssertEqual(account.problem, "Choose a photo in JPEG, PNG or WebP.")
+        account.problem = nil
+        let after = await sent.requests.count
+        XCTAssertEqual(after, count)
+
+        await account.removePicture()
+        let removal = await sent.requests.last
+        XCTAssertEqual(removal?.httpMethod, "DELETE")
+        XCTAssertNil(account.account?.picturePath)
+
+        await account.setShownNearPlaces(false)
+        let near = await sent.requests.last
+        XCTAssertEqual(near?.httpMethod, "PATCH")
+        XCTAssertEqual(try json(of: near), NSDictionary(dictionary: ["shown_near_places": false]))
+        XCTAssertEqual(account.account?.shownNearPlaces, false)
     }
 }
 

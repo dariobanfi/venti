@@ -76,15 +76,15 @@ final class CommunityTests: XCTestCase {
         named.takeoffName = nil
         XCTAssertEqual(PublicFlightRow.detail(of: named), PublicFlightRow.detail(of: row))
         XCTAssertEqual(row.score?.kind, .freeFlight)
-        // The take-off's flag before its name, the class after the glider,
+        // The take-off's flag before its name, the class before the glider,
         // and VoiceOver hears the country's name in place of the flag.
         named.takeoffName = "Wallberg"
         named.takeoffCountry = "AT"
         named.gliderClass = .b
-        XCTAssertTrue(PublicFlightRow.detail(of: named).hasSuffix("· 🇦🇹 Wallberg · Sample Wing · EN B"))
-        XCTAssertTrue(PublicFlightRow.spokenDetail(of: named).hasSuffix(", Wallberg, Austria, Sample Wing · EN B"))
+        XCTAssertTrue(PublicFlightRow.detail(of: named).hasSuffix("· 🇦🇹 Wallberg · EN B · Sample Wing"))
+        XCTAssertTrue(PublicFlightRow.spokenDetail(of: named).hasSuffix(", Wallberg, Austria, EN B · Sample Wing"))
         named.takeoffName = nil
-        XCTAssertTrue(PublicFlightRow.detail(of: named).hasSuffix("· 🇦🇹 · Sample Wing · EN B"))
+        XCTAssertTrue(PublicFlightRow.detail(of: named).hasSuffix("· 🇦🇹 · EN B · Sample Wing"))
 
         // Asked for again, it is there already.
         await community.loadIfNeeded()

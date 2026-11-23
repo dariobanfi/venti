@@ -94,6 +94,14 @@ final class WindModel {
 
     /// The map says which part of it is in view. The server is asked unless
     /// that part is covered by a recent answer.
+    /// The middle of the part of the map in view, as the map tab last
+    /// showed it: where "pilots near" looks without the iPhone's
+    /// position. Where the map has not been shown yet, where it opens.
+    var mapCentre: Coordinate {
+        guard let wanted else { return OverviewMap.start }
+        return Coordinate(lat: (wanted.south + wanted.north) / 2, lon: (wanted.west + wanted.east) / 2)
+    }
+
     func show(_ region: Bounds) {
         wanted = region
         guard server != nil else { return }

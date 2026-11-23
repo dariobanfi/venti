@@ -206,8 +206,11 @@ struct PlanScreen: View {
                         Text("Nobody yet")
                             .foregroundStyle(.secondary)
                     }
-                    ForEach(plan.pilotsIn, id: \.self) { name in
-                        Text(name)
+                    ForEach(Array(plan.pilotsIn.enumerated()), id: \.offset) { index, name in
+                        HStack(spacing: VentiSpace.s3) {
+                            PilotFace(name: name, size: VentiSpace.s6, isMe: plan.amIn && index == 0)
+                            Text(name)
+                        }
                     }
                     Button(plan.amIn ? "I am out" : "I am in", systemImage: plan.amIn ? "xmark" : "checkmark") {
                         act { try await groups.setIn(plan, !plan.amIn) }

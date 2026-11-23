@@ -2,20 +2,10 @@ import SwiftUI
 import VentiCore
 
 /// Everyone's public flights on the pilot's Venti server: the newest
-/// first, or the best. The field over them finds a pilot by name: while
-/// something is typed in it, the pilots Venti found stand in place of the
-/// flights, each opening the pilot's page.
+/// first, or the best. A pilot is found by name on the Community page
+/// (`CommunityHub`).
 struct PublicFlightsList: View {
     @Environment(CommunityModel.self) private var community
-
-    /// What is typed into the field that finds a pilot.
-    @State private var typed = ""
-    @State private var search = PilotSearch()
-
-    /// Whether the pilots found stand in place of the flights.
-    private var isFinding: Bool {
-        !typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
 
     /// The order shown; choosing the other asks the server for it.
     private var order: Binding<PublicFlightsOrder> {
@@ -30,15 +20,11 @@ struct PublicFlightsList: View {
 
     var body: some View {
         VentiList {
-            if isFinding {
-                PilotsFoundSection(search: search)
-            } else {
-                flights
-            }
+            flights
         }
         .listStyle(.insetGrouped)
         .overlay {
-            if !isFinding, community.flights.isEmpty, !community.isLoading {
+            if community.flights.isEmpty, !community.isLoading {
                 if let problem = community.problem {
                     // Something went wrong: said plainly, without art.
                     ContentUnavailableView {
@@ -57,12 +43,6 @@ struct PublicFlightsList: View {
                     )
                 }
             }
-        }
-        .searchable(text: $typed, placement: .navigationBarDrawer(displayMode: .always), prompt: pilotsWords().searchPlaceholder)
-        .autocorrectionDisabled()
-        .textInputAutocapitalization(.never)
-        .onChange(of: typed) { _, typed in
-            search.search(typed, in: community)
         }
         .refreshable {
             await community.refresh()
@@ -111,8 +91,8 @@ struct PublicFlightsList: View {
     }
 }
 
-/// One public flight in the list: its shape, who flew it and when, and
-/// how far.
+/// One public flight in the list: its shape, who flew it with their face
+/// and when, and how far.
 struct PublicFlightRow: View {
     let flight: PublicFlight
     /// A line under the date, in the column of the words: in the feed,
@@ -123,18 +103,36 @@ struct PublicFlightRow: View {
         HStack(spacing: 12) {
             TrackThumbnail(outline: flight.outline)
             VStack(alignment: .leading, spacing: 2) {
-                // The pilot's country by their name, once they set one.
+                // The pilot's face and their country by their name, once
+                // they set one.
                 HStack(spacing: VentiSpace.s1) {
+                    PilotFace(name: flight.pilot, picturePath: Self.picturePath(of: flight))
+                        .padding(.trailing, VentiSpace.s1)
                     Text(flight.pilot)
                         .lineLimit(1)
                     Flag(code: flight.pilotCountry)
                 }
                 .font(.venti(.headline))
-                Text(Self.detail(of: flight))
-                    .font(.venti(.subheadline))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .accessibilityLabel(Self.spokenDetail(of: flight))
+                // The day and the place, and the glider on a line of its
+                // own after its class, so that it is not cut off behind a
+                // long place ("Sample Wi…").
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(
+                        [Format.dayShort(unixSeconds: flight.startUnixS), Self.place(of: flight)]
+                            .compactMap { $0 }
+                            .joined(separator: " · ")
+                    )
+                    .lineLimit(2)
+                    if let glider = Self.glider(of: flight) {
+                        Text(glider)
+                            .lineLimit(1)
+                    }
+                }
+                .font(.venti(.subheadline))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Self.spokenDetail(of: flight))
                 if !note.isEmpty {
                     Text(note)
                         .font(.venti(.footnote))
@@ -162,10 +160,9 @@ struct PublicFlightRow: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// "15 Aug 2026 · 🇦🇹 Wallberg · Sample Wing · EN B": the day, the
+    /// "15 Aug 2026 · 🇦🇹 Wallberg · EN B · Sample Wing": the day, the
     /// site the server says the flight took off from with its country's
-    /// flag, and the glider with its class. Without the weekday: the
-    /// glider's name is the part that would be cut off.
+    /// flag, and the glider after its class. Without the weekday.
     static func detail(of flight: PublicFlight) -> String {
         [Format.dayShort(unixSeconds: flight.startUnixS), place(of: flight), glider(of: flight)]
             .compactMap { $0 }
@@ -194,14 +191,20 @@ struct PublicFlightRow: View {
         return place.isEmpty ? nil : place
     }
 
-    /// The glider and its class in the core's name: "Sample Wing · EN B";
+    /// The glider's class in the core's name before the glider: "EN B ·
+    /// Sample Wing", so that the class reads where a long name is cut;
     /// either alone.
     static func glider(of flight: PublicFlight) -> String? {
-        let glider = [flight.glider, flight.gliderClass.map { gliderClassName(class: $0) }]
+        let glider = [flight.gliderClass.map { gliderClassName(class: $0) }, flight.glider]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
         return glider.isEmpty ? nil : glider
+    }
+
+    /// The path of the pilot's picture on the server, where they have one.
+    static func picturePath(of flight: PublicFlight) -> String? {
+        flight.pilotPicture
     }
 }
 
@@ -267,6 +270,8 @@ struct PublicFlightScreen: View {
                     .joined(separator: " · ")
                 VStack(spacing: 0) {
                     HStack(spacing: VentiSpace.s1) {
+                        PilotFace(name: flight.pilot, picturePath: PublicFlightRow.picturePath(of: flight))
+                            .padding(.trailing, VentiSpace.s1)
                         Text(flight.pilot)
                             .lineLimit(1)
                             .accessibilityIdentifier("public-flight-pilot")
@@ -332,6 +337,35 @@ struct PublicFlightScreen: View {
     }
 }
 
+/// The head of a pilot's page: their face, large, with the name and the
+/// handle beside it.
+private struct PilotHead: View {
+    let name: String
+    let handle: String
+    let picturePath: String?
+
+    var body: some View {
+        Section {
+            HStack(spacing: VentiSpace.s4) {
+                PilotFace(name: name, picturePath: picturePath, size: VentiSpace.s8, isOwnElement: true)
+                    .accessibilityElement()
+                    .accessibilityLabel(name)
+                    .accessibilityValue(picturePath == nil ? "Initials" : "Picture")
+                    .accessibilityIdentifier("pilot-picture")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                        .font(.ventiType(.heading))
+                        .accessibilityAddTraits(.isHeader)
+                    Text(verbatim: "@\(handle)")
+                        .font(.venti(.subheadline))
+                        .foregroundStyle(.venti(.textSecondary))
+                }
+            }
+            .padding(.vertical, VentiSpace.s1)
+        }
+    }
+}
+
 /// A pilot, as a step in a navigation stack: to their public flights.
 struct PilotRoute: Hashable {
     let handle: String
@@ -362,6 +396,10 @@ struct PilotFlightsScreen: View {
 
     var body: some View {
         VentiList {
+            PilotHead(
+                name: statistics?.name ?? flights.first?.pilot ?? pilot.name, handle: pilot.handle,
+                picturePath: statistics?.picturePath
+            )
             FollowSection(handle: pilot.handle, follows: $follows)
             if let statistics, !flights.isEmpty || year != 0 {
                 PilotTotalsSections(statistics: statistics, year: $year)
@@ -386,8 +424,6 @@ struct PilotFlightsScreen: View {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                 }
-            } header: {
-                Text("@\(pilot.handle)")
             }
         }
         .listStyle(.insetGrouped)
@@ -398,9 +434,9 @@ struct PilotFlightsScreen: View {
                     systemImage: "person",
                     description: Text(problem ?? "This pilot shares no flight with everyone at the moment.")
                 )
-                // Under the counts and the follow button, which a pilot
-                // who shares nothing has too.
-                .padding(.top, follows == nil ? 0 : VentiSize.touch * 2)
+                // Under the pilot's head, the counts and the follow
+                // button, which a pilot who shares nothing has too.
+                .padding(.top, VentiSpace.s8 + VentiSpace.s5 + (follows == nil ? 0 : VentiSize.touch * 2))
             }
         }
         // A page opened by the handle alone has the name once a flight
@@ -412,6 +448,12 @@ struct PilotFlightsScreen: View {
                 VentiBarMenu(title: "More") {
                     Button("Report this pilot", systemImage: "exclamationmark.bubble") {
                         reporting = .pilot(pilot.handle)
+                    }
+                    // A picture that should not be there, on its own.
+                    if statistics?.picturePath != nil {
+                        Button(pictureWords().report, systemImage: "person.crop.circle.badge.exclamationmark") {
+                            reporting = .picture(pilot.handle)
+                        }
                     }
                 }
             }

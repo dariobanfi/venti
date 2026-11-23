@@ -70,6 +70,9 @@ struct MapTimeCell: Equatable {
     var over: String?
     /// Whether "Now" stands over the cell.
     var isNow = false
+    /// Whether a day of the forecast begins at the cell, after other
+    /// cells: a small gap stands before it.
+    var startsDay = false
 }
 
 /// The map's one line of time, for what it shows: from what was measured
@@ -82,7 +85,11 @@ enum MapTimeLine {
     /// The cells of the line, the oldest first: what was measured, then
     /// each day of the forecast, today's from the hour that has begun. The
     /// thermals have the day as a whole before each day's hours. A day
-    /// whose hours are not there yet has none of them.
+    /// whose hours are not there yet has none of them; a today whose hours
+    /// are all past is left out, its day as a whole too. Today's name gives
+    /// way to "Now" where that stands on today's line or right before it,
+    /// over the wind stations; each day after other cells begins a little
+    /// apart (`startsDay`). The web's `timeline.ts` since `23a3577f`.
     static func cells(
         what: MapWhat, radar: RadarView?, stations: Bool, days: [ThermalMapDay],
         hours: [String: ThermalMapHoursView], words: MapLayersWords
@@ -112,7 +119,9 @@ enum MapTimeLine {
             let isToday = index == 0 && day.today
             let view = hours[day.date]
             let from = isToday ? Int(view?.firstHour ?? 0) : 0
+            var hoursLeft = 0
             for (hour, mark) in (view?.hours ?? []).enumerated() where hour >= from {
+                hoursLeft += 1
                 let isNow = isToday && hour == from && !measuredNow
                 ofDay.append(
                     MapTimeCell(
@@ -121,16 +130,45 @@ enum MapTimeLine {
                     )
                 )
             }
-            // The day's name over its first cell, unless "Now" stands there.
-            if let first = ofDay.first, !ofDay.contains(where: \.isNow) {
-                ofDay[0] = MapTimeCell(
-                    stop: first.stop, short: first.short, label: first.label, isNarrow: first.isNarrow,
-                    over: day.name, isNow: false
-                )
+            // A today whose hours are all past has nothing left to show,
+            // its day as a whole neither: its name would stand over one
+            // cell beside the next day's. Hours not read yet are not past.
+            if isToday, view != nil, hoursLeft == 0 {
+                continue
+            }
+            // The day's name over its first cell, unless "Now" stands
+            // there or right before it, over the stations: the two would
+            // crowd each other and the next day's name.
+            let nowBefore = isToday && measuredNow
+            if !ofDay.isEmpty, !nowBefore, !ofDay.contains(where: \.isNow) {
+                ofDay[0].over = day.name
+            }
+            if !ofDay.isEmpty, !cells.isEmpty {
+                ofDay[0].startsDay = true
             }
             cells.append(contentsOf: ofDay)
         }
         return cells
+    }
+
+    /// How far each word over the line may reach: over its cell and those
+    /// after it up to the next word, which it never runs into; `nil` for
+    /// a cell without a word and for the last word, which reaches as far
+    /// as it needs. `wide` and `narrow` are the cells' widths, `gap` the
+    /// space between cells and `dayGap` the space before a day.
+    static func rooms(
+        _ cells: [MapTimeCell], wide: CGFloat, narrow: CGFloat, gap: CGFloat, dayGap: CGFloat
+    ) -> [CGFloat?] {
+        let said = { (cell: MapTimeCell) in cell.isNow || cell.over != nil }
+        return cells.indices.map { index in
+            guard said(cells[index]),
+                  let next = cells.indices.first(where: { $0 > index && said(cells[$0]) })
+            else { return nil }
+            let reach = cells[index..<next]
+            let widths = reach.reduce(0) { $0 + ($1.isNarrow ? narrow : wide) }
+            let days = cells[(index + 1)...next].filter(\.startsDay).count
+            return widths + CGFloat(reach.count - 1) * gap + CGFloat(days) * dayGap
+        }
     }
 
     /// The cell "Day" on the thermals' line: the kind of day as a whole.

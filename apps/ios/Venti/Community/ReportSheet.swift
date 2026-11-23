@@ -22,6 +22,7 @@ struct Reported: Identifiable {
         case .plan(_, let id): "plan \(id)"
         case .site(let id): "site \(id)"
         case .siteRevision(let id, let revision): "site \(id) revision \(revision)"
+        case .picture(let handle): "picture \(handle)"
         }
     }
 
@@ -43,6 +44,11 @@ struct Reported: Identifiable {
 
     static func plan(groupId: String, id: String) -> Reported {
         Reported(subject: .plan(groupId: groupId, id: id), title: "Report this plan")
+    }
+
+    /// A pilot's picture, by their handle.
+    static func picture(_ handle: String) -> Reported {
+        Reported(subject: .picture(handle: handle), title: pictureWords().report)
     }
 
     static func site(_ id: String) -> Reported {

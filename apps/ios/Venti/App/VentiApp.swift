@@ -347,6 +347,10 @@ enum LaunchOptions {
     /// so its screen can be tested without a key or a network.
     static let usesScriptedAssistant = arguments.contains("--scripted-assistant")
 
+    /// "Change picture" sends a made-up picture in place of opening the
+    /// photo picker, which a UI test cannot reach (`--sample-picture`).
+    static let usesSamplePicture = isUITesting && arguments.contains("--sample-picture")
+
     /// Start with a few made-up waypoints around the sample flight, so the
     /// cockpit's navigation can be tested without picking a file.
     static let usesSampleWaypoints = arguments.contains("--sample-waypoints")

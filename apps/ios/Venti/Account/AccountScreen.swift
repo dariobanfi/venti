@@ -286,6 +286,10 @@ private struct SignedInView: View {
 
     var body: some View {
         VentiList {
+            // The pilot's face, as everyone sees it beside their flights.
+            if account.isSignedIn {
+                PictureSection(signedIn: signedIn)
+            }
             Section {
                 LabeledContent("Handle", value: "@\(signedIn.handle)")
                 LabeledContent("Name", value: signedIn.displayName)
@@ -370,6 +374,7 @@ private struct SignedInView: View {
 
             if account.isSignedIn {
                 WhoSeesFlights(signedIn: signedIn)
+                ShownNearSection(signedIn: signedIn)
             }
 
             // What other makers' programs may do for the pilot: with a

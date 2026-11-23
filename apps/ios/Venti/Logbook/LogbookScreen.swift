@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 import VentiCore
 
 /// The pilot's flights, newest first, by day. What everyone shares, and
-/// the ranking, are on the League tab.
+/// the ranking, are on the Community tab.
 struct LogbookScreen: View {
     @Environment(LogbookModel.self) private var logbook
     @Environment(AccountModel.self) private var account

@@ -4,6 +4,8 @@ A short list to pick up when there is time. Each line says what to do and where 
 
 ## Only you can do these
 
+- [ ] **Say yes to one download:** Natural Earth's countries, `ne_10m_admin_0_countries.zip` from https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip (about 5 MB, public domain by its own terms page), so that every flight in Europe knows its take-off's country; today only Austria and France do. Sessions download nothing without your word. The adapter is written and waits for the file (2026-11-23).
+
 - [ ] **Météo-France:** make a free account at its API portal and a key, so its stations can be collected (16). The adapter is not written until then.
 - [ ] **Trentino:** ask the Province of Trento to bring its server's encryption up to date, so its 46 wind stations can come back (24). A draft can be written for you; nothing has been sent.
 - [ ] **SLF:** register with its data service, which its terms recommend (21).
@@ -17,6 +19,8 @@ A short list to pick up when there is time. Each line says what to do and where 
 - [ ] **XContest:** the letter about its upload key may also ask for its live positions (XContest Live); a draft can be written for you, nothing has been sent.
 
 ## Decide, yes or no (what is built stands until you say otherwise)
+
+- [ ] **The map in 3D on the phones** waits for a MapLibre Native release that draws 3D terrain: the apps use 7.0.0, which cannot; the work is on an unmerged branch (draft pull request maplibre-native#4190, last pushed 2026-11-22), with nothing released as of 2026-11-23. Wait for the release (the plan), pin the branch's unreleased code, or build Venti's own renderer (weeks of work)? Either way the track lies on the ground; flown height needs the own renderer.
 
 - [ ] **One place shown once:** where two sources describe the same take-off within 150 m, the map shows one, taken in the order Venti's own > the FFVL > OpenStreetMap > pilots' suggestions (2026-11-23). In the French Alps about 590 of the FFVL's 1,004 places meet an OpenStreetMap one.
 

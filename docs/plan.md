@@ -239,7 +239,7 @@ Each step's state is what the repository showed on 2026-11-22, with the commits 
 **The owner's queue of 2026-11-23, evening** (asked for while agents were busy; worked through that night, in this order; an item comes off when it is pushed):
 
 1. Flight times in the zone they were flown in, on the three apps (the core's `time_zone`, pushed in `e0cb4f59`).
-2. The website: the pilot's picture beside the name in the top bar; Settings without "Your take-offs" and without the version, its notes cut to what is true; an Appearance choice (Automatic, Light, Dark); the account's top card compact, with a pencil on the picture.
+2. The website: the flights' table clipped between phone and wide desktop widths with no way to scroll (the owner's screenshot of Everyone's flights; first); the pilot's picture beside the name in the top bar; Settings without "Your take-offs" and without the version, its notes cut to what is true; an Appearance choice (Automatic, Light, Dark); the account's top card compact, with a pencil on the picture.
 3. The phones: no list of the pilot's own take-offs in the settings (Today and a site's page keep and forget them). The version stays on the phones.
 4. Cables and the free-flying sites tried again two days after a failed run, not sooner; one generated overview of everything that runs by itself (sources, the thermal map, the server's own loops) in the runbook.
 5. A notification marker: one "seen up to" mark per account on the server; the count of new notifications and fired alarms on the pilot's picture in the website's bar and on the phones' Community tab; opening them clears it.

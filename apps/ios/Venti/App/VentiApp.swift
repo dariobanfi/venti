@@ -46,6 +46,7 @@ struct VentiApp: App {
                     .environment(watched)
                     .ventiThemed()
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
+                    .onAppear(perform: LaunchOptions.quickenAnimations)
             case .failed(let message):
                 ContentUnavailableView(
                     "Venti could not open its data",
@@ -526,6 +527,34 @@ enum LaunchOptions {
         return Int64(moment.timeIntervalSince1970)
     }
 
+    /// `--replay-from <s>`: the sample flight's replay begins this many
+    /// seconds into the flight, the seconds before passing at once, and
+    /// the cockpit's settings start it with a plain button at twenty times
+    /// its speed in place of the menu of speeds. A UI test cannot tap that
+    /// menu over a cockpit that refreshes five times a second: XCTest
+    /// waits a minute for each tap for the app to come to rest. With
+    /// `--replay-for <s>` the replay holds ("Paused") once so many seconds
+    /// of the flight have passed after the start. Under UI tests only;
+    /// the sample flight's legs are in `venti_flight::testing`.
+    static var replayFrom: Double? {
+        guard isUITesting else { return nil }
+        return number(after: "--replay-from")
+    }
+
+    /// See `replayFrom`.
+    static var replayFor: Double? {
+        guard isUITesting else { return nil }
+        return number(after: "--replay-for")
+    }
+
+    /// The number after a flag, where it is one of zero or more.
+    private static func number(after flag: String) -> Double? {
+        guard let index = arguments.firstIndex(of: flag), arguments.indices.contains(index + 1),
+              let number = Double(arguments[index + 1]), number.isFinite, number >= 0
+        else { return nil }
+        return number
+    }
+
     /// Starts with the filter of the flying sites asking nothing, and
     /// keeps that: a UI test of the filter leaves it so for the tests
     /// after it, whatever became of it. Preferences outlive a test.
@@ -559,6 +588,22 @@ enum LaunchOptions {
             return nil
         }
         return folder
+    }
+
+    /// Under UI tests, every animation of the app's windows runs four
+    /// times as fast. XCTest waits for the app to come to rest before and
+    /// after every tap, and a sheet or a push that slides for a third of a
+    /// second costs that wait each time: some thousands of times in the
+    /// suite. Nothing else changes: the map draws itself, and the cockpit
+    /// and the replays go by their own clocks.
+    @MainActor
+    static func quickenAnimations() {
+        guard isUITesting else { return }
+        for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+            for window in scene.windows {
+                window.layer.speed = 4
+            }
+        }
     }
 
     /// Dark appearance whatever the device is set to, for screenshots.

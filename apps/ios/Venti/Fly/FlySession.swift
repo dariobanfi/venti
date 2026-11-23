@@ -173,6 +173,9 @@ final class FlySession {
     @ObservationIgnored private let dataFolder: URL
     @ObservationIgnored private var session: FlightSession?
     @ObservationIgnored private var replay: Replay?
+    /// The moment of the replayed flight at which it holds by itself, in
+    /// seconds since 1970; `nil` once it has, and for a replay that runs on.
+    @ObservationIgnored private var replayHoldsAt: Double?
     @ObservationIgnored private var ticker: Task<Void, Never>?
     @ObservationIgnored private let location = LocationProvider()
     @ObservationIgnored private let barometer = BarometerProvider()
@@ -503,8 +506,12 @@ final class FlySession {
         }
     }
 
-    /// Plays a recorded flight through the cockpit, to try it on the ground.
-    func startReplay(igcText: String, speed: Double) {
+    /// Plays a recorded flight through the cockpit, to try it on the ground:
+    /// from `fromS` seconds into it, the seconds before fed to the session
+    /// at once, and held by itself `holdingAfterS` seconds of the flight
+    /// later where that is given (`LaunchOptions.replayFrom`, for the UI
+    /// tests).
+    func startReplay(igcText: String, speed: Double, fromS: Double = 0, holdingAfterS: Double? = nil) {
         // A session waiting on the ground, watched for or open, gives way:
         // nothing of it was recorded. A flight that is on does not.
         if mode == .live, view?.recording != true {
@@ -517,7 +524,17 @@ final class FlySession {
             problem = error.words
             return
         }
+        replayHoldsAt = nil
         begin(FlightSession(dataFolder: dataFolder.path), mode: .replay(speed: speed))
+        if let replay, let session {
+            if fromS > 0 {
+                _ = replay.advance(session: session, seconds: fromS)
+            }
+            if let holdingAfterS {
+                replayHoldsAt = replay.now() + holdingAfterS
+            }
+            refresh(elapsed: 0)
+        }
     }
 
     /// The airspace on the line ahead, seen from the side: on the glider's
@@ -776,7 +793,15 @@ final class FlySession {
         guard let session else { return }
         let now: Double
         if let replay, case .replay(let speed) = mode {
-            _ = replay.advance(session: session, seconds: min(elapsed, Self.replayStepAtMostS) * speed)
+            var step = min(elapsed, Self.replayStepAtMostS) * speed
+            if let hold = replayHoldsAt {
+                step = min(step, max(0, hold - replay.now()))
+            }
+            _ = replay.advance(session: session, seconds: step)
+            if let hold = replayHoldsAt, replay.now() >= hold {
+                replayHoldsAt = nil
+                mode = .replay(speed: 0)
+            }
             now = replay.now()
         } else {
             now = Date().timeIntervalSince1970

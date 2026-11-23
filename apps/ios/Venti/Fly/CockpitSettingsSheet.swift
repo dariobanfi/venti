@@ -115,22 +115,35 @@ struct CockpitSettingsSheet: View {
                 }
                 if offersReplay {
                     Section {
-                        Menu {
-                            Button("In real time") {
-                                replay(speed: 1)
-                            }
-                            Button("20 times faster") {
+                        if LaunchOptions.replayFrom != nil {
+                            // A UI test's moment of the flight: no menu,
+                            // which XCTest cannot tap over the cockpit.
+                            Button {
                                 replay(speed: 20)
+                            } label: {
+                                Label("Replay the sample flight", systemImage: "play.fill")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(.rect)
                             }
-                        } label: {
-                            // The whole row opens the menu, not its words
-                            // alone: on a wide iPhone a tap in the row's
-                            // middle fell beside the words and opened nothing.
-                            Label("Replay the sample flight", systemImage: "play.fill")
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(.rect)
+                            .accessibilityIdentifier("replay-sample")
+                        } else {
+                            Menu {
+                                Button("In real time") {
+                                    replay(speed: 1)
+                                }
+                                Button("20 times faster") {
+                                    replay(speed: 20)
+                                }
+                            } label: {
+                                // The whole row opens the menu, not its words
+                                // alone: on a wide iPhone a tap in the row's
+                                // middle fell beside the words and opened nothing.
+                                Label("Replay the sample flight", systemImage: "play.fill")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(.rect)
+                            }
+                            .accessibilityIdentifier("replay-sample")
                         }
-                        .accessibilityIdentifier("replay-sample")
                     } footer: {
                         Text("Plays a recorded flight through the cockpit, to try it on the ground. Nothing is saved.")
                     }
@@ -191,7 +204,9 @@ struct CockpitSettingsSheet: View {
         if case .replay = fly.mode {
             _ = fly.finish()
         }
-        fly.startReplay(igcText: text, speed: speed)
+        fly.startReplay(
+            igcText: text, speed: speed, fromS: LaunchOptions.replayFrom ?? 0, holdingAfterS: LaunchOptions.replayFor
+        )
     }
 }
 

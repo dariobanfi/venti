@@ -158,6 +158,13 @@ final class AirspaceModel {
             serverProblem = nil
             reload()
         } catch {
+            // A task that was cancelled asked nobody: its caller asks anew
+            // (the Fly tab's task is cancelled when the position it is
+            // named by comes in). Taken for a failure, it kept the server
+            // from being asked for five minutes.
+            if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                return
+            }
             failedAt = Date()
             serverProblem = error is CoreError
                 ? error.words

@@ -11,6 +11,13 @@
 #   apps/ios/scripts/ui-tests.sh -n 4 --unit          on 4, and the unit tests first
 #   apps/ios/scripts/ui-tests.sh --unit-only          the unit tests alone, on one
 #   apps/ios/scripts/ui-tests.sh --first "iPhone 17e" testA   that simulator first
+#   apps/ios/scripts/ui-tests.sh --larger testA       with the larger text too
+#
+# The screens at the text size above the largest standard one are left out
+# unless asked for with --larger: the tests named "…LargerText", and the
+# steps of other tests that launch again with larger text. Run them when a
+# screen changes (design/AGENTS.md asks for large text before a screen is
+# done).
 #
 # Run it from anywhere, with the core, the design pack and the project made
 # (build-core.sh, build-design.sh, `xcodegen generate`) and the server built
@@ -35,6 +42,7 @@ first_port=8090
 most=8
 
 count=3
+larger=false
 unit=false
 ui=true
 tests=()
@@ -42,12 +50,13 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -n|--simulators) count="$2"; shift 2 ;;
     --unit) unit=true; shift ;;
+    --larger) larger=true; shift ;;
     --unit-only) unit=true; ui=false; shift ;;
     --first)
       # Never the owner's simulator, by any route.
       [ "$2" = "iPhone 18 Pro" ] && { echo "not the iPhone 18 Pro: the owner looks at it" >&2; exit 2; }
       names=("$2" "${names[@]}"); shift 2 ;;
-    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
     test*) tests+=("$1"); shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -60,7 +69,8 @@ fi
 # The tests to run, sorted by name: all of them, or those named.
 if [ ${#tests[@]} -eq 0 ] && $ui; then
   while read -r name; do tests+=("$name"); done < <(
-    grep -oE 'func test[A-Za-z0-9_]+' apps/ios/VentiUITests/VentiUITests.swift | sed 's/^func //' | LC_ALL=C sort
+    grep -oE 'func test[A-Za-z0-9_]+' apps/ios/VentiUITests/VentiUITests.swift | sed 's/^func //' | LC_ALL=C sort |
+      { if $larger; then cat; else grep -v 'LargerText$' || true; fi }
   )
 elif [ ${#tests[@]} -gt 0 ]; then
   named=("${tests[@]}")
@@ -166,6 +176,24 @@ if ! $ui; then
   exit $failed
 fi
 
+# The names of the tests that failed in a result bundle, one a line. The
+# Python is kept out of the subshell below: macOS's bash 3.2 misreads a
+# quoted "case" inside a process substitution inside a subshell.
+failed_tests() {
+  xcrun xcresulttool get test-results tests --path "$1" | python3 -c '
+import json, sys
+def tests(node):
+    if node.get("nodeType") == "Test Case":
+        yield node
+    for inner in node.get("children", []):
+        yield from tests(inner)
+for root in json.load(sys.stdin).get("testNodes", []):
+    for test in tests(root):
+        if test.get("result") not in ("Passed", "Skipped"):
+            print(test["name"].removesuffix("()"))
+'
+}
+
 # Waits until a server answers its health check.
 answers() {
   for _ in $(seq 1 60); do
@@ -206,19 +234,43 @@ for part in $(seq 1 "$count"); do
     fi
   done
   echo "part $part: ${#only[@]} tests on ${simulator#*|} ($udid), servers on $server and $standin"
-  # A test that fails is run once more in a fresh process, as in the
-  # workflow: a simulator now and then fails to launch the app.
-  TEST_RUNNER_VENTI_SERVER="http://127.0.0.1:$server" \
-  TEST_RUNNER_VENTI_MADE_UP_DAY_SERVER="http://127.0.0.1:$standin" \
-  xcodebuild test-without-building \
-    -project apps/ios/Venti.xcodeproj -scheme Venti \
-    -destination "platform=iOS Simulator,id=$udid" \
-    -derivedDataPath target/apple/DerivedData \
-    -resultBundlePath "$out/part-$part.xcresult" \
-    "${only[@]}" \
-    -retry-tests-on-failure -test-iterations 2 \
-    -test-repetition-relaunch-enabled YES \
-    > "$out/part-$part.log" 2>&1 &
+  # Each part runs its tests once. A test that fails is run once more,
+  # alone, while the part's servers still stand: a simulator now and then
+  # fails to launch the app. Never the whole part again: xcodebuild's own
+  # retry (`-retry-tests-on-failure -test-iterations 2`) started all of a
+  # part's tests a second time.
+  (
+    export TEST_RUNNER_VENTI_SERVER="http://127.0.0.1:$server"
+    export TEST_RUNNER_VENTI_MADE_UP_DAY_SERVER="http://127.0.0.1:$standin"
+    if $larger; then
+      export TEST_RUNNER_VENTI_LARGER_TEXT=1
+    fi
+    xcodebuild test-without-building \
+      -project apps/ios/Venti.xcodeproj -scheme Venti \
+      -destination "platform=iOS Simulator,id=$udid" \
+      -derivedDataPath target/apple/DerivedData \
+      -resultBundlePath "$out/part-$part.xcresult" \
+      "${only[@]}" \
+      > "$out/part-$part.log" 2>&1 && exit 0
+    [ -d "$out/part-$part.xcresult" ] || exit 1
+    status=0
+    retried=0
+    while read -r again; do
+      [ -n "$again" ] || continue
+      retried=$((retried + 1))
+      echo "part $part: $again failed; once more, alone"
+      xcodebuild test-without-building \
+        -project apps/ios/Venti.xcodeproj -scheme Venti \
+        -destination "platform=iOS Simulator,id=$udid" \
+        -derivedDataPath target/apple/DerivedData \
+        -resultBundlePath "$out/part-$part-again-$again.xcresult" \
+        "-only-testing:VentiUITests/VentiUITests/$again" \
+        > "$out/part-$part-again-$again.log" 2>&1 || status=1
+    done < <(failed_tests "$out/part-$part.xcresult")
+    # Failed without a failed test: the run itself broke.
+    [ "$retried" -gt 0 ] || status=1
+    exit $status
+  ) &
   parts+=($!)
 done
 
@@ -237,6 +289,16 @@ for part in $(seq 1 "$count"); do
   rm -rf "$out/attachments-$part"
   xcrun xcresulttool export attachments --path "$bundle" --output-path "$out/attachments-$part" > /dev/null
   xcrun xcresulttool get test-results tests --path "$bundle" > "$out/tests-$part.json"
+  # The second runs of the tests that failed: their screenshots replace
+  # the first run's.
+  for again in "$out"/part-$part-again-*.xcresult; do
+    [ -d "$again" ] || continue
+    name="${again##*/part-$part-again-}"
+    name="${name%.xcresult}"
+    rm -rf "$out/attachments-$part-again-$name"
+    xcrun xcresulttool export attachments --path "$again" --output-path "$out/attachments-$part-again-$name" > /dev/null
+    xcrun xcresulttool get test-results tests --path "$again" > "$out/tests-$part-again-$name.json"
+  done
 done
 python3 - "$out" "$count" "$(printf '%s|' "${simulators[@]}")" <<'EOF' || failed=1
 import json, pathlib, re, shutil, sys
@@ -244,38 +306,56 @@ import json, pathlib, re, shutil, sys
 out, count = pathlib.Path(sys.argv[1]), int(sys.argv[2])
 names = sys.argv[3].strip("|").split("|")[1::2]
 target = out / "screenshots"
-lines, failures = [], 0
-for part in ["unit"] + list(range(1, count + 1)):
-    source = out / f"attachments-{part}"
-    if (source / "manifest.json").exists():
-        for test in json.loads((source / "manifest.json").read_text()):
-            for attachment in test.get("attachments", []):
-                exported = attachment["exportedFileName"]
-                name = attachment.get("suggestedHumanReadableName") or exported
-                # "light-1-map_0_<UUID>.png" becomes "light-1-map.png".
-                name = re.sub(r"_\d+_[0-9A-Fa-f-]{36}(\.\w+)$", r"\1", name)
-                if name.endswith(".png"):
-                    shutil.copy(source / exported, target / name)
-    results = out / f"tests-{part}.json"
-    if not results.exists():
-        continue
 
-    def cases(node):
-        if node.get("nodeType") == "Test Case":
-            yield node
-        for child in node.get("children", []):
-            yield from cases(child)
 
-    for root in json.loads(results.read_text()).get("testNodes", []):
+def copy_screenshots(source):
+    if not (source / "manifest.json").exists():
+        return
+    for test in json.loads((source / "manifest.json").read_text()):
+        for attachment in test.get("attachments", []):
+            exported = attachment["exportedFileName"]
+            name = attachment.get("suggestedHumanReadableName") or exported
+            # "light-1-map_0_<UUID>.png" becomes "light-1-map.png".
+            name = re.sub(r"_\d+_[0-9A-Fa-f-]{36}(\.\w+)$", r"\1", name)
+            if name.endswith(".png"):
+                shutil.copy(source / exported, target / name)
+
+
+def cases(node):
+    if node.get("nodeType") == "Test Case":
+        yield node
+    for child in node.get("children", []):
+        yield from cases(child)
+
+
+def results(path):
+    found = {}
+    for root in json.loads(path.read_text()).get("testNodes", []):
         for case in cases(root):
-            result = case.get("result", "?")
-            failures += result != "Passed"
-            lines.append(
-                f"{result.lower():8} {case.get('durationInSeconds', 0):6.0f} s  "
-                f"{case['name'].removesuffix('()'):55} part {part}, {names[part - 1]}"
-            )
+            found[case["name"].removesuffix("()")] = (case.get("result", "?"), case.get("durationInSeconds", 0))
+    return found
+
+
+lines, failures = [], 0
+copy_screenshots(out / "attachments-unit")
+for part in range(1, count + 1):
+    copy_screenshots(out / f"attachments-{part}")
+    first = out / f"tests-{part}.json"
+    if not first.exists():
+        continue
+    for name, (result, seconds) in results(first).items():
+        note = ""
+        again = out / f"tests-{part}-again-{name}.json"
+        if result not in ("Passed", "Skipped") and again.exists():
+            copy_screenshots(out / f"attachments-{part}-again-{name}")
+            second, more = results(again).get(name, ("?", 0))
+            note = f" (failed, then {second.lower()} alone in {more:.0f} s)"
+            result = second
+        failures += result not in ("Passed", "Skipped")
+        lines.append(f"{result.lower():8} {seconds:6.0f} s  {name:55} part {part}, {names[part - 1]}{note}")
 for line in sorted(lines, key=lambda l: l.split()[2]):
     print(line)
+print(f"{len(lines)} tests, {failures} failed")
 sys.exit(1 if failures else 0)
 EOF
 

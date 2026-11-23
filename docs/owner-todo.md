@@ -34,11 +34,7 @@ A short list to pick up when there is time. Each line says what to do and where 
 - [ ] **Lombardy's stations** arrive two to six hours late and are switched off. Show them as old readings instead? (18)
 - [ ] **Pioupiou's condition:** while it is used, no station source may join that is not open for commercial reuse, which rules out Holfuy by permission (22).
 - [ ] **Short names** "Pioupiou" (it calls itself OpenWindMap) and "South Tyrol": the names pilots know? (26)
-- [ ] **The credits behind the map's "i"** run to eight lines on a small phone with large text. Shorten them only if that still satisfies each licence, which is not verified (27).
 - [ ] **A suspended account** can still agree to an assistant on the server's own password form, not on the web's page (20).
-- [ ] **Your local stack:** the repository's rule says to rebuild it without a database dump first; sessions have been taking one each time. Which do you want?
-- [ ] **"Send to a league"** stays the main button on your own flight, because the design's flight screen has it there. Move it into the "…" menu?
-- [ ] **On the iPhone a station's network** stands as a grey subtitle under the title, in the system's font; on the web it heads the "Source" card. One manner for both?
 - [ ] **Icons the design pack lacks:** Android's two QR icons were drawn from memory of an open icon set, and the iPhone's radar switch uses a system symbol. The web's Community section uses Lucide's "users" for people (2026-11-23). Supply icons for a QR code, scanning one, the radar and people, or say that stand-ins are fine.
 - [ ] **A real phone's camera** has never read a task's QR code on Android: the tests have none. Try it once with a code from XCTrack or from the iPhone.
 

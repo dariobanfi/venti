@@ -1129,7 +1129,10 @@ final class VentiUITests: XCTestCase {
     /// flight. Replayed at twenty times its speed, the glider comes near it
     /// after about a minute, and the cockpit says so.
     func testTheCockpitWarnsOfAirspace() {
-        let app = launch(bundledMap: true, extra: ["--sample-airspace"])
+        // "My flights" on the map tab for this launch alone (UserDefaults'
+        // argument domain, nothing kept): the map then moves to the
+        // sample flight once it is in the logbook, beside the zone.
+        let app = launch(bundledMap: true, extra: ["--sample-airspace", "-VentiMapShowsMyFlights", "YES"])
 
         // The map tab's airspace is off while the cockpit flies: its
         // warnings must not depend on what that map draws. (The choice is
@@ -1216,7 +1219,8 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("settings-4-airspace")
 
         // And the zone on the map: with the sample flight in the logbook
-        // the map shows the valley the flight ends in, beside the zone.
+        // and "My flights" shown, the map shows the valley the flight
+        // ends in, beside the zone.
         openTab("Logbook", in: app)
         app.buttons["Add a sample flight"].tap()
         XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 30))
@@ -3754,9 +3758,21 @@ final class VentiUITests: XCTestCase {
         let isIn = app.buttons
             .matching(NSPredicate(format: "identifier == 'plan-card-in' AND value == %@", name)).firstMatch
         XCTAssertTrue(isIn.waitForExistence(timeout: 10))
-        // The cards stand side by side: the new one is brought in.
-        for _ in 0..<6 where !isOnScreen(isIn, in: app) {
-            element("plan-card", in: app).swipeLeft()
+        // The cards stand side by side: the new one is brought in, the
+        // row first up or down into the screen (with the larger text the
+        // cards are taller than what is left of it), then by swiping a
+        // card that is on it.
+        let window = app.windows.firstMatch.frame
+        for _ in 0..<8 where !isOnScreen(isIn, in: app) {
+            if isIn.frame.minY < window.minY + 100 {
+                app.swipeDown()
+            } else if isIn.frame.maxY > window.maxY - 100 {
+                app.swipeUp()
+            } else {
+                let cards = app.descendants(matching: .any).matching(identifier: "plan-card")
+                let shown = cards.allElementsBoundByIndex.first { isOnScreen($0, in: app) }
+                (shown ?? card).swipeLeft()
+            }
             usleep(500_000)
         }
         XCTAssertTrue(isIn.isSelected)
@@ -3811,6 +3827,9 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("larger-dark-cockpit-2-glider-and-cockpit-lower")
         app.navigationBars.buttons.firstMatch.tap()
 
+        // The app's settings are titled "Settings" as the cockpit's are:
+        // the replay is in the cockpit's, opened from the Fly tab.
+        openTheCockpitsSettings(in: app)
         replayTheSampleFlight(in: app)
         XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
         XCTAssertTrue(swipePage(toNext: true, in: app).hasPrefix("Map"))
@@ -4015,21 +4034,15 @@ final class VentiUITests: XCTestCase {
         // As on a new iPhone: Venti does not know where the pilot is until
         // the pilot says it may, further down.
         XCUIApplication().resetAuthorizationStatus(for: .location)
-        let app = launch(bundledMap: true, extra: ["--server", server])
+        // The same server knows the flying sites. They are drawn once the
+        // map shows a valley and not a country: the map opens on the
+        // Tegernsee's. (The pilot's flights move the map only while "My
+        // flights" is switched on, which it is not until the pilot does.)
+        let app = launch(bundledMap: true, extra: ["--server", server, "--map-at", "47.67,11.68,9.3"])
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
         // The map tab's airspace is off from here to the end: what the
         // cockpit warns from must not depend on what that map draws.
         setAirspace(on: false, in: app)
-
-        // The same server knows the flying sites. They are drawn once the
-        // map shows a valley and not a country: with the sample flight in
-        // the logbook the map shows the valley it was flown in.
-        openTab("Logbook", in: app)
-        app.buttons["Add a sample flight"].tap()
-        XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 30))
-        app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(element("logbook-row", in: app).waitForExistence(timeout: 15))
-        openTab("Map", in: app)
         XCTAssertTrue(waitForCredit("Sites", in: app))
         sleep(4)
         keepScreenshot("sites-1-map")
@@ -4125,10 +4138,18 @@ final class VentiUITests: XCTestCase {
         allow.tap()
 
         // The Fly tab asks for the airspace around the pilot by itself and
-        // the cockpit's settings say what it will warn from.
+        // the cockpit's settings say what it will warn from. The Fly tab is
+        // the cockpit, and a location manager started after the simulated
+        // position was set hears of it only once it changes: the iPhone
+        // wanders by half a metre each second, as a receiver's positions do.
         openTheCockpitsSettings(in: app)
         XCTAssertTrue(line.waitForExistence(timeout: 30))
-        XCTAssertTrue(saying("openAIP", in: app).waitForExistence(timeout: 90))
+        let openAIP = saying("openAIP", in: app)
+        for _ in 0..<90 where !openAIP.exists {
+            put(metresNorth: 0, altitude: Self.takeoffGroundM, speed: 0)
+            sleep(1)
+        }
+        XCTAssertTrue(openAIP.exists)
         keepScreenshot("airspace-1-before-takeoff")
 
         line.tap()
@@ -4646,7 +4667,9 @@ final class VentiUITests: XCTestCase {
     /// pilot's phone draws them. Only the screenshots matter here: the test
     /// does not fail when the network is slow.
     func testTheMapWithTilesFromTheNetwork() {
-        let app = launch(bundledMap: false)
+        // "My flights" on the map tab for this launch alone, so that the
+        // map tab shows the valley of the sample flight further down.
+        let app = launch(bundledMap: false, extra: ["-VentiMapShowsMyFlights", "YES"])
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
         sleep(12)
         keepScreenshot("online-1-map")
@@ -5226,15 +5249,17 @@ extension VentiUITests {
         }
         leaveTheSitesFilterAskingNothing()
         let account = try await makeAccount(on: server)
-        // "Musterkogel West" in the map's middle, so close that a finger's
-        // width is a few metres: at zoom 19 a point is a tenth of a metre.
-        let app = launch(bundledMap: true, extra: ["--server", server, "--map-at", "47.3,10.9,19", "--all-sites"])
+        // "Musterkogel West" in the map's middle, at zoom 16, where a point
+        // is some 0.8 m.
+        var app = launch(bundledMap: true, extra: ["--server", server, "--map-at", "47.3,10.9,16", "--all-sites"])
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
         signIn(account, in: app)
 
-        // Some 27 m north-west of it: a place of its own. An account the
-        // test made is an ordinary pilot: the entry and the form are the
-        // crowdsourced tier's, in the core's words.
+        // Some 220 m north-west of it: a place of its own. (Within 150 m,
+        // `SAME_PLACE_M`, a take-off from pilots is the partner's take-off
+        // and is left out of the answer, owner decision 22.) An account
+        // the test made is an ordinary pilot: the entry and the form are
+        // the crowdsourced tier's, in the core's words.
         let entry = pressTheMap(dx: -140, dy: -230, in: app)
         XCTAssertEqual(entry.label, "Add a place pilots take off from")
         sleep(2)
@@ -5368,9 +5393,16 @@ extension VentiUITests {
         app.buttons["Done"].firstMatch.tap()
         sleep(2)
 
-        // On top of "Musterkogel West": some ten metres south of it, under
-        // its sign. The server refuses, and the core names the site.
-        pressTheMap(dx: 0, dy: 100, in: app).tap()
+        // On top of "Musterkogel West": some twelve metres east of it,
+        // beside its sign (under it lies the panel at the map's foot). The
+        // server refuses, and the core names the site. The map so close
+        // that a finger's width is a few metres: at zoom 19 a point is a
+        // tenth of a metre. (A launch signs out.)
+        app.terminate()
+        app = launch(bundledMap: true, extra: ["--server", server, "--map-at", "47.3,10.9,19", "--all-sites"])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(account, in: app)
+        pressTheMap(dx: 120, dy: -40, in: app).tap()
         let second = element("site-name", in: app)
         XCTAssertTrue(second.waitForExistence(timeout: 15))
         second.tap()

@@ -8,14 +8,6 @@
 -->
 <plist version="1.0">
 <dict>
-	<!--
-	  Push through Apple's service (owner decision 24): "development" for a
-	  Debug build, whose token is of Apple's sandbox, "production" for a
-	  Release build (VENTI_APS_ENVIRONMENT in Base.xcconfig). A signed build
-	  needs Push Notifications on the App ID and in its profile.
-	-->
-	<key>aps-environment</key>
-	<string>$(VENTI_APS_ENVIRONMENT)</string>
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>$(VENTI_APP_GROUP)</string>

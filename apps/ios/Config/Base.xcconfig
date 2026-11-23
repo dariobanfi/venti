@@ -17,6 +17,11 @@ VENTI_PROFILE =
 VENTI_WIDGET_PROFILE =
 VENTI_APP_GROUP = group.$(VENTI_BUNDLE_ID)
 
+// The app's entitlements: without push by default, so that a free Apple
+// ID's team can sign it; Local.xcconfig names Config/VentiPush.entitlements
+// for a paid team's build that receives push.
+VENTI_ENTITLEMENTS = Config/Venti.entitlements
+
 // Apple's push service (the app's entitlement aps-environment): a Debug
 // build registers with the sandbox and tells Venti so, a Release build
 // with production. A build for an iPhone needs Push Notifications on the

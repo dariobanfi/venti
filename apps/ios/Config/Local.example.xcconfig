@@ -24,3 +24,8 @@ VENTI_BUNDLE_ID = fly.venti.app.yourname
 // VENTI_PROFILE = Name of the provisioning profile
 // VENTI_WIDGET_PROFILE = Name of the profile for the widget (identifier + ".widget")
 // VENTI_BUNDLE_ID = com.example.identifier-in-the-profile
+
+// Push to this iPhone needs a paid Apple Developer Program team (a free
+// Apple ID's cannot sign it), Push Notifications on the App ID, and the
+// server's APNs key. Then:
+// VENTI_ENTITLEMENTS = Config/VentiPush.entitlements

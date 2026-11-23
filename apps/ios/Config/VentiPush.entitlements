@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Venti.entitlements with push through Apple's service: taken only where
+  Local.xcconfig sets VENTI_ENTITLEMENTS to this file (a paid Apple
+  Developer Program team; a free Apple ID's team cannot sign push).
+
+  The folder the app and its home-screen widget share: the app writes the
+  next days at the pilot's take-offs there, the widget reads them. The
+  group's name follows the bundle identifier (VENTI_APP_GROUP in
+  Base.xcconfig), so it holds no team and no personal data.
+-->
+<plist version="1.0">
+<dict>
+	<!--
+	  Push through Apple's service (owner decision 24): "development" for a
+	  Debug build, whose token is of Apple's sandbox, "production" for a
+	  Release build (VENTI_APS_ENVIRONMENT in Base.xcconfig). A signed build
+	  needs Push Notifications on the App ID and in its profile.
+	-->
+	<key>aps-environment</key>
+	<string>$(VENTI_APS_ENVIRONMENT)</string>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>$(VENTI_APP_GROUP)</string>
+	</array>
+</dict>
+</plist>

@@ -67,7 +67,7 @@ targets:
         PROVISIONING_PROFILE_SPECIFIER: $(VENTI_PROFILE)
         # The folder the app and its widget share (VENTI_APP_GROUP, in
         # Config/Base.xcconfig): the app writes there what the widget draws.
-        CODE_SIGN_ENTITLEMENTS: Config/Venti.entitlements
+        CODE_SIGN_ENTITLEMENTS: $(VENTI_ENTITLEMENTS)
         # Xcode writes the Info.plist from the keys below and merges in this
         # file, which declares the flight-file type the app opens.
         INFOPLIST_FILE: Venti/Info.plist

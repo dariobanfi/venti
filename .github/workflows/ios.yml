@@ -245,8 +245,6 @@ jobs:
             -derivedDataPath target/apple/DerivedData \
             -resultBundlePath target/apple/Venti.xcresult \
             $ONLY_TESTING \
-            -retry-tests-on-failure -test-iterations 2 \
-            -test-repetition-relaunch-enabled YES \
             CODE_SIGN_IDENTITY=- \
             2>&1 | tee target/apple/xcodebuild.log \
             | grep -E "^Test (Suite|Case) |Executed [0-9]+ tests|(error|warning): |\*\* TEST"

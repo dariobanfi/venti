@@ -17,7 +17,10 @@
 //!
 //! # The requests
 //!
-//! Two per model, one after the other:
+//! Two per model, one after the other, for each model that has values
+//! where the place is: ICON-D2's grid ends between 43.5° and 43.7° N in
+//! the Alps' box, and the instance refuses a place beyond it, so ICON-D2 is
+//! asked for nothing south of 43.7° N (`ICON_D2_REACH`).
 //!
 //! 1. `{base}/data/{model}/static/meta.json` says which run of the model
 //!    the instance holds, when that run began and when the instance had it
@@ -135,12 +138,53 @@ struct Model {
     /// third day after today: four days hold all of it but that one
     /// hour of the night.
     days: u32,
+    /// Where the model has values, as a box: `None` for a model that has
+    /// them wherever a server of the Alps asks.
+    reach: Option<Reach>,
 }
+
+/// The box a regional model has values in, degrees.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Reach {
+    south: f64,
+    west: f64,
+    north: f64,
+    east: f64,
+}
+
+impl Reach {
+    fn holds(&self, point: GeoPoint) -> bool {
+        (self.south..=self.north).contains(&point.lat())
+            && (self.west..=self.east).contains(&point.lon())
+    }
+}
+
+/// Where ICON-D2 has values. Its grid is triangles over a box in rotated
+/// coordinates, so its southern edge is a curve: lowest at its west and
+/// east ends and highest around 10° E. Asked on 2026-11-23 every 0.1°
+/// along the box of the three Alpine regions (5.0° to 17.2° E), the
+/// owner's instance answered "No data is available for this location"
+/// (status 400) at 43.5° N everywhere but 15.4° to 15.5° E and 15.8° to
+/// 17.2° E, and at 43.6° N between 6.2° and 13.5° E with gaps; it answered
+/// at 43.70° N every 0.02° from 5.0° to 17.2° E, in one request. A request
+/// for several places is refused whole when one of them lies outside, so
+/// the adapter asks ICON-D2 for nothing south of 43.7° N. The other three
+/// edges are those of DWD's regular grid of the model (43.18° to 58.08° N,
+/// 3.94° W to 20.34° E), rounded inward: *to verify* against the native
+/// grid, which nothing of Venti's comes near.
+const ICON_D2_REACH: Reach = Reach {
+    south: 43.7,
+    west: -3.9,
+    north: 58.0,
+    east: 20.3,
+};
 
 /// The models, as Open-Meteo's own downloader takes them from Deutscher
 /// Wetterdienst (`IconDownloadDomains.swift`, read on 2026-11-19): every
 /// run of ICON-D2 reaches 48 hours; a run of ICON-EU at 00, 06, 12 or 18 UTC
-/// has every hour to the 78th, and one in between reaches 30 hours.
+/// has every hour to the 78th, and one in between reaches 30 hours. ICON-EU
+/// covers Europe, and every place of the Alps' box had values on
+/// 2026-11-23.
 const MODELS: [Model; 2] = [
     Model {
         id: "icon-d2",
@@ -149,6 +193,7 @@ const MODELS: [Model; 2] = [
         main_reach_h: 48,
         between_reach_h: 48,
         days: 3,
+        reach: Some(ICON_D2_REACH),
     },
     Model {
         id: "icon-eu",
@@ -157,8 +202,15 @@ const MODELS: [Model; 2] = [
         main_reach_h: 78,
         between_reach_h: 30,
         days: 4,
+        reach: None,
     },
 ];
+
+impl Model {
+    fn covers(&self, point: GeoPoint) -> bool {
+        self.reach.is_none_or(|reach| reach.holds(point))
+    }
+}
 
 /// The values at the ground: the canonical field, Open-Meteo's variable and
 /// the unit it must come in.
@@ -453,12 +505,18 @@ impl ForecastSource for OpenMeteo {
         &self.manifest
     }
 
-    /// One request per model: which run does the instance hold?
-    fn plan(&self, _point: GeoPoint, _ctx: &PlanCtx) -> Vec<Request> {
+    /// One request per model that has values for the place: which run
+    /// does the instance hold?
+    fn plan(&self, point: GeoPoint, _ctx: &PlanCtx) -> Vec<Request> {
         MODELS
             .iter()
+            .filter(|model| model.covers(point))
             .map(|model| Request::new(format!("run:{}", model.id), self.run_url(model)))
             .collect()
+    }
+
+    fn covers(&self, model: &ModelId, point: GeoPoint) -> bool {
+        self::model(model.as_str()).is_some_and(|model| model.covers(point))
     }
 
     fn parse(
@@ -498,10 +556,15 @@ impl ForecastSource for OpenMeteo {
     }
 
     /// One request for the run the instance holds of the model, then one
-    /// for the forecast of all the places.
+    /// for the forecast of all the places. None if one of the places lies
+    /// where the model has no values: the instance would refuse them all.
     fn plan_places(&self, model: &ModelId, points: &[GeoPoint], _ctx: &PlanCtx) -> Vec<Request> {
         match self::model(model.as_str()) {
-            Some(model) if !points.is_empty() && points.len() <= PLACES_PER_REQUEST => {
+            Some(model)
+                if !points.is_empty()
+                    && points.len() <= PLACES_PER_REQUEST
+                    && points.iter().all(|point| model.covers(*point)) =>
+            {
                 vec![Request::new(
                     format!("run:{}", model.id),
                     self.run_url(model),
@@ -960,5 +1023,41 @@ mod tests {
             ..d2
         };
         assert!(!long.covers(at(21, 16)));
+    }
+
+    #[test]
+    fn icon_d2_is_not_asked_for_places_south_of_its_grid() {
+        let source = source();
+        let ctx = PlanCtx {
+            now: DateTime::from_timestamp(1_795_435_200, 0).unwrap(),
+            area: venti_domain::BoundingBox::new(43.5, 5.0, 48.5, 17.2).unwrap(),
+        };
+        let d2 = ModelId::new("icon-d2").unwrap();
+        let eu = ModelId::new("icon-eu").unwrap();
+        let inside = GeoPoint::new(43.7, 9.0).unwrap();
+        let south = GeoPoint::new(43.6, 9.0).unwrap();
+        // The instance answered at 43.70° N all along the Alps' box, and
+        // refused 43.6° N here.
+        assert!(source.covers(&d2, inside));
+        assert!(!source.covers(&d2, south));
+        assert!(source.covers(&eu, south));
+        assert!(!source.covers(&ModelId::new("gfs").unwrap(), inside));
+
+        // A place's forecast asks ICON-EU alone there.
+        let tags = |point| -> Vec<String> {
+            source
+                .plan(point, &ctx)
+                .into_iter()
+                .map(|request| request.tag)
+                .collect()
+        };
+        assert_eq!(tags(inside), ["run:icon-d2", "run:icon-eu"]);
+        assert_eq!(tags(south), ["run:icon-eu"]);
+
+        // A request for several places that has one of them south of the
+        // grid would be refused whole, so it is not made.
+        assert_eq!(source.plan_places(&d2, &[inside], &ctx).len(), 1);
+        assert!(source.plan_places(&d2, &[inside, south], &ctx).is_empty());
+        assert_eq!(source.plan_places(&eu, &[inside, south], &ctx).len(), 1);
     }
 }

@@ -76,7 +76,9 @@ sources = ["osm-free-flying"]
 priority = ["osm-free-flying"]
 
 # No [cables], no [forecasts] and no [radar] yet, for the reasons
-# regions/alps-west/region.toml gives.
+# regions/alps-west/region.toml gives. ICON-D2's grid ends between 43.5°
+# and 43.7° N, in this box's south: there a place's forecast and the map
+# have ICON-EU alone.
 
 # Aircraft that the Open Glider Network hears, as in the first region.
 [live]

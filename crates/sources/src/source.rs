@@ -242,6 +242,15 @@ pub trait ForecastSource: Send + Sync {
         ctx: &PlanCtx,
     ) -> Result<ParsedForecast, SourceError>;
 
+    /// Whether a model of the source has values for a place at all. A
+    /// regional model ends somewhere, and a provider may refuse a whole
+    /// request for several places when one of them lies beyond that: such
+    /// places are not asked for. True, the default, for a source whose
+    /// models cover every place it is listed for.
+    fn covers(&self, _model: &ModelId, _point: GeoPoint) -> bool {
+        true
+    }
+
     /// How many places one forecast of [`plan_places`](Self::plan_places)
     /// may be asked for. Zero, the default, for a source that answers for
     /// one place at a time only.

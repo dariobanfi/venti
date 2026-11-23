@@ -79,8 +79,17 @@ priority = ["ffvl-sites", "osm-free-flying"]
 
 # No [forecasts] yet: the thermal map is made over the box its source is
 # listed for, and the whole Alps are 6,273 cells against the first
-# region's 1,817. That has to run against the forecast service once before
-# it is listed.
+# region's 1,817: ICON-D2 for 6,027 of them in 76 requests a run, ICON-EU
+# for all in 79. ICON-D2's grid ends between 43.5° and 43.7° N, and since
+# 2026-11-23 the adapter asks it for nothing south of 43.7° N
+# (ICON_D2_REACH in crates/sources-openmeteo). Measured that day against
+# the owner's instance, which reads the models from Open-Meteo's bucket as
+# it is asked (REMOTE_DATA_DIRECTORY, an 8 GB cache that is full): 80
+# places of ICON-D2 at 45° N took 160 s the first time and 0.18 s the
+# second. The server gives a request 120 s, so every request of a part of
+# the map the cache does not hold fails, and the map waits ten minutes for
+# the next look. Listed once the instance holds the models of the box on
+# its own disk, or answers a cold request within the 120 s.
 
 # No [radar] yet. DWD's composite sees 150 km around the Feldberg, which is
 # the north of Switzerland and the Vosges, and nothing of the French or

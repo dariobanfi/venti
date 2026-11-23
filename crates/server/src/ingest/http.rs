@@ -50,14 +50,22 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// answers.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 
+/// How long a request to a service beside the server (one the
+/// configuration names with `http://`) may take: a self-hosted Open-Meteo reads a model's part from its bucket the
+/// first time it is asked for it, which took 160 s on 2026-11-23, and the
+/// thermal map then waited ten minutes for its next look.
+const OWN_SERVICE_TIMEOUT: Duration = Duration::from_secs(600);
+
 /// How many redirects within one host are followed.
 const MAX_REDIRECTS: usize = 3;
 
 /// Fetches over HTTPS.
 pub struct HttpFetch {
     client: reqwest::Client,
-    /// The origins that may be asked without encryption.
-    plain_http: Vec<Origin>,
+    /// The origins of services beside the server, which the configuration
+    /// names with `http://`: asked without encryption and with
+    /// [`OWN_SERVICE_TIMEOUT`].
+    beside: Vec<Origin>,
 }
 
 /// A scheme, a host and a port: what a browser calls an origin.
@@ -112,12 +120,12 @@ impl HttpFetch {
             .map_err(|e| format!("cannot create the HTTP client: {e}"))?;
         Ok(Self {
             client,
-            plain_http: Vec::new(),
+            beside: Vec::new(),
         })
     }
 
     /// Lets the fetcher ask the given addresses without encryption, if
-    /// they begin with `http://`.
+    /// they begin with `http://`, and gives those [`OWN_SERVICE_TIMEOUT`].
     ///
     /// These are addresses from the server's configuration and from
     /// nowhere else: a service whoever runs the server keeps beside it,
@@ -131,8 +139,8 @@ impl HttpFetch {
         for address in addresses {
             let url = Url::parse(address).map_err(|e| format!("{address:?}: {e}"))?;
             let origin = Origin::of(&url).ok_or_else(|| format!("{address:?} names no host"))?;
-            if origin.scheme == "http" && !self.plain_http.contains(&origin) {
-                self.plain_http.push(origin);
+            if origin.scheme == "http" && !self.beside.contains(&origin) {
+                self.beside.push(origin);
             }
         }
         Ok(self)
@@ -145,7 +153,7 @@ impl HttpFetch {
         let origin = Origin::of(&url).ok_or_else(|| refused("it names no host"))?;
         match origin.scheme.as_str() {
             "https" => Ok(url),
-            "http" if self.plain_http.contains(&origin) => Ok(url),
+            "http" if self.beside.contains(&origin) => Ok(url),
             "http" => Err(refused(
                 "only HTTPS is fetched, and plain HTTP from the addresses the server's \
                  configuration names",
@@ -164,7 +172,11 @@ impl Fetch for HttpFetch {
 
     async fn get_within(&self, request: &Request, max_bytes: usize) -> Result<Fetched, FetchError> {
         let url = self.allowed(&request.url)?;
-        let mut response = self.client.get(url).send().await.map_err(transport)?;
+        let mut asked = self.client.get(url.clone());
+        if Origin::of(&url).is_some_and(|origin| self.beside.contains(&origin)) {
+            asked = asked.timeout(OWN_SERVICE_TIMEOUT);
+        }
+        let mut response = asked.send().await.map_err(transport)?;
         let status = response.status();
         if status.is_redirection() {
             return Err(redirected_elsewhere(&response));

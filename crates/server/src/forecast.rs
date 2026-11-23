@@ -142,6 +142,13 @@ pub trait Forecasts: Send + Sync {
     /// the service does not have.
     fn places_per_request(&self, source: &SourceId) -> usize;
 
+    /// Whether a model of a source has values for a place at all: the
+    /// thermal map asks a model for the cells it covers and no others. True
+    /// by default, for a service whose models cover every place.
+    fn covers(&self, _source: &SourceId, _model: &ModelId, _point: GeoPoint) -> bool {
+        true
+    }
+
     /// The forecast of one model of a source for several places at once,
     /// for the server's thermal map: at most as many places as the
     /// source takes in one request, fetched now and not kept, and not
@@ -704,6 +711,14 @@ where
             .iter()
             .find(|covered| &covered.source.manifest().id == source)
             .map_or(0, |covered| covered.source.places_per_request())
+    }
+
+    fn covers(&self, source: &SourceId, model: &ModelId, point: GeoPoint) -> bool {
+        self.0
+            .sources
+            .iter()
+            .find(|covered| &covered.source.manifest().id == source)
+            .is_some_and(|covered| covered.source.covers(model, point))
     }
 
     fn places<'a>(

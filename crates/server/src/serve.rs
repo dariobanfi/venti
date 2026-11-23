@@ -7,7 +7,6 @@ use axum::Router;
 use chrono::Duration;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
-use venti_domain::ModelId;
 use venti_store::PgStore;
 
 use crate::accounts::password::Cost;
@@ -159,14 +158,15 @@ pub async fn serve(config: Config) -> Result<(), String> {
             .with_keeper(Arc::new(InStore(store.clone())))
             .with_alerts(checks.clone());
         tracing::info!(
-            "thermal map: {} cells of {}, {} requests a run of each",
+            "thermal map: {} cells; {}",
             map.cells(),
-            map.models()
-                .iter()
-                .map(ModelId::as_str)
-                .collect::<Vec<_>>()
-                .join(" and "),
             map.requests_per_map()
+                .iter()
+                .map(|(model, cells, requests)| format!(
+                    "{model} for {cells} of them in {requests} requests a run"
+                ))
+                .collect::<Vec<_>>()
+                .join(", ")
         );
         Some(Arc::new(map))
     });

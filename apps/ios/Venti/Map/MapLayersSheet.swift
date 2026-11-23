@@ -1,10 +1,11 @@
 import SwiftUI
 import VentiCore
 
-/// What the map tab keeps off the map: every layer as a switch, the
-/// chips' four among them in the chips' state, and the lists of what the
-/// map shows as rows. The map itself
-/// has four chips and three round buttons (airspace, this sheet and the
+/// What the map tab lays over what it shows: every layer as a switch
+/// (sites, the pilot's own flights, airspace, pilots, cables, the thermal
+/// map, the aerial view, climbs and flown thermals), and the lists of what
+/// the map shows as rows. The map itself has the chips of what it shows,
+/// one at a time, and three round buttons (airspace, this sheet and the
 /// position), and this sheet behind the second of those.
 struct MapLayersSheet: View {
     /// A list or a form the sheet's rows open, once the sheet has closed.
@@ -32,15 +33,16 @@ struct MapLayersSheet: View {
     var climbsWords = ""
     /// The same for where thermals have been.
     var flownWords = ""
+    /// What the cables' layer cannot promise, in the core's words: behind
+    /// the layer's "i".
+    var cablesNote = ""
+    /// Whether the pilot has flights to draw: the switch is there only then.
+    var hasMyFlights = false
     let open: (Opening) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    /// The four the map's chips switch, here in the same state: they are
-    /// the same four preferences.
-    @AppStorage(Preferences.mapShowsForecast) private var showsForecast = false
-    @AppStorage(Preferences.mapShowsRadar) private var showsRadar = false
-    @AppStorage(Preferences.mapHidesWind) private var hidesWind = false
     @AppStorage(Preferences.mapHidesSites) private var hidesSites = false
+    @AppStorage(Preferences.mapShowsMyFlights) private var showsMyFlights = false
     @AppStorage(Preferences.mapShowsAirspace) private var showsAirspace = false
     @AppStorage(Preferences.mapHidesPilots) private var hidesPilots = false
     @AppStorage(Preferences.mapHidesCables) private var hidesCables = false
@@ -48,40 +50,34 @@ struct MapLayersSheet: View {
     @AppStorage(Preferences.mapShowsClimbs) private var showsClimbs = false
     @AppStorage(Preferences.mapShowsFlownThermals) private var showsFlown = false
     @AppStorage(Preferences.mapShowsThermalMap) private var showsThermalMap = false
+    /// Whether the cables' note behind its "i" is shown.
+    @State private var showsCablesNote = false
 
     var body: some View {
         let words = mapLayersWords()
         NavigationStack {
             VentiList {
                 Section {
-                    // Every layer is a switch here, the chips' four among
-                    // them, each only where its chip is: the kind of day,
-                    // the rain, the wind and the sites, in the order the
-                    // three apps have them.
+                    // Every layer laid over what the map shows is a switch
+                    // here: the sites first, then the pilot's own flights,
+                    // off until switched on.
                     if offers.hasServer {
-                        Toggle(isOn: $showsForecast) {
-                            Label(words.forecast, image: "icon-forecast")
+                        Toggle(isOn: shown($hidesSites)) {
+                            Label(words.sites, image: "icon-site")
                         }
-                        .accessibilityIdentifier("layers-forecast")
-                        // The pack has no sign for rain: the system's.
-                        Toggle(isOn: $showsRadar) {
-                            Label(words.radar, systemImage: "cloud.rain")
+                        .accessibilityIdentifier("layer-sites")
+                    }
+                    if hasMyFlights || showsMyFlights {
+                        Toggle(isOn: $showsMyFlights) {
+                            Label(words.myFlights, image: "icon-track")
                         }
-                        .accessibilityIdentifier("layers-radar")
-                        Toggle(isOn: shown($hidesWind)) {
-                            Label(words.wind, image: "icon-wind")
-                        }
-                        .accessibilityIdentifier("layers-wind")
+                        .accessibilityIdentifier("layer-my-flights")
                     }
                     Toggle(isOn: $showsAirspace) {
                         Label(words.airspace, image: "icon-airspace")
                     }
                     .accessibilityIdentifier("layer-airspace")
                     if offers.hasServer {
-                        Toggle(isOn: shown($hidesSites)) {
-                            Label(words.sites, image: "icon-site")
-                        }
-                        .accessibilityIdentifier("layers-sites")
                         Toggle(isOn: shown($hidesPilots)) {
                             Label(words.pilots, image: "icon-live")
                         }
@@ -90,7 +86,39 @@ struct MapLayersSheet: View {
                         // caution sign, so that the row lines up with
                         // the others.
                         Toggle(isOn: shown($hidesCables)) {
-                            Label(words.cables, image: "icon-caution")
+                            Label {
+                                VStack(alignment: .leading, spacing: VentiSpace.s1) {
+                                    HStack(spacing: VentiSpace.s1) {
+                                        Text(words.cables)
+                                        if !cablesNote.isEmpty {
+                                            // What the layer cannot promise,
+                                            // behind its "i".
+                                            Button {
+                                                showsCablesNote.toggle()
+                                            } label: {
+                                                Image(systemName: "info.circle")
+                                                    .foregroundStyle(.venti(showsCablesNote ? .link : .textSecondary))
+                                                    .frame(minWidth: VentiSize.touch, minHeight: VentiSize.touch)
+                                                    .contentShape(.rect)
+                                            }
+                                            .buttonStyle(.borderless)
+                                            .padding(.vertical, -VentiSpace.s3)
+                                            .accessibilityLabel("About the cables")
+                                            .accessibilityValue(showsCablesNote ? "Shown" : "Hidden")
+                                            .accessibilityIdentifier("cable-limits-more")
+                                        }
+                                    }
+                                    if showsCablesNote {
+                                        Text(cablesNote)
+                                            .font(.venti(.footnote))
+                                            .foregroundStyle(.venti(.textSecondary))
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .accessibilityIdentifier("cable-limits")
+                                    }
+                                }
+                            } icon: {
+                                Image("icon-caution")
+                            }
                         }
                         .accessibilityIdentifier("layer-cables")
                     }
@@ -99,7 +127,7 @@ struct MapLayersSheet: View {
                     // itself to its author.
                     if MapStyle.appDomain != nil {
                         Toggle(isOn: $showsThermalMap) {
-                            Label(words.thermals, image: "icon-thermal")
+                            Label(words.thermalMap, image: "icon-thermal")
                         }
                         .accessibilityIdentifier("layer-thermal-map")
                     }

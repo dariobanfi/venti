@@ -26,9 +26,17 @@ enum Preferences {
     /// Whether a flight is never taken for landed (hike and fly): the
     /// pilot ends it.
     static let neverLand = "VentiFlightNeverLands"
-    /// The layers of the map tab the pilot has switched off with its
-    /// chips. All are shown until then.
-    static let mapHidesWind = "VentiMapHidesWind"
+    /// What the map tab shows over the ground, one at a time, along one
+    /// line of time: "wind" until the pilot chooses, "thermals", "rain",
+    /// "cloud", or "none" where the chosen one was pressed again.
+    static let mapWhat = "VentiMapWhat"
+    /// Whether the wind's forecast shows its gusts in place of its mean.
+    static let mapWindGusts = "VentiMapWindGusts"
+    /// Whether the map tab draws the pilot's own flights: off until the
+    /// pilot switches it on in the layers sheet (the owner, 2026-11-22).
+    static let mapShowsMyFlights = "VentiMapShowsMyFlights"
+    /// The layers of the map tab the pilot has switched off in its layers
+    /// sheet. All are shown until then.
     static let mapHidesSites = "VentiMapHidesSites"
     static let mapHidesPilots = "VentiMapHidesPilots"
     static let mapHidesCables = "VentiMapHidesCables"
@@ -39,12 +47,6 @@ enum Preferences {
     /// Whether the maps show the aerial view, photographs from above, in
     /// place of the drawn ground. One choice for every map of the app.
     static let mapShowsAerial = "VentiMapShowsAerial"
-    /// Whether the map tab shows the forecast map, the kind of day square
-    /// by square. Off until the pilot switches it on.
-    static let mapShowsForecast = "VentiMapShowsForecast"
-    /// Whether the map tab shows the rain radar, the last frames of rain
-    /// the radars saw. Off until the pilot switches it on.
-    static let mapShowsRadar = "VentiMapShowsRadar"
     /// Whether the map tab shows where gliders climb at this moment, and
     /// where the public flights' thermals have been: two layers of the
     /// layers sheet, each off until the pilot switches it on.
@@ -64,9 +66,6 @@ enum Preferences {
     /// heights. One choice for every map that draws airspace but the
     /// cockpit's, which draws all of it.
     static let mapAirspaceCeilingM = "VentiMapAirspaceCeilingM"
-    /// The layer of the forecast map: "thermals", "wind", "gusts",
-    /// "cloud" or "rain". Kept as the pilot left it.
-    static let mapForecastLayer = "VentiMapForecastLayer"
     /// The height of the forecast map's wind above the sea, metres; -1
     /// for the ground. Kept as the pilot left it.
     static let mapForecastLevelM = "VentiMapForecastLevelM"

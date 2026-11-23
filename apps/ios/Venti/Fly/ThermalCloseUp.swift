@@ -71,54 +71,6 @@ struct CloseUpGeometry: Equatable {
     }
 }
 
-/// A wind the cockpit has before the glider has measured one, and where
-/// it comes from in a word: the thermal view shows it marked as such
-/// until the core has a wind of its own (`CockpitView.wind`).
-struct WindBefore: Equatable {
-    let wind: WindView
-    /// Where it comes from: "forecast".
-    let source: String
-
-    /// The forecast's wind for this moment, at the height nearest the
-    /// glider's: the finest model that has an hour within ninety minutes,
-    /// its hour nearest now, and of the wind 10 m over the model's ground
-    /// and its levels aloft the one nearest the altitude (without an
-    /// altitude, the wind at 10 m). `nil` where the forecast has none.
-    ///
-    /// To move into the core: which hour and level speak for the glider
-    /// is a rule, and the three apps should share it.
-    static func from(_ forecast: ForecastView, atUnixS now: Double, altitudeM: Double?) -> WindBefore? {
-        for model in forecast.models {
-            let hours = model.days.flatMap(\.hours)
-            guard let hour = hours.min(by: { abs(Double($0.timeUnixS) - now) < abs(Double($1.timeUnixS) - now) }),
-                  abs(Double(hour.timeUnixS) - now) <= 90 * 60
-            else { continue }
-            var candidates: [(heightM: Double?, wind: ForecastWind)] = []
-            if let ground = hour.wind {
-                candidates.append((model.cellElevationM.map { $0 + 10 }, ground))
-            }
-            for (index, level) in model.levels.enumerated() where index < hour.aloft.count {
-                if let aloft = hour.aloft[index], level.aboutAltitudeM != nil {
-                    candidates.append((level.aboutAltitudeM, aloft))
-                }
-            }
-            candidates.removeAll { $0.wind.fromDeg == nil }
-            let chosen: ForecastWind?
-            if let altitudeM {
-                chosen = candidates.min { a, b in
-                    abs((a.heightM ?? .infinity) - altitudeM) < abs((b.heightM ?? .infinity) - altitudeM)
-                }?.wind
-            } else {
-                chosen = hour.wind?.fromDeg == nil ? candidates.first?.wind : hour.wind
-            }
-            if let chosen, let from = chosen.fromDeg {
-                return WindBefore(wind: WindView(fromDeg: from, speedMs: chosen.speedMs), source: "forecast")
-            }
-        }
-        return nil
-    }
-}
-
 /// The close-up of the air the glider is in, beside the cockpit's map.
 ///
 /// While the glider circles: the places it flew through in the last
@@ -126,13 +78,11 @@ struct WindBefore: Equatable {
 /// where this thermal climbs better, with the circle to fly next. On the
 /// glide, and on the ground: the last minutes of track and the thermals
 /// left behind. Always the wind, large: an arrow that points where the
-/// air goes and its speed, the core's as measured, else the wind known
-/// before (`WindBefore`) with where it comes from. It is drawn, not a map:
+/// air goes and its speed, the core's (`windShown`: measured, a station's
+/// or the forecast's) with where it comes from. It is drawn, not a map:
 /// north up, no tiles, there without a network.
 struct ThermalCloseUp: View {
     let view: CockpitView
-    /// The wind before the glider measured one, while the core has none.
-    var windBefore: WindBefore?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -141,7 +91,7 @@ struct ThermalCloseUp: View {
                 draw(in: &context, size: size, geometry: geometry)
             }
             .overlay(alignment: .topLeading) {
-                CloseUpWind(wind: view.wind, ageS: view.windAgeS, before: windBefore)
+                CloseUpWind(wind: view.windShown)
                     .padding(VentiSpace.s2)
             }
             if let centre = view.lift?.centre {
@@ -268,42 +218,30 @@ struct ThermalCloseUp: View {
 
 /// The wind in the thermal view's corner, large enough to read in flight:
 /// an arrow that points where the air goes (north up) and the speed in
-/// km/h. A wind the glider has not measured says where it comes from
-/// ("forecast"), and one measured a while ago its age; without any, two
-/// dashes.
+/// km/h, with where it comes from under it in the core's words
+/// ("measured", "measured 7 min ago", "forecast", a station's name);
+/// without any, two dashes.
 private struct CloseUpWind: View {
-    let wind: WindView?
-    let ageS: Double?
-    let before: WindBefore?
-
-    private var shown: WindView? { wind ?? before?.wind }
-
-    /// What stands under the number: where an unmeasured wind comes from,
-    /// or the age of a measured one once it is five minutes old.
-    private var note: String? {
-        if wind != nil {
-            return WindBadge.age(ageS).map { "\($0) old" }
-        }
-        return before?.source
-    }
+    let wind: CockpitWindView?
 
     var body: some View {
         HStack(alignment: .center, spacing: VentiSpace.s2) {
-            if let shown {
+            if let wind {
                 Image("icon-arrow-wind")
                     .resizable()
                     .frame(width: 32, height: 32)
-                    .rotationEffect(.degrees(shown.fromDeg + 180))
+                    .rotationEffect(.degrees(wind.fromDeg + 180))
             }
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s1) {
-                    Text(shown.map { Format.kilometresPerHour(metresPerSecond: $0.speedMs) } ?? "– –")
+                    Text(wind?.speedKmh ?? "– –")
                         .font(.ventiType(.instrumentM))
+                        .monospacedDigit()
                     Text("km/h")
                         .font(.ventiType(.label))
                 }
-                if let note {
-                    Text(note)
+                if let words = wind?.sourceWords, !words.isEmpty {
+                    Text(words)
                         .font(.ventiType(.label))
                         .foregroundStyle(.venti(.textSecondary))
                 }
@@ -321,8 +259,8 @@ private struct CloseUpWind: View {
     }
 
     private var spoken: String {
-        guard let shown else { return "not known yet" }
-        let words = "\(Format.spokenKilometresPerHour(metresPerSecond: shown.speedMs)) from \(Format.compassPoint(degrees: shown.fromDeg))"
-        return note.map { "\(words), \($0)" } ?? words
+        guard let wind else { return "not known yet" }
+        let words = "\(Format.spokenKilometresPerHour(metresPerSecond: wind.speedMs)) from \(Format.compassPoint(degrees: wind.fromDeg))"
+        return wind.sourceWords.isEmpty ? words : "\(words), \(wind.sourceWords)"
     }
 }

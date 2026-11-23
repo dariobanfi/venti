@@ -245,17 +245,15 @@ struct CockpitScreen: View {
                     await cables.refresh(around: position)
                 }
             }
-            // Before the glider has measured a wind, the forecast's for the
-            // place and the hour, marked as such in the thermal view: asked
-            // for while the core has none, again as the glider moves on and
-            // with every hour.
+            // The forecast for the glider's place, handed to the session:
+            // before the glider has measured a wind the core takes the
+            // thermal view's wind from it where no station speaks for the
+            // glider's air. Asked for while the core has measured none,
+            // again as the glider moves on and with every hour.
             .task(id: Self.forecastKey(view)) {
                 guard view.wind == nil, let position = view.position else { return }
-                let now = Date().timeIntervalSince1970
-                if let forecast = try? await wind.forecast(at: position),
-                   let before = WindBefore.from(forecast, atUnixS: now, altitudeM: view.altitudeM)
-                {
-                    fly.windBefore = before
+                if let forecast = try? await wind.forecast(at: position) {
+                    fly.useForecast(forecast)
                 }
             }
             // Without a task its page is not there.
@@ -418,7 +416,7 @@ struct CockpitScreen: View {
         GeometryReader { proxy in
             HStack(spacing: 0) {
                 if page == .instruments {
-                    ThermalCloseUp(view: view, windBefore: fly.windBefore)
+                    ThermalCloseUp(view: view)
                         .frame(width: (proxy.size.width * 0.48).rounded())
                     Rectangle()
                         .fill(.venti(.border))

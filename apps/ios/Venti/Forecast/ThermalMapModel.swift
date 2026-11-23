@@ -72,6 +72,11 @@ final class ThermalMapModel {
     private(set) var hours: ThermalMapHours?
     /// What `hours` are of.
     private(set) var hoursKey: HoursKey?
+    /// The hours of every day of the map for the layer of the line of
+    /// time, by the day's date, as far as they are there.
+    private(set) var line: [String: ThermalMapHoursView] = [:]
+    /// What `line` is of.
+    private(set) var lineKey: LineKey?
 
     /// The answers of this run of the app, by the address asked, for the
     /// map of the days they belong to: the wind at the ground and the
@@ -223,33 +228,13 @@ extension ThermalMapModel {
             return
         }
         hours = nil
-        let path: String
         do {
-            path = try thermalHoursPath(date: key.date, layer: key.layer, heightM: key.heightM)
-        } catch {
-            hoursState = .failed(error.words)
-            return
-        }
-        do {
-            let answer: (status: UInt16, body: Data)
-            if let kept = bodies[path] {
-                answer = kept
-            } else {
-                guard let server = server(), let url = URL(string: server.absoluteString + path) else {
-                    hoursState = .failed("Venti could not be asked for the hours.")
-                    return
+            let hours = try await self.hours(of: key) { [weak self] in
+                if self?.hoursKey == key {
+                    self?.hoursState = .loading
                 }
-                hoursState = .loading
-                let (status, body) = try await transport(url)
-                answer = (UInt16(clamping: status), body)
             }
-            let (nowUnixS, offset) = await clockAndOffset()
-            let hours = try ThermalMapHours.read(
-                status: answer.status, body: answer.body, layer: key.layer, utcOffsetS: offset, nowUnixS: nowUnixS
-            )
             // Something else may have been asked for meanwhile.
-            bodies[path] = answer
-            read[key] = hours
             guard hoursKey == key else { return }
             self.hours = hours
             hoursState = .loaded
@@ -265,6 +250,62 @@ extension ThermalMapModel {
                     ? error.words
                     : "Venti could not be reached for the hours. \(error.localizedDescription)"
             )
+        }
+    }
+
+    /// The hours of a layer of a day: read again from an answer of this
+    /// run of the app, else asked for (`asking` is called first).
+    private func hours(of key: HoursKey, asking: () -> Void = {}) async throws -> ThermalMapHours {
+        if let kept = read[key] {
+            return kept
+        }
+        let path = try thermalHoursPath(date: key.date, layer: key.layer, heightM: key.heightM)
+        let answer: (status: UInt16, body: Data)
+        if let kept = bodies[path] {
+            answer = kept
+        } else {
+            guard let server = server(), let url = URL(string: server.absoluteString + path) else {
+                throw URLError(.badURL)
+            }
+            asking()
+            let (status, body) = try await transport(url)
+            answer = (UInt16(clamping: status), body)
+        }
+        let (nowUnixS, offset) = await clockAndOffset()
+        let hours = try ThermalMapHours.read(
+            status: answer.status, body: answer.body, layer: key.layer, utcOffsetS: offset, nowUnixS: nowUnixS
+        )
+        bodies[path] = answer
+        read[key] = hours
+        return hours
+    }
+
+    /// What the map's one line of time is of: a layer at a height, for a
+    /// map of the days.
+    struct LineKey: Hashable {
+        let layer: ThermalHoursLayer
+        let heightM: Int32?
+        let computed: Int64
+    }
+
+    /// Asks for the hours of every day of the map for one layer, for the
+    /// map tab's one line of time, the first day first; each day's hours
+    /// join `line` as they come. A day that cannot be had is left out.
+    func loadLine(layer: ThermalHoursLayer, heightM: Int32?) async {
+        guard let map else { return }
+        let key = LineKey(layer: layer, heightM: heightM, computed: map.computedUnixS)
+        if lineKey != key {
+            lineKey = key
+            line = [:]
+        }
+        for day in map.days where line[day.date] == nil {
+            let hours = try? await hours(of: HoursKey(date: day.date, layer: layer, heightM: heightM))
+            if Task.isCancelled || lineKey != key {
+                return
+            }
+            if let hours {
+                line[day.date] = hours.view()
+            }
         }
     }
 
@@ -284,6 +325,8 @@ extension ThermalMapModel {
         bodies = [:]
         read = [:]
         hours = nil
+        line = [:]
+        lineKey = nil
         if hoursState != .idle {
             hoursState = .idle
         }

@@ -152,7 +152,6 @@ enum CablesLayers {
 struct ChosenCable: Identifiable {
     let line: CableLine
     let credits: [Credit]
-    let limits: String
     var id: String { line.id }
 }
 
@@ -168,13 +167,19 @@ struct CableSheet: View {
                         .font(.venti(.headline))
                         .accessibilityIdentifier("cable-words")
                 } footer: {
+                    // The credit's line, linked to its address; what the
+                    // layer cannot promise is behind its "i" in the layers
+                    // sheet (owner decision 19).
                     VStack(alignment: .leading, spacing: VentiSpace.s2) {
                         ForEach(cable.credits, id: \.text) { credit in
-                            Text(credit.text)
+                            if let url = URL(string: credit.url), !credit.url.isEmpty {
+                                Link(credit.text, destination: url)
+                            } else {
+                                Text(credit.text)
+                            }
                         }
-                        Text(cable.limits)
-                            .accessibilityIdentifier("cable-limits")
                     }
+                    .accessibilityIdentifier("cable-credits")
                 }
             }
             .navigationTitle(cable.line.name ?? "Cable")

@@ -1,11 +1,13 @@
 import SwiftUI
 import VentiCore
 
-/// The map tab: terrain, live wind from the stations Venti knows, its
-/// flying sites, airspace, the pilots in the air, the pilot's own flights
-/// the forecast map, the kind of day square by square, and the rain
-/// radar. The chips
-/// along the top switch its layers on and off. A long press shows the
+/// The map tab: terrain, and over it one thing at a time along one line
+/// of time (the chips along the top: the wind, measured by the stations
+/// and forecast; the thermals, the kind of day square by square and hour
+/// by hour; the rain, seen by the radars and forecast; the cloud), with
+/// its panel at the foot; and the layers of the layers sheet laid over
+/// it: flying sites, airspace, the pilots in the air, the pilot's own
+/// flights and the rest. A long press shows the
 /// forecast for the place pressed, and from there what a glide reaches
 /// from it.
 struct MapScreen: View {
@@ -26,7 +28,17 @@ struct MapScreen: View {
     @Environment(AirModel.self) private var air
     @Environment(\.scenePhase) private var scenePhase
 
-    @AppStorage(Preferences.mapHidesWind) private var hidesWind = false
+    /// What the map shows, one at a time: the wind until the pilot chooses.
+    @AppStorage(Preferences.mapWhat) private var whatStored = MapWhat.wind.rawValue
+    /// The wind's forecast with its gusts in place of its mean.
+    @AppStorage(Preferences.mapWindGusts) private var gusts = false
+    /// The pilot's own flights: off until switched on in the layers sheet.
+    @AppStorage(Preferences.mapShowsMyFlights) private var showsMyFlights = false
+    /// The part of the line the pilot chose: what was measured, or the
+    /// forecast. `nil` for where the "what" opens: the rain and the wind
+    /// on what was measured last, the thermals and the cloud on the
+    /// forecast.
+    @State private var along: Along?
     /// Airspace on the map tab: off until the pilot switches it on, with
     /// the round button or in the layers sheet.
     @AppStorage(Preferences.mapShowsAirspace) private var showsAirspace = false
@@ -44,8 +56,6 @@ struct MapScreen: View {
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
     /// The thermal map of thermal.kk7.ch, switched in the layers sheet.
     @AppStorage(Preferences.mapShowsThermalMap) private var showsThermalMap = false
-    @AppStorage(Preferences.mapShowsForecast) private var showsForecast = false
-    @AppStorage(Preferences.mapShowsRadar) private var showsRadar = false
     @AppStorage(Preferences.mapAirspaceCeilingM) private var airspaceCeilingM = 0.0
     /// The pilot's glide, as the settings keep it: the reach starts with it.
     @AppStorage(Preferences.glideRatio) private var pilotsGlide = Preferences.defaultGlideRatio
@@ -89,9 +99,7 @@ struct MapScreen: View {
     @State private var forecastDate = ""
     /// A square of the forecast map the pilot tapped.
     @State private var chosenSquare: ChosenSquare?
-    /// The forecast map's layer and the wind's level, as the pilot left
-    /// them; the hour is chosen anew.
-    @AppStorage(Preferences.mapForecastLayer) private var forecastLayerStored = "thermals"
+    /// The wind's level, as the pilot left it; the hour is chosen anew.
     @AppStorage(Preferences.mapForecastLevelM) private var forecastLevelStored = -1
     /// The hour of the layer chosen, by its place in the day's hours;
     /// `nil` for the day as a whole.
@@ -119,8 +127,8 @@ struct MapScreen: View {
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             OverviewMap(
-                outlines: outlines,
-                stations: hidesWind ? [] : wind.stations,
+                outlines: showsMyFlights ? outlines : [],
+                stations: drawsStations ? wind.stations : [],
                 airspace: airspaceInView,
                 sites: hidesSites ? [] : sites.filtered.fitting,
                 unsaidSites: hidesSites ? [] : sites.filtered.unsaid,
@@ -218,12 +226,12 @@ struct MapScreen: View {
                 onHourPlace: { place in
                     openHourSquare(at: place)
                 },
-                radar: isRadarOn ? radar.pictures : [],
+                radar: showsRadarPictures ? radar.pictures : [],
                 reach: reachDrawing,
                 cables: hidesCables ? [] : cables.lines,
                 onCable: { id in
                     guard let layer = cables.layer, let line = layer.lines.first(where: { $0.id == id }) else { return }
-                    chosenCable = ChosenCable(line: line, credits: layer.credits, limits: layer.limits)
+                    chosenCable = ChosenCable(line: line, credits: layer.credits)
                 },
                 climbs: climbsOnTheMap?.climbs ?? [],
                 onClimb: { index in
@@ -304,11 +312,8 @@ struct MapScreen: View {
         .modifier(AirOnTheMap(region: region, address: wind.server == nil ? "" : wind.address, chosen: $chosenAir))
         .overlay(alignment: .bottomLeading) {
             VStack(alignment: .leading, spacing: VentiSpace.s2) {
-                if isForecastOn {
-                    forecastCard
-                }
-                if isRadarOn {
-                    radarCard
+                if let what, wind.server != nil {
+                    whatPanel(what)
                 }
                 if isSitesFilterOn {
                     sitesFilterLine
@@ -326,17 +331,25 @@ struct MapScreen: View {
         .task(id: wind.address) {
             await wind.keepCurrent()
         }
-        // The forecast map: asked for when the layer is switched on, and
-        // again when the answer is half an hour old, while it is on.
-        .task(id: isForecastOn ? wind.address : "") {
-            guard isForecastOn else { return }
+        // The forecast map: asked for when a "what" is chosen, whose line
+        // runs into the forecast, and again when the answer is half an hour
+        // old, while one is.
+        .task(id: isForecastWanted ? wind.address : "") {
+            guard isForecastWanted else { return }
             await thermals.keepCurrent()
         }
-        // The rain radar: asked for when the layer is switched on, again
-        // every five minutes while it is on and the map in front, and when
-        // the app comes back to the front.
-        .task(id: RadarWatch(isOn: isRadarOn, address: wind.address, isInFront: scenePhase == .active)) {
-            guard isRadarOn, scenePhase == .active else {
+        // The hours of every day for the line of time, for the layer shown.
+        .task(id: LineRequest(
+            isWanted: isForecastWanted, layer: forecastLayer, heightM: windHeightM, map: thermals.map?.computedUnixS
+        )) {
+            guard isForecastWanted else { return }
+            await thermals.loadLine(layer: forecastLayer, heightM: windHeightM)
+        }
+        // The rain radar: asked for when the rain is chosen, again every
+        // five minutes while it is and the map in front, and when the app
+        // comes back to the front.
+        .task(id: RadarWatch(isOn: isRadarWanted, address: wind.address, isInFront: scenePhase == .active)) {
+            guard isRadarWanted, scenePhase == .active else {
                 radar.stop()
                 return
             }
@@ -352,6 +365,17 @@ struct MapScreen: View {
         }
         .onChange(of: forecastHour) { _, _ in
             drawHour()
+        }
+        .onChange(of: showsForecast) { _, _ in
+            drawHour()
+        }
+        // Another layer of the wind, or another height: the hour chosen
+        // stays when its hours come.
+        .onChange(of: gusts) { _, _ in
+            openedHours = hoursKey
+        }
+        .onChange(of: forecastLevelStored) { _, _ in
+            openedHours = hoursKey
         }
         .sheet(item: $chosenHourSquare) { chosen in
             ForecastHourSquareSheet(chosen: chosen, choose: { date in
@@ -381,6 +405,8 @@ struct MapScreen: View {
                 pilotsWords: live.layer.countWords,
                 climbsWords: climbsWords,
                 flownWords: flownWords,
+                cablesNote: cables.layer?.limits ?? "",
+                hasMyFlights: !outlines.isEmpty,
                 open: { opening in
                     fromLayers = opening
                     showsLayers = false
@@ -631,28 +657,23 @@ struct MapScreen: View {
         .buttonStyle(.ventiRound)
     }
 
-    /// The chips that switch the map's layers on and off: what Venti
-    /// gives the map, each only where there is something to switch.
+    /// The chips of what the map shows, one at a time: the wind, the
+    /// thermals, the rain and the cloud, with the core's names. The chosen
+    /// one pressed again shows nothing. Everything laid over the map is a
+    /// row of the layers sheet.
     private var layerChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                // Four chips at most: the two that open a card, and the
-                // two layers switched most. The other layers are switches
-                // in the layers sheet.
                 if wind.server != nil {
                     let names = mapLayersWords()
-                    // The kind of day, square by square: off until the
-                    // pilot switches it on.
-                    VentiChip(title: names.forecast, icon: "icon-forecast", isOn: $showsForecast)
-                        .accessibilityIdentifier("forecast-chip")
-                    VentiChip(title: names.wind, icon: "icon-wind", isOn: shown($hidesWind))
-                        .accessibilityIdentifier("layer-wind")
-                    // The rain the radars saw: off until the pilot
-                    // switches it on. The pack has no sign for rain.
-                    VentiChip(title: names.radar, isOn: $showsRadar)
-                        .accessibilityIdentifier("radar-chip")
-                    VentiChip(title: names.sites, icon: "icon-site", isOn: shown($hidesSites))
-                        .accessibilityIdentifier("layer-sites")
+                    whatChip(.wind, title: names.wind, icon: "icon-wind", identifier: "layer-wind")
+                    whatChip(.thermals, title: names.thermals, icon: "icon-thermal", identifier: "what-thermals")
+                    // The pack has no sign for rain.
+                    whatChip(.rain, title: names.rain, icon: nil, identifier: "what-rain")
+                    // The cloud, where the forecast has it.
+                    if thermals.map.map({ map in map.layers.contains { $0.layer == .cloud } }) ?? true {
+                        whatChip(.cloud, title: names.cloud, icon: "icon-forecast", identifier: "what-cloud")
+                    }
                 }
             }
             .padding(.horizontal, 16)
@@ -663,13 +684,15 @@ struct MapScreen: View {
         .scrollClipDisabled()
     }
 
-    /// A chip is on while its layer is not hidden.
-    private func shown(_ isHidden: Binding<Bool>) -> Binding<Bool> {
-        Binding {
-            !isHidden.wrappedValue
-        } set: { isShown in
-            isHidden.wrappedValue = !isShown
-        }
+    private func whatChip(_ chip: MapWhat, title: String, icon: String?, identifier: String) -> some View {
+        VentiChip(
+            title: title, icon: icon,
+            isOn: Binding(
+                get: { what == chip },
+                set: { _ in choose(chip) }
+            )
+        )
+        .accessibilityIdentifier(identifier)
     }
 
     /// What the pilot should know about the wind on the map, if anything.
@@ -724,24 +747,19 @@ struct MapScreen: View {
     }
 
     /// What the layer "Climbs now" says of itself under its name in the
-    /// layers sheet while it is on, in the core's words: to zoom in, how
-    /// many climbs, or that nobody was heard climbing.
+    /// layers sheet while it is on, in the core's words: how many climbs,
+    /// or that nobody was heard climbing. Zoomed out too far, nothing: the
+    /// climbs appear when the map is close enough (owner decision 19).
     private var climbsWords: String {
-        guard showsClimbs else { return "" }
-        if air.climbsTooWide {
-            return mapLayersWords().climbsTooWide
-        }
+        guard showsClimbs, !air.climbsTooWide else { return "" }
         guard let climbs = air.climbs else { return "" }
         return climbs.climbs.isEmpty ? liveClimbsEmptyWords() : climbs.countWords
     }
 
-    /// The same for where thermals have been: to zoom in, or that no
-    /// shared flight climbed in this part of the map.
+    /// The same for where thermals have been: that no shared flight
+    /// climbed in this part of the map, and nothing zoomed out too far.
     private var flownWords: String {
-        guard showsFlown else { return "" }
-        if air.flownTooWide {
-            return flownTooWideWords()
-        }
+        guard showsFlown, !air.flownTooWide else { return "" }
         return air.flown?.cells.isEmpty == true ? mapLayersWords().flownEmpty : ""
     }
 
@@ -783,7 +801,7 @@ struct MapScreen: View {
         if showsThermalMap, MapStyle.appDomain != nil {
             parts.append(MapStyle.thermalMapCredit)
         }
-        if !wind.credits.isEmpty, !hidesWind {
+        if !wind.credits.isEmpty, drawsStations {
             parts.append("Wind: \(wind.credits.map(\.provider).formatted(.list(type: .and)))")
         }
         if !airspace.credits.isEmpty, showsAirspace, let region, region.east - region.west < Self.widestAirspace {
@@ -811,9 +829,8 @@ struct MapScreen: View {
             parts.append("Forecast: \(map.credits.map(\.provider).formatted(.list(type: .and)))")
         }
         // A radar's source asks for its credit at the data: here by
-        // name, for every layer drawn, and in full behind the card's "Key
-        // and notes".
-        if isRadarOn, !radar.pictures.isEmpty {
+        // name, for every layer drawn, and in full behind the panel's "i".
+        if showsRadarPictures, !radar.pictures.isEmpty {
             let providers = radar.drawnLayers.compactMap(\.credit?.provider)
             if !providers.isEmpty {
                 parts.append("Radar: \(providers.formatted(.list(type: .and)))")
@@ -850,16 +867,6 @@ struct MapScreen: View {
         }
     }
 
-    /// Whether the forecast map is on: switched on, with a Venti to ask.
-    private var isForecastOn: Bool {
-        showsForecast && wind.server != nil
-    }
-
-    /// Whether the rain radar is on: switched on, with a Venti to ask.
-    private var isRadarOn: Bool {
-        showsRadar && wind.server != nil
-    }
-
     /// Whether the map shows what a filter of the sites leaves: a filter
     /// is on, and so is the layer.
     private var isSitesFilterOn: Bool {
@@ -892,23 +899,10 @@ struct MapScreen: View {
         .padding(.trailing, VentiSize.touch + 2 * VentiSpace.s4)
     }
 
-    /// The rain radar's card, under the forecast map's where both are on.
-    private var radarCard: some View {
-        RadarCard(
-            radar: radar,
-            tryAgain: {
-                Task {
-                    await radar.load()
-                }
-            }
-        )
-        .padding(.leading, VentiSpace.s2)
-        .padding(.trailing, VentiSize.touch + 2 * VentiSpace.s4)
-    }
-
-    /// The day of the forecast map that is drawn, while the layer is on.
+    /// The day of the forecast map the line stands on, while it stands on
+    /// the forecast.
     private var forecastDay: ThermalMapDay? {
-        guard isForecastOn, let map = thermals.map else { return nil }
+        guard showsForecast, let map = thermals.map else { return nil }
         return ThermalSquares.day(forecastDate, in: map)
     }
 
@@ -917,24 +911,6 @@ struct MapScreen: View {
         guard let day = forecastDay else { return false }
         guard let region else { return true }
         return ThermalSquares.anyDrawn(of: day, in: region)
-    }
-
-    /// The day shown, as the card's control chooses it.
-    private var chosenForecastDate: Binding<String> {
-        Binding {
-            forecastDay?.date ?? ""
-        } set: { date in
-            forecastDate = date
-        }
-    }
-
-    /// The layer of the forecast map chosen.
-    private var forecastLayer: Binding<ThermalHoursLayer> {
-        Binding {
-            ThermalHoursLayer(stored: forecastLayerStored)
-        } set: { layer in
-            forecastLayerStored = layer.stored
-        }
     }
 
     /// The height of the wind chosen; `nil` at the ground.
@@ -948,20 +924,29 @@ struct MapScreen: View {
 
     /// The layer of the day to ask for, where the map offers layers.
     private var hoursKey: ThermalMapModel.HoursKey? {
-        guard let day = forecastDay, let map = thermals.map, !map.layers.isEmpty else { return nil }
-        let layer = ThermalHoursLayer(stored: forecastLayerStored)
-        let level = forecastLevel.wrappedValue
-        let offered = map.levels.contains { $0.heightM == level }
-        return ThermalMapModel.HoursKey(
-            date: day.date, layer: layer, heightM: layer == .wind && offered ? level : nil
-        )
+        guard let day = forecastDay else { return nil }
+        return hoursKey(of: day.date)
     }
 
-    /// The day's squares, where the map shows the day: not while an hour
-    /// is shown, nor while one is asked for, when the squares of the layer
-    /// before are taken away.
+    /// The layer shown of a day, where the map offers layers.
+    private func hoursKey(of date: String) -> ThermalMapModel.HoursKey? {
+        guard let map = thermals.map, !map.layers.isEmpty else { return nil }
+        return ThermalMapModel.HoursKey(date: date, layer: forecastLayer, heightM: windHeightM)
+    }
+
+    /// The height of the wind shown, where the map offers it; `nil` at the
+    /// ground and for every other layer.
+    private var windHeightM: Int32? {
+        guard forecastLayer == .wind, let map = thermals.map else { return nil }
+        let level = forecastLevel.wrappedValue
+        return map.levels.contains { $0.heightM == level } ? level : nil
+    }
+
+    /// The day's squares, where the map shows the thermals' day as a
+    /// whole: not while an hour is shown, nor while one is asked for, when
+    /// the squares of the layer before are taken away.
     private var dayOnTheMap: ThermalMapDay? {
-        if hourDrawing != nil || thermals.hoursState == .loading {
+        if what != .thermals || forecastHour != nil || hourDrawing != nil || thermals.hoursState == .loading {
             return nil
         }
         return forecastDay
@@ -982,7 +967,7 @@ struct MapScreen: View {
 
     /// Works out the hour the map draws.
     private func drawHour() {
-        guard isForecastOn, thermals.hoursState == .loaded, let hours = thermals.hours,
+        guard showsForecast, thermals.hoursState == .loaded, let hours = thermals.hours,
               let key = thermals.hoursKey, let hour = forecastHour,
               let choice = thermals.map?.layers.first(where: { $0.layer == key.layer })
         else {
@@ -1024,26 +1009,190 @@ struct MapScreen: View {
         }
     }
 
-    /// The forecast map's card, clear of the round buttons on the right
-    /// and over the line of credits, which stands clear of the map's own
-    /// credits button.
-    private var forecastCard: some View {
-        ForecastCard(
-            state: thermals.state,
-            map: thermals.map,
-            day: forecastDay,
-            isInView: isForecastInView,
-            date: chosenForecastDate,
-            tryAgain: {
+    // MARK: What the map shows, along one line of time
+
+    /// Where the line of time stands: on what was measured, or on the
+    /// forecast.
+    enum Along {
+        case measured, forecast
+    }
+
+    /// What the map shows: one of the four, or nothing.
+    private var what: MapWhat? {
+        MapWhat(stored: whatStored)
+    }
+
+    /// The layer of the forecast's hours the "what" shows.
+    private var forecastLayer: ThermalHoursLayer {
+        what?.layer(gusts: gusts) ?? .thermals
+    }
+
+    /// Whether the forecast map is asked for: for every "what", whose line
+    /// runs into the forecast, where there is a Venti to ask.
+    private var isForecastWanted: Bool {
+        what != nil && wind.server != nil
+    }
+
+    /// Whether the rain radar is asked for: while the rain is chosen.
+    private var isRadarWanted: Bool {
+        what == .rain && wind.server != nil
+    }
+
+    /// Whether the line stands on what was measured: where there is some,
+    /// and the pilot chose it, or the "what" opens there (the wind, the
+    /// rain) and the pilot has not chosen the forecast.
+    private var measured: Bool {
+        guard let what, wind.server != nil else { return false }
+        let hasMeasured =
+            switch what {
+            case .wind: !wind.stations.isEmpty
+            case .rain: !(radar.view?.moments.isEmpty ?? true)
+            case .thermals, .cloud: false
+            }
+        guard hasMeasured else { return false }
+        if thermals.map?.days.isEmpty ?? true || along == .measured {
+            return true
+        }
+        return along == nil && what.hasMeasured
+    }
+
+    /// Whether the map draws the wind stations: the wind as measured now.
+    private var drawsStations: Bool {
+        what == .wind && measured
+    }
+
+    /// Whether the map draws the radar's pictures: the rain as measured.
+    private var showsRadarPictures: Bool {
+        isRadarWanted && measured
+    }
+
+    /// Whether the map draws the forecast: a "what" on the forecast's
+    /// part of the line.
+    private var showsForecast: Bool {
+        isForecastWanted && !measured
+    }
+
+    /// Chooses what the map shows; the chosen one pressed again shows
+    /// nothing. Another opens where its line begins: what was measured
+    /// last, or today at the hour the core names.
+    private func choose(_ chip: MapWhat) {
+        whatStored = what == chip ? "none" : chip.rawValue
+        along = nil
+        forecastDate = ""
+        forecastHour = nil
+        openedHours = nil
+        chosenSquare = nil
+        chosenHourSquare = nil
+        radar.stop()
+    }
+
+    /// The hours of each day of the layer shown, for the line: those of
+    /// every day as far as they are there, and the day's on the map.
+    private var lineHours: [String: ThermalMapHoursView] {
+        var hours: [String: ThermalMapHoursView] = [:]
+        if let key = thermals.lineKey, key.layer == forecastLayer, key.heightM == windHeightM {
+            hours = thermals.line
+        }
+        if thermals.hoursState == .loaded, let key = thermals.hoursKey, key.layer == forecastLayer,
+           key.heightM == windHeightM, hours[key.date] == nil, let view = thermals.hours?.view()
+        {
+            hours[key.date] = view
+        }
+        return hours
+    }
+
+    /// The line of time of what is shown, from what was measured to the
+    /// forecast's days.
+    private var timeCells: [MapTimeCell] {
+        guard let what, wind.server != nil else { return [] }
+        return MapTimeLine.cells(
+            what: what, radar: what == .rain ? radar.view : nil, stations: what == .wind && !wind.stations.isEmpty,
+            days: thermals.map?.days ?? [], hours: lineHours, words: mapLayersWords()
+        )
+    }
+
+    /// The cell the line stands on.
+    private func lineAt(_ cells: [MapTimeCell]) -> Int {
+        let stop: MapStop?
+        if measured, what == .rain {
+            stop = .radar(radar.chosenIndex ?? 0)
+        } else if measured {
+            stop = .stations
+        } else if let day = forecastDay {
+            stop = forecastHour.map { .hour(day.date, $0) } ?? .day(day.date)
+        } else {
+            stop = nil
+        }
+        if let stop, let found = cells.firstIndex(where: { $0.stop == stop }) {
+            return found
+        }
+        return cells.firstIndex { $0.stop.isMeasured == measured } ?? 0
+    }
+
+    /// The pilot chose a cell of the line: a radar's moment, the stations,
+    /// or the forecast's day or hour.
+    private func chooseAlong(_ cell: MapTimeCell) {
+        switch cell.stop {
+        case .radar(let index):
+            along = .measured
+            radar.stop()
+            Task {
+                await radar.choose(index)
+            }
+        case .stations:
+            along = .measured
+        case .day(let date):
+            along = .forecast
+            radar.stop()
+            // The hour chosen stays when the day's hours come.
+            openedHours = hoursKey(of: date)
+            forecastDate = date
+            forecastHour = nil
+        case .hour(let date, let hour):
+            along = .forecast
+            radar.stop()
+            openedHours = hoursKey(of: date)
+            forecastDate = date
+            forecastHour = hour
+        }
+    }
+
+    /// The panel at the map's foot for what it shows, clear of the round
+    /// buttons on the right and over the map's credits button.
+    private func whatPanel(_ what: MapWhat) -> some View {
+        let cells = timeCells
+        let names = mapLayersWords()
+        let name =
+            switch what {
+            case .wind: names.wind
+            case .thermals: names.thermals
+            case .rain: names.rain
+            case .cloud: names.cloud
+            }
+        let dayHours: ThermalMapHoursView? = forecastDay.flatMap { day in
+            let key = hoursKey(of: day.date)
+            return key != nil && thermals.hoursKey == key && thermals.hoursState == .loaded ? thermals.hours?.view() : nil
+        }
+        return WhatPanel(
+            what: what, name: name, cells: cells, chosen: lineAt(cells),
+            choose: { index in
+                if cells.indices.contains(index) {
+                    chooseAlong(cells[index])
+                }
+            },
+            measured: measured, radar: radar, thermals: thermals, day: forecastDay, hours: dayHours,
+            hour: forecastHour, gusts: $gusts, heightM: forecastLevel,
+            isInView: what == .thermals && forecastHour == nil ? isForecastInView : true,
+            tryRadarAgain: {
+                Task {
+                    await radar.load()
+                }
+            },
+            tryForecastAgain: {
                 Task {
                     await thermals.load()
                 }
             },
-            layer: forecastLayer,
-            heightM: forecastLevel,
-            hoursState: thermals.hoursState,
-            hours: thermals.hours?.view(),
-            hour: $forecastHour,
             tryHoursAgain: {
                 Task {
                     await thermals.showHours(hoursKey)
@@ -1137,6 +1286,15 @@ struct ChosenStation: Identifiable {
 /// the days it belongs to.
 private struct HoursRequest: Hashable {
     let key: ThermalMapModel.HoursKey?
+    let map: Int64?
+}
+
+/// What the hours of the line of time are asked by: whether a "what" is
+/// chosen, its layer and height, and the map of the days.
+private struct LineRequest: Hashable {
+    let isWanted: Bool
+    let layer: ThermalHoursLayer
+    let heightM: Int32?
     let map: Int64?
 }
 

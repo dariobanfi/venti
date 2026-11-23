@@ -46,10 +46,6 @@ final class FlySession {
     /// Whether the cockpit was opened by a take-off seen on any tab, and
     /// not by the pilot: a take-off taken back then shuts it again.
     @ObservationIgnored private var openedForTakeoff = false
-    /// The wind before the glider has measured one, and where it comes
-    /// from in a word ("forecast"): for the thermal view, marked as such.
-    /// The cockpit sets it; absent until it has one.
-    var windBefore: WindBefore?
     /// What the cockpit shows. Present while a session runs.
     private(set) var view: CockpitView?
     /// Whether a flight is being recorded: `view.recording`, kept apart
@@ -611,7 +607,6 @@ final class FlySession {
         isWatching = false
         openedForTakeoff = false
         quietNotice = nil
-        windBefore = nil
         live = nil
         landing = nil
         range = nil
@@ -650,6 +645,14 @@ final class FlySession {
     /// the pilot has put it away.
     var windWarning: GroundWindAlert? {
         isWindWarningPutAway ? nil : windBelow?.alert
+    }
+
+    /// Hands the session the forecast for the glider's place, each time it
+    /// is fetched: the thermal view's wind (`CockpitView.windShown`) comes
+    /// from it while no station speaks for the glider's air and the flight
+    /// has not measured one. Which hour and level is the core's.
+    func useForecast(_ forecast: ForecastView?) {
+        session?.useForecast(forecast: forecast)
     }
 
     /// Puts the warning away. It comes back for another station, and for
@@ -954,6 +957,10 @@ final class FlySession {
                 let wind = groundWind(
                     stations: found.stations, position: position, landing: place, trimSpeedMs: trimSpeedMs
                 )
+                // The thermal view's wind takes a station's until the
+                // flight has measured one: the core's rule, handed the
+                // stations each time they are picked.
+                self.session?.useGroundWind(stations: wind.stations)
                 self.take(wind, from: found.credits)
             }
         }

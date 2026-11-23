@@ -674,39 +674,17 @@ final class RadarTests: XCTestCase {
         XCTAssertTrue(asked.isEmpty)
     }
 
-    func testManyFramesHaveTheirTimesUnderTheStrip() {
-        // A time in each cell while a cell has the room.
-        XCTAssertNil(RadarStrip.named(of: 2))
-        XCTAssertNil(RadarStrip.named(of: 6))
-        // Then the newest and every third before it,
-        XCTAssertEqual(RadarStrip.named(of: 7), [6, 3])
-        XCTAssertEqual(RadarStrip.named(of: 12), [11, 8, 5, 2])
-        // and of two hours of frames every sixth: every half hour.
-        XCTAssertEqual(RadarStrip.named(of: 13), [12, 6])
-        XCTAssertEqual(RadarStrip.named(of: 25), [24, 18, 12, 6])
-    }
-
-    /// The strip with two hours of frames, kept as a picture to look at:
-    /// the development server has two frames, and a real Venti twenty-five.
-    func testTheStripOfTwoHoursOfFramesIsKeptAsAPicture() throws {
+    /// The line of time with two hours of frames: a full hour's time
+    /// stands over its frame, and the first frame's where no full hour
+    /// follows soon; a short run has none. The development server has two
+    /// frames, a real Venti twenty-five.
+    func testAFullHoursTimeStandsOverItsFrame() {
         let clocks = (0..<25).map { String(format: "%02d:%02d", 10 + ($0 * 5 + 40) / 60, ($0 * 5 + 40) % 60) }
-        for (name, scheme) in [("light", ColorScheme.light), ("dark", .dark)] {
-            let strip = CellStrip(
-                cells: clocks, named: RadarStrip.named(of: clocks.count), chosen: .constant(24),
-                name: "Radar picture", spoken: "", identifier: "radar-frames"
-            )
-            .padding(VentiSpace.s3)
-            .frame(width: 290)
-            .background(.venti(.surface))
-            .ventiThemed()
-            .environment(\.colorScheme, scheme)
-            let renderer = ImageRenderer(content: strip)
-            renderer.scale = 3
-            let image = try XCTUnwrap(renderer.uiImage)
-            let attachment = XCTAttachment(image: image)
-            attachment.name = "radar-strip-25-frames-\(name)"
-            attachment.lifetime = .keepAlways
-            add(attachment)
-        }
+        XCTAssertEqual(MapTimeLine.radarOver(clocks, 4), "11:00")
+        XCTAssertEqual(MapTimeLine.radarOver(clocks, 16), "12:00")
+        XCTAssertNil(MapTimeLine.radarOver(clocks, 0))
+        XCTAssertNil(MapTimeLine.radarOver(clocks, 5))
+        XCTAssertNil(MapTimeLine.radarOver(["13:00", "13:05"], 0))
+        XCTAssertEqual(MapTimeLine.radarOver(["13:05", "13:10", "13:15", "13:20", "13:25", "13:30"], 0), "13:05")
     }
 }

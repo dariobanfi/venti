@@ -1,35 +1,7 @@
 import SwiftUI
 
-/// What the cards over the map tab's map share, the forecast map's and
-/// the rain radar's: the line that opens the key and the notes, a line of
-/// the key, and how a card says that something is wrong.
-
-/// "Key and notes": the line a card's key and notes stand behind, closed
-/// when the card opens. Its value is "Shown" or "Hidden".
-struct KeyAndNotesButton: View {
-    @Binding var isShown: Bool
-    let identifier: String
-
-    var body: some View {
-        Button {
-            isShown.toggle()
-        } label: {
-            HStack(spacing: VentiSpace.s1) {
-                Text("Key and notes")
-                    .font(.ventiType(.label))
-                Image(systemName: isShown ? "chevron.up" : "chevron.down")
-                    .font(.ventiType(.caption))
-                    .accessibilityHidden(true)
-            }
-            .foregroundStyle(.venti(.link))
-            .frame(maxWidth: .infinity, minHeight: VentiSize.touch, alignment: .leading)
-            .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .accessibilityValue(isShown ? "Shown" : "Hidden")
-        .accessibilityIdentifier(identifier)
-    }
-}
+/// What the panel over the map tab's map is made of with other cards: a
+/// line of a key, and how a card says that something is wrong.
 
 /// One line of a key: a square in the colour the map draws with, and the
 /// words. The map's colours, which are the light theme's in both

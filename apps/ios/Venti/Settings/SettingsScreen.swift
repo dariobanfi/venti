@@ -199,6 +199,14 @@ struct CreditsScreen: View {
                 )
                 .accessibilityIdentifier("credit-bridge")
             }
+            // The notices and licence texts themselves, on a page of
+            // their own: the core's list alone is long.
+            Section {
+                NavigationLink(LicenceWords.title) {
+                    LicencesScreen()
+                }
+                .accessibilityIdentifier("licences-link")
+            }
         }
         .navigationTitle("Data and licences")
         .navigationBarTitleDisplayMode(.inline)

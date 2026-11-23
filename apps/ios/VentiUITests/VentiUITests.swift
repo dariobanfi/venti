@@ -6371,6 +6371,36 @@ extension VentiUITests {
         XCTAssertTrue(labelled(containing: "SwiftUI", in: app).exists)
         usleep(400_000)
         keepScreenshot("licences-2-libraries")
+
+        // The notices themselves, from the row at the page's foot: three
+        // parts, folded until opened.
+        bring("licences-link", into: app).tap()
+        XCTAssertTrue(app.navigationBars["Open-source licences"].appears(timeout: 15))
+        let core = element("licences-core", in: app)
+        XCTAssertTrue(core.appears(timeout: 10))
+        XCTAssertTrue(element("licences-maplibre", in: app).exists)
+        XCTAssertTrue(element("licences-libraries", in: app).exists)
+        core.tap()
+        XCTAssertTrue(labelled(containing: "Third-party software in Venti's core", in: app).appears(timeout: 10))
+        usleep(400_000)
+        keepScreenshot("licences-3-core")
+        core.tap()
+        element("licences-maplibre", in: app).tap()
+        XCTAssertTrue(labelled(containing: "Copyright (c) 2014-2020 Mapbox", in: app).appears(timeout: 10))
+        usleep(400_000)
+        keepScreenshots(light: "licences-4-maplibre", dark: "licences-4-maplibre-dark")
+
+        // The core's list with the larger text, where asked.
+        guard Self.largerTextAsked else { return }
+        let larger = launch(bundledMap: true, extra: Self.largerText)
+        openTab("Settings", in: larger)
+        bring("Data and licences", into: larger).tap()
+        bring("licences-link", into: larger).tap()
+        element("licences-core", in: larger).tap()
+        XCTAssertTrue(labelled(containing: "Third-party software in Venti's core", in: larger).appears(timeout: 10))
+        larger.swipeUp()
+        usleep(400_000)
+        keepScreenshots(light: "licences-5-core-larger", dark: "licences-5-core-larger-dark")
     }
 }
 

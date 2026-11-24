@@ -160,7 +160,8 @@
         "$ref": "#/components/schemas/SiteDraft"
       },
       "comment": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 200
       }
     },
     "required": [
@@ -381,6 +382,8 @@
     "properties": {
       "name": {
         "type": "string",
+        "minLength": 1,
+        "maxLength": 60,
         "description": "What the pilot calls the alarm: 1 to 60 characters."
       },
       "enabled": {
@@ -678,7 +681,9 @@
         "type": "string"
       },
       "new_password": {
-        "type": "string"
+        "type": "string",
+        "minLength": 15,
+        "maxLength": 128
       }
     },
     "required": [
@@ -696,7 +701,8 @@
         "type": "integer"
       },
       "comment": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 200
       }
     },
     "required": [
@@ -735,7 +741,8 @@
         "format": "date"
       },
       "note": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 200
       },
       "flight": {
         "type": "string"
@@ -749,7 +756,8 @@
     "type": "object",
     "properties": {
       "name": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 60
       },
       "scopes": {
         "type": "array",
@@ -793,13 +801,18 @@
     "type": "object",
     "properties": {
       "handle": {
-        "type": "string"
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 20
       },
       "display_name": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 40
       },
       "password": {
-        "type": "string"
+        "type": "string",
+        "minLength": 15,
+        "maxLength": 128
       },
       "invite": {
         "type": "string"
@@ -821,10 +834,13 @@
         "type": "string"
       },
       "handle": {
-        "type": "string"
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 20
       },
       "display_name": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 40
       },
       "invite": {
         "type": "string"
@@ -942,6 +958,7 @@
       },
       "token": {
         "type": "string",
+        "maxLength": 512,
         "description": "On an iPhone the device token in hexadecimal; on Android the FCM registration token. At most 512 bytes."
       },
       "sandbox": {
@@ -3999,7 +4016,8 @@
         "format": "date"
       },
       "place": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 80
       },
       "position": {
         "$ref": "#/components/schemas/RawPoint"
@@ -4008,7 +4026,8 @@
         "type": "string"
       },
       "note": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 500
       }
     },
     "required": [
@@ -4127,6 +4146,7 @@
     "properties": {
       "endpoint": {
         "type": "string",
+        "maxLength": 1024,
         "description": "The address of the push service the browser was given: HTTPS, of a push service the server sends to, at most 1024 bytes."
       },
       "expirationTime": {
@@ -4486,7 +4506,8 @@
     "type": "object",
     "properties": {
       "comment": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 200
       }
     }
   },
@@ -4513,7 +4534,8 @@
         "$ref": "#/components/schemas/ReportReason"
       },
       "text": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 1000
       }
     },
     "required": [
@@ -4635,7 +4657,8 @@
         "type": "integer"
       },
       "comment": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 200
       }
     },
     "required": [
@@ -7084,6 +7107,7 @@
     "properties": {
       "text": {
         "type": "string",
+        "maxLength": 500,
         "description": "Plain text; at most 500 characters once trimmed."
       }
     },
@@ -7338,7 +7362,8 @@
         "format": "date"
       },
       "place": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 80
       },
       "position": {
         "$ref": "#/components/schemas/RawPoint"
@@ -7348,10 +7373,13 @@
       },
       "seats": {
         "type": "integer",
+        "minimum": 1,
+        "maximum": 8,
         "description": "The seats the pilot has free in a car, 1 to 8. Left out: the pilot is looking for company."
       },
       "note": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 280
       }
     },
     "required": [

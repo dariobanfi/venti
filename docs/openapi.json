@@ -190,6 +190,7 @@
       "AddSiteRequest": {
         "properties": {
           "comment": {
+            "maxLength": 200,
             "type": "string"
           },
           "site": {
@@ -418,6 +419,8 @@
           },
           "name": {
             "description": "What the pilot calls the alarm: 1 to 60 characters.",
+            "maxLength": 60,
+            "minLength": 1,
             "type": "string"
           },
           "rule": {
@@ -731,6 +734,8 @@
             "type": "string"
           },
           "new_password": {
+            "maxLength": 128,
+            "minLength": 15,
             "type": "string"
           }
         },
@@ -743,6 +748,7 @@
       "ChangeSiteRequest": {
         "properties": {
           "comment": {
+            "maxLength": 200,
             "type": "string"
           },
           "revision": {
@@ -867,6 +873,7 @@
         "properties": {
           "text": {
             "description": "Plain text; at most 500 characters once trimmed.",
+            "maxLength": 500,
             "type": "string"
           }
         },
@@ -940,6 +947,7 @@
             "type": "string"
           },
           "note": {
+            "maxLength": 200,
             "type": "string"
           }
         },
@@ -959,6 +967,7 @@
             "type": "string"
           },
           "name": {
+            "maxLength": 60,
             "type": "string"
           },
           "password": {
@@ -998,15 +1007,20 @@
             "type": "string"
           },
           "display_name": {
+            "maxLength": 40,
             "type": "string"
           },
           "handle": {
+            "maxLength": 20,
+            "minLength": 3,
             "type": "string"
           },
           "invite": {
             "type": "string"
           },
           "password": {
+            "maxLength": 128,
+            "minLength": 15,
             "type": "string"
           }
         },
@@ -1023,9 +1037,12 @@
             "type": "string"
           },
           "display_name": {
+            "maxLength": 40,
             "type": "string"
           },
           "handle": {
+            "maxLength": 20,
+            "minLength": 3,
             "type": "string"
           },
           "invite": {
@@ -1187,6 +1204,7 @@
           },
           "token": {
             "description": "On an iPhone the device token in hexadecimal; on Android the FCM registration token. At most 512 bytes.",
+            "maxLength": 512,
             "type": "string"
           }
         },
@@ -4443,9 +4461,11 @@
             "type": "string"
           },
           "note": {
+            "maxLength": 280,
             "type": "string"
           },
           "place": {
+            "maxLength": 80,
             "type": "string"
           },
           "position": {
@@ -4453,6 +4473,8 @@
           },
           "seats": {
             "description": "The seats the pilot has free in a car, 1 to 8. Left out: the pilot is looking for company.",
+            "maximum": 8,
+            "minimum": 1,
             "type": "integer"
           }
         },
@@ -4913,9 +4935,11 @@
             "type": "string"
           },
           "note": {
+            "maxLength": 500,
             "type": "string"
           },
           "place": {
+            "maxLength": 80,
             "type": "string"
           },
           "position": {
@@ -5057,6 +5081,7 @@
         "properties": {
           "endpoint": {
             "description": "The address of the push service the browser was given: HTTPS, of a push service the server sends to, at most 1024 bytes.",
+            "maxLength": 1024,
             "type": "string"
           },
           "expirationTime": {
@@ -5706,6 +5731,7 @@
       "RemoveSiteRequest": {
         "properties": {
           "comment": {
+            "maxLength": 200,
             "type": "string"
           }
         },
@@ -5754,6 +5780,7 @@
             "$ref": "#/components/schemas/ReportSubject"
           },
           "text": {
+            "maxLength": 1000,
             "type": "string"
           }
         },
@@ -5873,6 +5900,7 @@
       "RestoreSiteRequest": {
         "properties": {
           "comment": {
+            "maxLength": 200,
             "type": "string"
           },
           "restore": {

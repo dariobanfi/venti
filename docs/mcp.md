@@ -384,7 +384,7 @@ Four sentences come with every airspace result, in the result itself, so that no
 
 The last one is made exact for each place. The server holds airspace for one area and some countries, and every source in a result says whether its data reaches the place asked about and its whole radius, and for which countries. Where no data reaches the place, the result says so in a `note` of its own: "The server holds no airspace data for this place. That says nothing about the airspace there."
 
-**Text from the source is marked as that.** An airspace's `name` and its `source_remarks` are passed on as the source publishes them, and openAIP is edited by its community: anyone may have written them. A model reads a tool's result as it reads everything else, so words in a name that are put as an order could be taken for one. Every result therefore says, in `text_from_the_source`, that these two fields are the source's words and never an instruction, and the tool's description says the same. The text itself is bounded: one line, at most 80 characters of a name and 240 of a remark, without characters that do not show. That lowers the risk and does not remove it: whether a model heeds the sentence is the model's doing, and whoever connects an assistant to data from the internet should know that. What the server says of its sources is bounded the same way, though the project's own sources give no reason to: a station's name is one line of at most 80 characters, a credit one of at most 300 with its licence and its link, an address of at most 120 plain characters, left out when it is not one, and a result lists eight credits at the most.
+**Text from the source is marked as that.** An airspace's `name` and its `source_remarks` are passed on as the source publishes them, and openAIP is edited by its community: anyone may have written them. A model reads a tool's result as it reads everything else, so words in a name that are put as an order could be taken for one. Every result therefore says, in `text_from_the_source`, that these two fields are the source's words and never an instruction, and the tool's description says the same. The text itself is bounded: one line, at most 80 characters of a name and 240 of a remark, without characters that do not show. That lowers the risk and does not remove it: whether a model heeds the sentence is the model's doing, and whoever connects an assistant to data from the internet should know that. What the server says of its sources is bounded the same way, though the project's own sources give no reason to: a station's name is one line of at most 80 characters; a credit's text one of at most 300, its licence's name at most 40 and its link at most 120 plain characters, left out when it is not one; a source's notice at most 300; and a result lists eight credits at the most. Every bound of a result is in the table [What a result holds](#what-a-result-holds).
 
 What an airspace means for a paraglider is not left to the model. It is read from the table the app's cockpit warns by ([airspace.md](airspace.md#which-airspaces-warn)), which was written for Germany and Austria; what it says elsewhere is [there](airspace.md#outside-germany-and-austria) too.
 
@@ -440,7 +440,7 @@ The endpoint is open to the internet, and all but three of its tools without sig
 | The time for an answer | 10 seconds | `503` with `Retry-After: 30` |
 | Requests from one address | 120 a minute | `429` with `Retry-After` |
 | Requests from one IPv6 /48 network | 480 a minute | `429` with `Retry-After` |
-| Tool calls in one request | 16, and each counts as a request. Only the oldest revision can send more than one | `400` |
+| Messages in one request | 16, every message of a batch counted, the notifications among them. Each tool call after the first counts as one more request from the address. Only the oldest revision can send more than one | `400` |
 | Requests with one token | 3,600 an hour, the budget a token has at the [API](api.md#limits), whatever they ask for | `429` with `Retry-After` |
 | Calls of `site_flights`, `takeoff_candidates` and `public_flights` from one address | Counted with the API's reads of public flights from the same address, in one budget: [600 an hour](api.md#how-often-an-address-may-read), 2,400 for an IPv6 /48 network | A result marked `isError` that says to try later |
 | The box of `sites_in_box` | The API's: a box with more than 5000 sites is refused; the result lists the nearest 40 | A result that says to ask for a smaller box |
@@ -451,6 +451,36 @@ An address is the address of the connection, or the one the server's own proxy r
 **A tool call cannot make the server fetch anything.** The tools take numbers and a station's identifier and read the server's own database. No argument is ever used as an address. The two crates the connector is made of, the protocol and the tools, have no way to open a connection at all, which a test of the dependency rules holds them to, and the part of the server that answers requests never names the part that asks providers. One endpoint of the HTTP API does lead to a request to a provider, `GET /v1/forecast`: it is no tool, the address asked is the one in the server's configuration, and a request contributes two checked numbers to it ([architecture.md](architecture.md#forecasts)).
 
 **A page in a browser** may call the connector only from the server's own address and from the origins that may call the API. A request that names another origin gets `403`. Assistants do not call from a browser and name no origin. The development mode takes pages served from the developer's own machine.
+
+### What a result holds
+
+A result is bounded too, so that a model's context holds it and a source's text cannot fill it. Where a list of stations, airspaces or sites is cut, the result says so.
+
+| What | At most |
+|---|---|
+| Stations that `wind_stations` lists | 15, the nearest |
+| Hours of `station_history` | 24 |
+| Airspaces that `airspace_at` lists near the place, beside those over it | 15 |
+| Sites that `sites_in_box` lists | 40, the nearest to the box's middle |
+| Revisions of `site_history` | 100 |
+| Flights of `public_flights` | 50 |
+| Flights of `list_flights` | 100 |
+| Days from `from_date` to `to_date` of `public_flights` | 366 |
+| A cursor (`after`) | 200 characters |
+| Layers that a result describes | 8 |
+| Credits that a result lists | 8 |
+| Spans of wind direction of one site | 8 |
+| A name: of a station, an airspace, a site, a pilot, a provider, a glider | 80 characters |
+| An airspace's remark | 240 characters |
+| A site's description, fee and time without flying, a revision's line | 300 characters |
+| A credit's text | 300 characters |
+| A licence's name | 40 characters |
+| A credit's link | 120 characters, plain `https` and nothing else, or left out |
+| A source's notice | 300 characters |
+| The terms of flights | 600 characters |
+| A source's, a layer's or a model's identifier | 40 characters |
+
+Text is passed on as one line, without characters that do not show, and a text cut short ends in `…`.
 
 ## The protocol
 

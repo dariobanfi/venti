@@ -1227,14 +1227,7 @@ fn the_documentation_shows_the_connector_as_it_is() {
             tool.name
         );
     }
-    // The bounds it names are the ones the server keeps.
-    let limits = Limits::default();
-    let per_minute = limits.connector_requests_per_address;
-    assert_eq!(limits.connector_window, chrono::Duration::minutes(1));
-    assert!(docs.contains(&format!("| {per_minute} a minute |")));
-    let per_network = limits.connector_requests_per_network;
-    assert!(docs.contains(&format!("| {per_network} a minute |")));
-    assert!(docs.contains(&format!("| {}, and each counts", venti_mcp::MAX_BATCH)));
+    // The bounds it names are held to the server's in `tests/bounds.rs`.
     for caveat in airspace::CAVEATS {
         assert!(docs.contains(caveat), "{caveat}");
     }

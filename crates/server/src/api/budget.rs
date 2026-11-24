@@ -213,9 +213,11 @@ impl<S: Store> FromRequestParts<Arc<Api<S>>> for Reader {
 }
 
 impl<S: Store> Api<S> {
-    /// Counts a read of public flights as data: a page of everyone's
+    /// Counts a read of public data: the sixteen requests `docs/api.md`
+    /// lists ("How often an address may read"), a page of everyone's
     /// public flights, a page of what changed among them, a flight's
-    /// track, what flights say about a site, the candidates for sites.
+    /// track, what flights say about a site and the ranking among them.
+    /// `crates/server/tests/bounds.rs` asks each of them.
     ///
     /// These are open to anyone, and without a bound one address could
     /// take every public flight as fast as the database hands them out.

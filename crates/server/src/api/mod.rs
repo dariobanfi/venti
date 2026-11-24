@@ -164,7 +164,7 @@ use crate::maps::Maps;
 use crate::radar::Radar;
 use crate::thermals::ThermalMap;
 
-pub use mcp::MCP_PATH;
+pub use mcp::{MAX_BODY_BYTES as MCP_MAX_BODY_BYTES, MCP_PATH};
 pub use oauth::{
     AUTHORIZATION_SERVER_PATH, AUTHORIZE_PATH, CONNECT_PATH, PROTECTED_RESOURCE_MCP_PATH,
     PROTECTED_RESOURCE_PATH, REGISTER_PATH, REVOKE_PATH, TOKEN_PATH,
@@ -173,10 +173,10 @@ pub use openapi::OPENAPI_PATH;
 
 /// The largest request body accepted where a request carries JSON or
 /// nothing: far more than a sign-in needs, and too little to be a burden.
-const MAX_BODY_BYTES: usize = 16 * 1024;
+pub const MAX_BODY_BYTES: usize = 16 * 1024;
 
 /// How long a request may take before the server gives up on it.
-const DEADLINE: Duration = Duration::from_secs(10);
+pub const DEADLINE: Duration = Duration::from_secs(10);
 
 /// How long an upload may take, from its first byte to the answer. The
 /// handler has bounds of its own for every part (the file's arrival, the
@@ -188,7 +188,7 @@ const UPLOAD_DEADLINE: Duration = Duration::from_secs(150);
 /// last byte being ready. Reading and packing the most flight files one
 /// archive holds takes some ten seconds of one processor (an estimate);
 /// this is behind that, for a database that is slow that day.
-const ARCHIVE_DEADLINE: Duration = Duration::from_secs(120);
+pub const ARCHIVE_DEADLINE: Duration = Duration::from_secs(120);
 
 /// How long a browser may reuse the answer to a CORS preflight request.
 const PREFLIGHT_MAX_AGE: Duration = Duration::from_secs(3600);

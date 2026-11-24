@@ -23,7 +23,7 @@ For the maker of a program that is not one of Venti's apps: a page, a script, an
 
 **An assistant acting for a pilot, without a copied secret.** A pilot's own assistant reads the pilot's logbook over the [connector](mcp.md), after the pilot agreed, in the web app where they are signed in already or on a page of the server with handle and password: OAuth 2.1 with PKCE, a token that reads flights and nothing else, withdrawn like any other. [Connecting an assistant to a pilot's logbook](#connecting-an-assistant-to-a-pilots-logbook) has it step by step. Such a token is for the connector and is no token at `/v1`.
 
-**The bounds.** Open does not mean unbounded. An answer `429` carries `Retry-After`: wait that long. Ask again with `If-None-Match` and the `ETag` of the answer you kept, and an unchanged one costs a `304`; `Cache-Control` says for how long an answer may be reused without asking ([Caching](#rules-that-hold-for-every-endpoint)). The bounds that are counted today: a token for a program makes [3,600 requests an hour](#limits), its own budget, and every answer it gets says in `RateLimit` what is left; [600 reads an hour per address](#how-often-an-address-may-read) of public flights as data without a token, said the same way; forecasts of places the server has to fetch, per address ([forecast](#get-v1forecastlatlon)); a box that holds too much is refused with `box_too_large`; a page is 100 entries at most; and everything an account writes is counted per account, which a token shares ([Tokens](#tokens-for-other-programs)). Reads that have no bound today may get one.
+**The bounds.** Open does not mean unbounded. An answer `429` carries `Retry-After`: wait that long. Ask again with `If-None-Match` and the `ETag` of the answer you kept, and an unchanged one costs a `304`; `Cache-Control` says for how long an answer may be reused without asking ([Caching](#rules-that-hold-for-every-endpoint)). The bounds that are counted today: a token for a program makes [3,600 requests an hour](#limits), its own budget, and every answer it gets says in `RateLimit` what is left; [600 reads an hour per address](#how-often-an-address-may-read) of what pilots share (public flights, their tracks, the ranking, pilots' totals and lists, open plans: sixteen kinds of read) without a token, said the same way, and 3,600 an hour for a signed-in pilot's session; forecasts of places the server has to fetch, per address ([forecast](#get-v1forecastlatlon)); a box that holds too much is refused with `box_too_large`; a page is 100 entries at most; and everything an account writes is counted per account, which a token shares ([Tokens](#tokens-for-other-programs)). Reads that have no bound today may get one.
 
 **What the licences ask.** The data is not Venti's to give away without conditions, and the conditions travel in the answers:
 
@@ -321,7 +321,7 @@ RateLimit: "token";a=3599;w=3540
 
 `RateLimit-Policy` names the budget (`"token"`), its quota `q` and its window `w` in seconds. `RateLimit` says what is available of it, `a`, and in how many seconds the window closes, `w`. When `a` reached 0 the next request is answered `429` with `rate_limited` and `Retry-After`, which names the same moment as `w`; nothing of the request was done. A token that is not good, withdrawn, ended or never given out, is answered `401` on every path, also where a request without a token would be answered: send no token where none is needed.
 
-**A read without a token** is bounded by the address that asks where it is bounded at all: today the [reads of public flights as data](#how-often-an-address-may-read), 600 an hour, which say the same in the same two fields with the name `"address"`:
+**A read without a token** is bounded by the address that asks where it is bounded at all: today the [sixteen reads of what pilots share](#how-often-an-address-may-read), 600 an hour, which say the same in the same two fields with the name `"address"`:
 
 ```
 RateLimit-Policy: "address";q=600;w=3600
@@ -8100,7 +8100,7 @@ Needs a token. The account follows the pilot no more: `200` with `"following": f
 
 ### `GET /v1/pilots/{handle}/followers?after=&limit=`
 
-Who follows the pilot, the newest first, and how many do. Anyone may ask.
+Who follows the pilot, the newest first, and how many do. Anyone may ask. It counts as a read of public data for the address that asks: [600 an hour](#how-often-an-address-may-read).
 
 ```bash
 curl http://127.0.0.1:8080/v1/pilots/demo/followers
@@ -8500,7 +8500,7 @@ Venti's core says the tendencies from it with the rules it uses over a logbook o
 
 ### `GET /v1/pilots/{handle}/following?after=&limit=`
 
-Whom the pilot follows, the newest first: the same answer, with the followed pilots who have a page in `pilots`.
+Whom the pilot follows, the newest first: the same answer, with the followed pilots who have a page in `pilots`. It counts as a read of public data for the address that asks: [600 an hour](#how-often-an-address-may-read).
 
 ### `GET /v1/account/following?after=&limit=`
 
@@ -8557,7 +8557,7 @@ Needs a token. Takes the account's cheer back: `200` with `"cheered": false` and
 
 ### `GET /v1/flights/{id}/cheers?after=&limit=`
 
-Who cheered a public flight, the newest first. Anyone may ask.
+Who cheered a public flight, the newest first. Anyone may ask. It counts as a read of public data for the address that asks: [600 an hour](#how-often-an-address-may-read).
 
 ```bash
 curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg/cheers
@@ -8590,7 +8590,7 @@ curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg/cheers
 
 ### `GET /v1/flights/{id}/comments?after=&limit=`
 
-The comments under a public flight, the oldest first. Anyone may ask; the answer is the same for everyone.
+The comments under a public flight, the oldest first. Anyone may ask; the answer is the same for everyone. It counts as a read of public data for the address that asks: [600 an hour](#how-often-an-address-may-read).
 
 ```json
 {
@@ -8831,7 +8831,7 @@ The answer carries [`terms`](#flights), under what its flights are given.
 
 #### How often an address may read
 
-Seven requests are open to anyone and counted together for the address that asks: a page of this list, a page of [what changed](#get-v1flightspublicchangessincepilotlimit), [a flight's track](#get-v1flightsidtrack), [what flights say about a site](#what-public-flights-say-about-a-site), of one site and of the candidates in a box, [the search for pilots](#get-v1pilotsqlimit), [a pilot's totals](#get-v1pilotshandlestatistics) and [the ranking](#get-v1rankingbboxfromtomonthlimit). An address may make **600 of them in an hour**; for an IPv6 client the address is its /64 network, and one /48 network together gets 2,400. Beyond that the answer is `429` with `rate_limited`, and `Retry-After` says when the hour is over. Every such answer says what the address has left in `RateLimit` ([Limits](#limits)). A signed-in pilot's session counts them for the account instead, **3,600 an hour** whatever address the pilot reads from, with the name `"account"` in `RateLimit`: everyone behind one address shares the address's budget, a pilot does not. A session that is no longer good reads by the address. A token for a program counts them against the token's own budget. A page holds at most 100 flights or changes ([`limit`](#rules-that-hold-for-every-endpoint)), and a track at most 50,000 positions. One flight by its address, its file and a pilot's page are not counted. The numbers are estimates, counted in the server's memory as its other limits are.
+Sixteen reads are open to anyone and counted together for the address that asks, all of them made from what pilots share: a page of this list, a page of [what changed](#get-v1flightspublicchangessincepilotlimit), [a flight's track](#get-v1flightsidtrack), [what flights say about a site](#get-v1sitesidflights), [the candidates for sites in a box](#get-v1sitescandidatesbboxwestsoutheastnorth), [the cells where pilots climbed](#get-v1thermalsflownbboxmonthhours), [the search for pilots](#get-v1pilotsqlimit), [the pilots near a place](#get-v1pilotsnearlatlonradius_kmlimit), [a pilot's totals](#get-v1pilotshandlestatistics), [a pilot's followers](#get-v1pilotshandlefollowersafterlimit) and [whom they follow](#get-v1pilotshandlefollowingafterlimit), [the cheers](#get-v1flightsidcheersafterlimit) and [the comments](#get-v1flightsidcommentsafterlimit) of a flight, [the ranking](#get-v1rankingbboxfromtomonthlimit), and [the open plans near a place](#get-v1open-planslatlonradius_kmfromto) and [one open plan](#get-put-and-delete-v1open-plansplan). Three tools of [the connector](mcp.md#what-a-request-may-cost), `site_flights`, `takeoff_candidates` and `public_flights`, spend the same budget of the address. An address may make **600 of them in an hour**; for an IPv6 client the address is its /64 network, and one /48 network together gets 2,400. Beyond that the answer is `429` with `rate_limited`, and `Retry-After` says when the hour is over. Every such answer says what the address has left in `RateLimit` ([Limits](#limits)). A signed-in pilot's session counts them for the account instead, **3,600 an hour** whatever address the pilot reads from, with the name `"account"` in `RateLimit`: everyone behind one address shares the address's budget, a pilot does not. A session that is no longer good reads by the address. A token for a program counts them against the token's own budget. A page holds at most 100 flights or changes ([`limit`](#rules-that-hold-for-every-endpoint)), and a track at most 50,000 positions. One flight by its address, its file and a pilot's page are not counted. The numbers are estimates, counted in the server's memory as its other limits are.
 
 **A day** is asked for with its first moment as `from` and the first moment of the next day as `to`. The server knows no time zone: a client that means the pilots' own day writes its offset into both times (`2026-08-15T00:00:00+02:00`, with the `+` written as `%2B` in a URL). The best flights of 15 August 2026, by UTC:
 
@@ -9240,7 +9240,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public/changes?since=1795028700000003'
 
 Once a day is enough for most uses; once a minute is the most that makes sense. How long a copy may lag behind a withdrawal is part of the terms that are not written yet: until they are, ask at least once a day.
 
-**4. Stay within the bound.** An address may make [600 such reads an hour](#how-often-an-address-may-read): pages of the list, pages of the changes and tracks together. A `429` carries `Retry-After`; wait that long. Send `If-None-Match` with the `ETag` of an answer you kept and an unchanged one costs a `304` without a body. A page in a browser on another site may make these reads as any program may ([Browsers](#rules-that-hold-for-every-endpoint)), without a token.
+**4. Stay within the bound.** An address may make [600 such reads an hour](#how-often-an-address-may-read): pages of the list, pages of the changes, tracks and the other reads of public data that spend the same budget, together. A `429` carries `Retry-After`; wait that long. Send `If-None-Match` with the `ETag` of an answer you kept and an unchanged one costs a `304` without a body. A page in a browser on another site may make these reads as any program may ([Browsers](#rules-that-hold-for-every-endpoint)), without a token.
 
 **What is not there:** a file of all public flights, and a call from the server when something changes. Neither is planned before the terms are decided.
 
@@ -11082,7 +11082,7 @@ The answer is `201` with the plan. This is the development mode's, with the plan
 
 ### `GET, PUT and DELETE /v1/open-plans/{plan}`
 
-`GET` is open to anyone and answers `200` with `{"plan": …}`. `PUT` needs a token: the pilot who posted the plan replaces what it says, with the body of posting one, whole, and gets `200` with the plan as it now is; `changed_at` moves and `in` does not. `DELETE` needs a token: the pilot who posted it deletes it, with who was in, and gets `204`. `403` with `not_plan_author` for anyone else; `404` with `plan_not_found` for a plan that is not there: none ever, deleted, removed, or one whose day lies further back than plans are kept. `PUT` has the errors of posting one besides.
+`GET` is open to anyone, counts as a read of public data for the address that asks ([600 an hour](#how-often-an-address-may-read)), and answers `200` with `{"plan": …}`. `PUT` needs a token: the pilot who posted the plan replaces what it says, with the body of posting one, whole, and gets `200` with the plan as it now is; `changed_at` moves and `in` does not. `DELETE` needs a token: the pilot who posted it deletes it, with who was in, and gets `204`. `403` with `not_plan_author` for anyone else; `404` with `plan_not_found` for a plan that is not there: none ever, deleted, removed, or one whose day lies further back than plans are kept. `PUT` has the errors of posting one besides.
 
 ### `PUT and DELETE /v1/open-plans/{plan}/in`
 

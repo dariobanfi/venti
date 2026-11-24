@@ -46,7 +46,7 @@ const MAX_NAME_CHARS: usize = 80;
 const MAX_SECTORS: usize = 8;
 /// The longest address of a site's record that is passed on. One of
 /// OpenStreetMap's has about 45 characters.
-pub(crate) const MAX_URL_CHARS: usize = 120;
+pub const MAX_URL_CHARS: usize = 120;
 
 /// What every result says about the text in it that neither the server
 /// nor the app wrote: a site's name comes from OpenStreetMap as it is,

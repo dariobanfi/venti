@@ -161,11 +161,13 @@ pub struct Limits {
     /// The window for both.
     pub forecast_window: Duration,
     /// Reads of public flights as data that one address may make within
-    /// [`public_flight_window`](Self::public_flight_window): a page of
-    /// everyone's public flights, a page of what changed among them, and
-    /// a flight's track. They are open to anyone without a token, and a
-    /// track is worked out from its file for every answer that is not
-    /// kept.
+    /// [`public_flight_window`](Self::public_flight_window): the sixteen
+    /// reads of what pilots share that `docs/api.md` lists ("How often an
+    /// address may read"), a page of everyone's public flights, a page of
+    /// what changed among them and a flight's track among them, and the
+    /// connector's three tools that read public flights. They are open to
+    /// anyone without a token, and a track is worked out from its file for
+    /// every answer that is not kept.
     ///
     /// Six hundred an hour is one every six seconds: a program that
     /// follows the changes once a minute uses a tenth of it, a copy of

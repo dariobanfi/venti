@@ -969,9 +969,16 @@ const SCHEMAS_NO_GOLDEN_FILE_REACHES: &[&str] = &[
 
 /// The keywords of a schema that are read past: they say something to a
 /// person or to a generator, and no golden answer is checked against
-/// them. The bounds are the server's, which its own tests hold it to.
-const KEYWORDS_NOT_CHECKED: [&str; 5] =
-    ["description", "maxLength", "maxItems", "minimum", "maximum"];
+/// them. The bounds are the server's, which its own tests hold it to
+/// (`tests/bounds.rs` holds the description to them).
+const KEYWORDS_NOT_CHECKED: [&str; 6] = [
+    "description",
+    "minLength",
+    "maxLength",
+    "maxItems",
+    "minimum",
+    "maximum",
+];
 
 struct Validator<'a> {
     document: &'a Value,

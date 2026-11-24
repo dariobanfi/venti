@@ -90,9 +90,9 @@ pub trait Host {
 }
 
 /// The most flights `list_flights` returns when the model does not say.
-const DEFAULT_LIMIT: usize = 20;
+pub const DEFAULT_LIMIT: usize = 20;
 /// The most it returns whatever the model says.
-const MAX_LIMIT: usize = 100;
+pub const MAX_LIMIT: usize = 100;
 
 /// The tools that answer from the pilot's logbook, through a [`Host`].
 pub const TOOLS: [Tool; 3] = [

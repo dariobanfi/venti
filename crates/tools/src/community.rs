@@ -31,34 +31,34 @@ use venti_api_types::v1::{
 use venti_domain::{BoundingBox, GeoPoint, Site, SiteUse};
 
 use crate::sites::{is_plain_address, sector_words, use_word};
-use crate::wind::{MAX_ID_CHARS, MAX_NOTICE_CHARS, compass, refusal as wind_refusal, tenth};
+use crate::wind::{
+    MAX_CREDIT_CHARS, MAX_ID_CHARS, MAX_LAYERS, MAX_LICENCE_CHARS, MAX_NOTICE_CHARS, compass,
+    refusal as wind_refusal, tenth,
+};
 use crate::{Tool, ToolError, source_text};
 
 /// The most sites one result lists: the nearest to the middle of the box.
-const MAX_SITES: usize = 40;
+pub const MAX_SITES: usize = 40;
 /// The most characters of a name, a pilot's included, that are passed on.
-const MAX_NAME_CHARS: usize = 80;
+pub const MAX_NAME_CHARS: usize = 80;
 /// The most characters of a site's description, a revision's line and
 /// similar text of someone else's.
-const MAX_TEXT_CHARS: usize = 300;
+pub const MAX_TEXT_CHARS: usize = 300;
 /// The most spans of wind direction listed for one site.
-const MAX_SECTORS: usize = 8;
-/// The most layers a result lists.
-const MAX_LAYERS: usize = 8;
-/// The most credits' characters passed on.
-const MAX_CREDIT_CHARS: usize = 300;
-/// The most characters of a licence's name.
-const MAX_LICENCE_CHARS: usize = 40;
-/// Public flights listed when the model does not say, and the most.
-const DEFAULT_FLIGHTS: usize = 20;
-const MAX_FLIGHTS: usize = 50;
-/// Revisions listed when the model does not say; the API's page is the most.
-const DEFAULT_REVISIONS: usize = 20;
-const MAX_REVISIONS: usize = 100;
-/// The longest span of days one question about flights may cover.
-const MAX_DAYS: i64 = 366;
+pub const MAX_SECTORS: usize = 8;
+/// Public flights listed when the model does not say.
+pub const DEFAULT_FLIGHTS: usize = 20;
+/// The most public flights one result lists.
+pub const MAX_FLIGHTS: usize = 50;
+/// Revisions listed when the model does not say.
+pub const DEFAULT_REVISIONS: usize = 20;
+/// The most revisions one result lists: the API's page.
+pub const MAX_REVISIONS: usize = 100;
+/// The most days from `from_date` to `to_date` of one question about
+/// flights.
+pub const MAX_DAYS: i64 = 366;
 /// The longest cursor passed back to the server.
-const MAX_CURSOR_CHARS: usize = 200;
+pub const MAX_CURSOR_CHARS: usize = 200;
 
 /// The sixteen compass points, north first, each 22.5 degrees on.
 const POINTS: [&str; 16] = [

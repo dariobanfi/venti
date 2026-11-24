@@ -26,31 +26,35 @@ use crate::sites::is_plain_address;
 use crate::{Tool, ToolError, source_text};
 
 /// How far around a place `wind_stations` looks when the model does not say.
-const DEFAULT_RADIUS_KM: f64 = 25.0;
+pub const DEFAULT_RADIUS_KM: f64 = 25.0;
 /// The farthest it looks whatever the model says.
-const MAX_RADIUS_KM: f64 = 100.0;
+pub const MAX_RADIUS_KM: f64 = 100.0;
 /// The most stations it lists. The nearest are the ones that matter, and
 /// the pilot pays for every token.
-const MAX_STATIONS: usize = 15;
+pub const MAX_STATIONS: usize = 15;
 
 /// The most characters of a station's name that are passed on.
-const MAX_NAME_CHARS: usize = 80;
-/// The most credits a result lists, and the most characters of a credit's
-/// sentence, of a licence's name and of what a source asks to be said with
-/// its data. The longest of the project's own are 230, 15 and 190.
-const MAX_CREDITS: usize = 8;
-const MAX_CREDIT_CHARS: usize = 300;
-const MAX_LICENCE_CHARS: usize = 40;
-pub(crate) const MAX_NOTICE_CHARS: usize = 300;
+pub const MAX_NAME_CHARS: usize = 80;
+/// The most credits a result lists.
+pub const MAX_CREDITS: usize = 8;
+/// The most characters of a credit's sentence, of a licence's name and of
+/// what a source asks to be said with its data, in every tool's result.
+/// The longest of the project's own are 230, 15 and 190.
+pub const MAX_CREDIT_CHARS: usize = 300;
+/// See [`MAX_CREDIT_CHARS`].
+pub const MAX_LICENCE_CHARS: usize = 40;
+/// See [`MAX_CREDIT_CHARS`].
+pub const MAX_NOTICE_CHARS: usize = 300;
 /// The most sets of data ("layers") of a server's answer that a result
-/// describes, and the most characters of a source's or a model's name.
-pub(crate) const MAX_LAYERS: usize = 8;
-pub(crate) const MAX_ID_CHARS: usize = 40;
+/// describes.
+pub const MAX_LAYERS: usize = 8;
+/// The most characters of a source's, a layer's or a model's name.
+pub const MAX_ID_CHARS: usize = 40;
 
 /// How many hours `station_history` covers when the model does not say.
-const DEFAULT_HOURS: i64 = 6;
+pub const DEFAULT_HOURS: i64 = 6;
 /// The most it covers: what the server keeps ready for one request.
-const MAX_HOURS: i64 = 24;
+pub const MAX_HOURS: i64 = 24;
 
 /// A reading older than this many minutes says nothing about the wind now.
 /// The same line the map draws.

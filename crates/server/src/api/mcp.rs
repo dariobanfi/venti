@@ -94,7 +94,7 @@ pub const MCP_PATH: &str = "/mcp";
 /// The largest request the connector reads. A tool call is a few hundred
 /// bytes. The newest revision of the protocol lets a client describe
 /// itself in every request, icon included, which is what the room is for.
-pub(crate) const MAX_BODY_BYTES: usize = 64 * 1024;
+pub const MAX_BODY_BYTES: usize = 64 * 1024;
 
 /// What the server tells an assistant about itself, beyond what each tool
 /// says.

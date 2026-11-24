@@ -31,16 +31,16 @@ use crate::wind::{
 use crate::{Tool, ToolError, source_text};
 
 /// How far around a place `airspace_at` looks when the model does not say.
-const DEFAULT_RADIUS_KM: f64 = 10.0;
+pub const DEFAULT_RADIUS_KM: f64 = 10.0;
 /// The farthest it looks whatever the model says.
-const MAX_RADIUS_KM: f64 = 50.0;
+pub const MAX_RADIUS_KM: f64 = 50.0;
 /// The most airspaces it lists near the place, beside those over it.
-const MAX_NEARBY: usize = 15;
+pub const MAX_NEARBY: usize = 15;
 /// The most characters of a source's remark that are passed on.
-const MAX_REMARK_CHARS: usize = 240;
+pub const MAX_REMARK_CHARS: usize = 240;
 /// The most characters of an airspace's name that are passed on. The
 /// longest name in the files recorded from openAIP on 2026-11-19 has 56.
-const MAX_NAME_CHARS: usize = 80;
+pub const MAX_NAME_CHARS: usize = 80;
 
 /// What every result says about the text in it that neither the server
 /// nor the app wrote.

@@ -16,6 +16,7 @@ import type {
 	Coordinate,
 	FlightRef,
 	CoreClient,
+	FlightSearch,
 	OpenedFlight,
 	PilotStatistics,
 	PilotsNear,
@@ -24,6 +25,8 @@ import type {
 	PublicFlightsOrder,
 	RankedPilot,
 	RankingMonthChoice,
+	SearchChip,
+	SearchChoices,
 	SeasonRanking,
 	SiteAtPlace
 } from '#lib/core/index.ts';
@@ -38,6 +41,7 @@ import {
 	words
 } from './pages';
 import { NOT_SEARCHED, PilotSearch, type SearchState } from './search';
+import { isSearching, NO_SEARCH, sameSearch, searchParams } from './flight-search';
 
 /** One pilot and the flights that pilot shares with everyone. */
 export interface PilotState {
@@ -51,6 +55,10 @@ export interface PilotState {
 	statisticsProblem: string | undefined;
 	/** The season the list is narrowed to, by its name; empty for all years. */
 	season: string;
+	/** The bounds of that season, for a search within it. */
+	span: { fromUnixS: number | undefined; toUnixS: number | undefined };
+	/** What else the list is searched by. */
+	search: FlightSearch;
 }
 
 /** A season of a pilot's totals, as the list is narrowed to it. */
@@ -92,6 +100,8 @@ export interface RankingState {
 	problem: string | undefined;
 	/** Whether this site turned out to have no server to ask. */
 	absent: boolean;
+	/** What else the flights ranked are searched by. */
+	search?: FlightSearch;
 }
 
 export const NOT_RANKED: RankingState = {
@@ -212,6 +222,8 @@ export class CommunityModel {
 	#centre: Promise<Coordinate> | undefined;
 	/** The question of the place's ranking last asked. */
 	#placeRanked: object | undefined;
+	/** What a search's form offers, once asked for. */
+	#choices: Promise<SearchChoices> | undefined;
 
 	constructor(core: CoreClient) {
 		this.#core = core;
@@ -223,6 +235,22 @@ export class CommunityModel {
 			(text) => core.pilotsFound(text),
 			(state) => (this.search = state)
 		);
+	}
+
+	/** The chips of a search, one a choice, in the core's words. */
+	searchChips(search: FlightSearch): Promise<SearchChip[]> {
+		return this.#core.searchChips(search);
+	}
+
+	/** What a search's form offers: the server's bounds and the kinds of route, asked once. */
+	searchChoices(): Promise<SearchChoices> {
+		this.#choices ??= this.#core.searchChoices();
+		return this.#choices;
+	}
+
+	/** Why a search cannot be asked, in the core's words; nothing where it can. */
+	searchRefused(search: FlightSearch): Promise<string | undefined> {
+		return this.#core.searchRefused(search);
 	}
 
 	/**
@@ -253,8 +281,10 @@ export class CommunityModel {
 			this.asked = asked;
 			this.list = NOT_LISTED;
 			const { fromUnixS, toUnixS } = span(asked);
+			const search = isSearching(asked.search) ? asked.search : undefined;
 			const list = new PagedFlights(
-				(after) => this.#core.publicFlights({ order: asked.order, fromUnixS, toUnixS, after }),
+				(after) =>
+					this.#core.publicFlights({ order: asked.order, fromUnixS, toUnixS, after, search }),
 				(state) => {
 					// Another question has been asked since.
 					if (list === this.#everyone) this.list = state;
@@ -275,19 +305,42 @@ export class CommunityModel {
 		void this.#everyone?.load();
 	}
 
-	/** Shows the public flights of the pilot of that handle, from their top. */
-	showPilot(handle: string): void {
+	/**
+	 * Shows the public flights of the pilot of that handle, from their top,
+	 * as far as a search finds them. The same pilot with another search is
+	 * the same page with another list.
+	 */
+	showPilot(handle: string, search: FlightSearch = NO_SEARCH): void {
 		untrack(() => {
-			if (this.#ofPilot && this.pilot?.handle === handle) return;
+			const before = this.pilot;
+			if (this.#ofPilot && before?.handle === handle) {
+				if (!sameSearch(before.search, search)) this.#listPilot({ ...before, search });
+				return;
+			}
 			this.pilot = {
 				handle,
 				name: undefined,
 				list: NOT_LISTED,
 				statistics: undefined,
 				statisticsProblem: undefined,
-				season: ''
+				season: '',
+				span: { fromUnixS: undefined, toUnixS: undefined },
+				search
 			};
 			void this.#addUp(handle);
+			if (isSearching(search)) {
+				// The pilot's name comes with the first page of their flights.
+				void this.#core.pilotPage(handle).then(
+					(answer) => {
+						if (answer && this.pilot?.handle === handle) {
+							this.pilot = { ...this.pilot, name: answer.name };
+						}
+					},
+					() => {}
+				);
+				this.#listPilot(this.pilot);
+				return;
+			}
 			const list = new PagedFlights(
 				async (after) => {
 					const answer = await this.#core.pilotPage(handle, after);
@@ -312,15 +365,32 @@ export class CommunityModel {
 	narrowPilot(season: PilotSeason): void {
 		const pilot = this.pilot;
 		if (!pilot) return;
-		const { handle } = pilot;
 		const whole = season.fromUnixS === undefined && season.toUnixS === undefined;
 		if (pilot.season === (whole ? '' : season.name)) return;
-		this.pilot = { ...pilot, season: whole ? '' : season.name, list: NOT_LISTED };
+		this.#listPilot({
+			...pilot,
+			season: whole ? '' : season.name,
+			span: { fromUnixS: season.fromUnixS, toUnixS: season.toUnixS }
+		});
+	}
+
+	/** Lists the pilot's flights anew, of a season and as far as a search finds them. */
+	#listPilot(pilot: PilotState): void {
+		const { handle, span: within, search } = pilot;
+		const whole = within.fromUnixS === undefined && within.toUnixS === undefined;
+		this.pilot = { ...pilot, list: NOT_LISTED };
+		const searching = isSearching(search);
 		const list = new PagedFlights(
 			(after) =>
-				whole
+				whole && !searching
 					? this.#core.pilotPage(handle, after)
-					: this.#core.pilotFlights(handle, season.fromUnixS, season.toUnixS, after),
+					: this.#core.pilotFlights(
+							handle,
+							within.fromUnixS,
+							within.toUnixS,
+							after,
+							searching ? search : undefined
+						),
 			(state) => {
 				if (list === this.#ofPilot && this.pilot) this.pilot = { ...this.pilot, list: state };
 			}
@@ -361,21 +431,22 @@ export class CommunityModel {
 	 * ("2026-05"), the ranking of that month. A ranking that is there for
 	 * the same question, or on its way, is left as it is.
 	 */
-	showRanking(season: string, month = ''): void {
+	showRanking(season: string, month = '', search: FlightSearch = NO_SEARCH): void {
 		untrack(() => {
 			const there = this.ranking.known || this.ranking.loading;
-			if (this.#ranked === `${season}|${month}` && there) return;
-			void this.#rank(season, month);
+			const question = `${season}|${month}|${searchParams(search)}`;
+			if (this.#ranked === question && there) return;
+			void this.#rank(season, month, search);
 		});
 	}
 
 	/** Asks again: for a ranking that could not be fetched. */
 	rankAgain(): void {
-		void this.#rank(this.ranking.asked, this.ranking.askedMonth);
+		void this.#rank(this.ranking.asked, this.ranking.askedMonth, this.ranking.search);
 	}
 
-	async #rank(season: string, month: string): Promise<void> {
-		const question = `${season}|${month}`;
+	async #rank(season: string, month: string, search: FlightSearch = NO_SEARCH): Promise<void> {
+		const question = `${season}|${month}|${searchParams(search)}`;
 		this.#ranked = question;
 		// The seasons and the months stay to choose from while another one is fetched.
 		const { seasons, months } = this.ranking;
@@ -387,16 +458,24 @@ export class CommunityModel {
 			seasons,
 			season: before,
 			months: month ? months : [],
-			loading: true
+			loading: true,
+			search
 		};
+		const searching = isSearching(search);
 		const ranking = await rankingOf(
-			() => this.#core.ranking(season || undefined, undefined, month || undefined),
+			() =>
+				this.#core.ranking(
+					season || undefined,
+					undefined,
+					month || undefined,
+					searching ? search : undefined
+				),
 			season,
 			seasons,
 			month
 		);
 		// Something else has been asked for since.
-		if (this.#ranked === question) this.ranking = ranking;
+		if (this.#ranked === question) this.ranking = { ...ranking, search };
 	}
 
 	/**
@@ -610,7 +689,12 @@ async function rankingOf(
 					month: answer.month,
 					wholeName: answer.wholeName,
 					// The ranking's heading is the period's own title.
-					title: answer.ranking.period.title || (answer.month?.title ?? answer.season.name),
+					// A month asked with a search is asked as its span, whose
+					// title the server writes as days: the month's own is shorter.
+					title:
+						(month && answer.month?.title) ||
+						answer.ranking.period.title ||
+						(answer.month?.title ?? answer.season.name),
 					words: answer.words,
 					pilots: answer.ranking.pilots,
 					rule: answer.ranking.rule,

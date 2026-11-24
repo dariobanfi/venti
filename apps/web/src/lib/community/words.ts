@@ -6,6 +6,7 @@
 import type { GliderClassKind, PublicFlight } from '#lib/core/index.ts';
 import type { Format } from '#lib/design/format.ts';
 import type { Asked, ListState } from './pages';
+import { isSearching } from './flight-search';
 
 /** Under every list: whose flights these are, and whose reckoning the numbers. */
 export const RECKONING =
@@ -103,7 +104,7 @@ export function nothingRanked(state: {
 /** Why a list has no flights, and what would change that. */
 export function nothingListed(
 	state: ListState,
-	asked: Pick<Asked, 'from' | 'to'>
+	asked: Pick<Asked, 'from' | 'to' | 'search'>
 ): { title: string; says: string } {
 	if (state.absent) {
 		return {
@@ -113,6 +114,12 @@ export function nothingListed(
 	}
 	if (state.problem) {
 		return { title: 'The flights could not be listed', says: state.problem };
+	}
+	if (isSearching(asked.search)) {
+		return {
+			title: 'No flights match',
+			says: 'Nobody shares a flight that matches these choices. Remove one, or widen the area.'
+		};
 	}
 	if (asked.from || asked.to) {
 		return {

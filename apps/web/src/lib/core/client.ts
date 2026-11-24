@@ -19,6 +19,7 @@ import type {
 	AlertDraft,
 	Bounds,
 	Coordinate,
+	FlightSearch,
 	Credit,
 	FlightVisibility,
 	GliderClassKind,
@@ -397,8 +398,8 @@ export class CoreClient {
 	 * flights from there; with a month, as the ranking's periods write
 	 * one, of that month. Nothing if this site has no server.
 	 */
-	ranking(season?: string, near?: Coordinate, month?: string) {
-		return this.#call('ranking', { season, near, month });
+	ranking(season?: string, near?: Coordinate, month?: string, search?: FlightSearch) {
+		return this.#call('ranking', { season, near, month, search });
 	}
 
 	/**
@@ -944,8 +945,29 @@ export class CoreClient {
 	}
 
 	/** A page of a pilot's public flights of a season, between two moments. */
-	pilotFlights(handle: string, fromUnixS?: number, toUnixS?: number, after?: string) {
-		return this.#call('pilotFlights', { handle, fromUnixS, toUnixS, after });
+	pilotFlights(
+		handle: string,
+		fromUnixS?: number,
+		toUnixS?: number,
+		after?: string,
+		search?: FlightSearch
+	) {
+		return this.#call('pilotFlights', { handle, fromUnixS, toUnixS, after, search });
+	}
+
+	/** The chips of a search of public flights, one a choice, in the core's words. */
+	searchChips(search: FlightSearch) {
+		return this.#call('searchChips', search);
+	}
+
+	/** What a search's form offers: the server's bounds, the kinds of route by name. */
+	searchChoices() {
+		return this.#call('searchChoices', undefined);
+	}
+
+	/** Why a search cannot be asked, in the core's words; nothing where it can. */
+	searchRefused(search: FlightSearch) {
+		return this.#call('searchRefused', search);
 	}
 
 	/** A route's places as a GPX file's text; latitudes and longitudes in turn. */

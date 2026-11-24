@@ -8,9 +8,12 @@
 	the newest season's ranking.
 -->
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { searchIn, withSearch } from '#lib/community/flight-search.ts';
+	import SearchFilter from '#lib/community/SearchFilter.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { everyoneHref } from '#lib/app/routes.ts';
+	import { everyoneHref, pilotHref } from '#lib/app/routes.ts';
 	import { NOT_RANKED } from '#lib/community/model.svelte.ts';
 	import PilotTotals from '#lib/community/PilotTotals.svelte';
 	import { format } from '#lib/design/format.ts';
@@ -31,9 +34,21 @@
 	const pilot = $derived(everyone?.pilot?.handle === handle ? everyone?.pilot : undefined);
 	const list = $derived(pilot?.list ?? NOT_LISTED);
 
+	/** What the pilot's flights are searched by, as the address says. */
+	const search = $derived(searchIn(page.url.searchParams));
+
 	$effect(() => {
-		if (handle) everyone?.showPilot(handle);
+		if (handle) everyone?.showPilot(handle, search);
 	});
+
+	/** Searches the pilot's flights by something else: the address changes in place. */
+	function find(next: typeof search): void {
+		void goto(withSearch(pilotHref(handle), next), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
+	}
 
 	/** The pilot's name as the server has it. What another pilot wrote is shown as text. */
 	const name = $derived(pilot?.name ?? (handle ? `@${handle}` : 'Pilot'));
@@ -128,11 +143,14 @@
 					? 'span-9'
 					: 'span-12'}
 			>
+				<div class="asked">
+					<SearchFilter {search} onsearch={find} />
+				</div>
 				<PublicFlightList
 					label="Flights of {name}"
 					{list}
 					named={false}
-					nothing={nothingListed(list, { from: '', to: '' })}
+					nothing={nothingListed(list, { from: '', to: '', search })}
 					reckoning={PILOTS_RECKONING}
 					onmore={() => everyone?.morePilot()}
 					onagain={() => everyone?.againPilot()}
@@ -187,6 +205,15 @@
 
 	header {
 		margin-bottom: 1rem;
+	}
+
+	/* What the flights are searched by, over the list. */
+	.asked {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2) var(--space-4);
+		margin-bottom: var(--space-3);
 	}
 
 	/* The pilot's face beside the name and handle. */

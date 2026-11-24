@@ -23,6 +23,8 @@
 	import ChipTick from '#lib/design/ChipTick.svelte';
 	import Icon from '#lib/design/Icon.svelte';
 	import YearChips from '#lib/design/YearChips.svelte';
+	import { isSearching, NO_SEARCH, searchIn, withSearch } from '#lib/community/flight-search.ts';
+	import SearchFilter from '#lib/community/SearchFilter.svelte';
 
 	const app = getApp();
 	const everyone = $derived(app.everyone);
@@ -31,12 +33,24 @@
 	const asked = $derived(browser ? (page.url.searchParams.get('season') ?? '') : '');
 	/** The month the address asks for, as the ranking's periods write one. */
 	const askedMonth = $derived(browser ? (page.url.searchParams.get('month') ?? '') : '');
+	/** What the flights ranked are searched by, as the address says: a country, an area and more. */
+	const search = $derived(browser ? searchIn(page.url.searchParams) : NO_SEARCH);
+
 	const ranking = $derived(everyone?.ranking ?? NOT_RANKED);
 	/** The core's words around the ranking: the season's choice, the empty month's sentence. */
 	const said = $derived(everyone?.pilotsWords);
-	const nothing = $derived(nothingRanked({ ...ranking, monthEmpty: said?.monthEmpty }));
+	const nothing = $derived(
+		isSearching(search)
+			? ranking.problem
+				? { title: 'The ranking could not be fetched', says: ranking.problem }
+				: {
+						title: 'Nobody is ranked',
+						says: 'Nobody shares a flight that matches these choices. Remove one, or widen the area.'
+					}
+			: nothingRanked({ ...ranking, monthEmpty: said?.monthEmpty })
+	);
 
-	$effect(() => everyone?.showRanking(asked, askedMonth));
+	$effect(() => everyone?.showRanking(asked, askedMonth, search));
 
 	/**
 	 * Asks for another season: the address changes in place, with the
@@ -46,14 +60,24 @@
 		// The newest season needs no name: the address of the page alone is
 		// this year's ranking next year too.
 		const named = season === ranking.seasons[0] ? '' : season;
-		void goto(rankingHref(named), { replaceState: true, keepFocus: true, noScroll: true });
+		void goto(withSearch(rankingHref(named), search), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}
 
 	/** Asks for a month of the season, or, for the month that is shown, for the whole season again. */
 	function askMonth(month: string) {
 		const whole = ranking.season === ranking.seasons[0] ? '' : ranking.season;
 		const href = month === ranking.askedMonth ? rankingHref(whole) : rankingHref('', month);
-		void goto(href, { replaceState: true, keepFocus: true, noScroll: true });
+		void goto(withSearch(href, search), { replaceState: true, keepFocus: true, noScroll: true });
+	}
+
+	/** Ranks the flights of another search: the season and month stay. */
+	function find(next: typeof search): void {
+		const href = askedMonth ? rankingHref('', askedMonth) : rankingHref(asked);
+		void goto(withSearch(href, next), { replaceState: true, keepFocus: true, noScroll: true });
 	}
 
 	/** What the ranking is of, as the core calls it. */
@@ -89,6 +113,10 @@
 				/>
 			</div>
 		{/if}
+
+		<div class="asked">
+			<SearchFilter {search} onsearch={find} />
+		</div>
 
 		{#if ranking.months.length > 0}
 			<div class="months" role="group" aria-label="Months of {ranking.season}">
@@ -173,6 +201,15 @@
 	}
 
 	.season {
+		margin-bottom: var(--space-3);
+	}
+
+	/* What the flights ranked are searched by. */
+	.asked {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2) var(--space-4);
 		margin-bottom: var(--space-3);
 	}
 

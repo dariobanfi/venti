@@ -25,6 +25,11 @@ import {
 	type FlightAnalysis,
 	flightFromFile,
 	type FlightView,
+	type FlightSearch,
+	flightSearchBounds,
+	type FlightSearchBounds,
+	flightSearchWords,
+	pilotFlightsSearchPath,
 	pilotPage,
 	type PilotPage,
 	pilotFlightsPath,
@@ -45,14 +50,25 @@ import {
 	type PublicFlights,
 	type PublicFlightsOrder,
 	publicFlightsPath,
+	publicFlightsSearchPath,
 	ranking,
 	type Ranking,
 	type RankingMonthChoice,
 	rankingMonthPath,
 	rankingPath,
 	type RankingSeason,
-	rankingSeasons
+	rankingSearchPath,
+	rankingSeasons,
+	type RouteKind,
+	routeKindWords
 } from './pkg/venti_core_wasm.js';
+import {
+	isSearching,
+	only,
+	ROUTE_KINDS,
+	SEARCH_PARTS,
+	type SearchPart
+} from '#lib/community/flight-search.ts';
 import { unreachable } from './protocol';
 import type { Get } from './wind-source';
 
@@ -88,6 +104,94 @@ export interface PublicFlightsAsked {
 	near?: Coordinate;
 	/** Only flights that took off inside this part of the map. */
 	area?: Bounds;
+	/** What else the pilot chose to search by: a radius, a drawn area, a class and more. */
+	search?: FlightSearch;
+}
+
+/** One chip of a search: the choice it shows, in the core's words. */
+export interface SearchChip {
+	part: SearchPart;
+	words: string;
+}
+
+/** What a search's form offers: the server's bounds, and the kinds of route by name. */
+export interface SearchChoices {
+	bounds: FlightSearchBounds;
+	kinds: { kind: RouteKind; name: string }[];
+}
+
+/** The chips of a search, one a choice, in the core's words and order. */
+export function searchChips(search: FlightSearch): SearchChip[] {
+	return SEARCH_PARTS.flatMap((part) => {
+		const words = flightSearchWords(only(search, part));
+		return words.length > 0 ? [{ part, words: words[0] }] : [];
+	});
+}
+
+/** What a search's form offers. */
+export function searchChoices(): SearchChoices {
+	return {
+		bounds: flightSearchBounds(),
+		kinds: ROUTE_KINDS.map((kind) => ({ kind, name: routeKindWords(kind) }))
+	};
+}
+
+/**
+ * Why a search cannot be asked, in the core's words; nothing where it can.
+ * The core says so as it writes the path.
+ */
+export function searchRefused(search: FlightSearch): string | undefined {
+	try {
+		publicFlightsSearchPath('newest', undefined, undefined, undefined, search);
+		return undefined;
+	} catch (error) {
+		return error instanceof Error ? error.message : String(error);
+	}
+}
+
+/** An error whose message the page shows as it is, as the core's are. */
+function inWords(message: string): Error {
+	const error = new Error(message);
+	error.name = 'Server';
+	return error;
+}
+
+/**
+ * A search the server refused or gave up on, in words; nothing for any
+ * other answer, which the core reads. The server gives a read up after two
+ * seconds (`503`, `unavailable`): a narrower search is quicker. A
+ * search it refuses (`400`) it says why of, which the page shows.
+ */
+function searchFailure(status: number, body: Uint8Array): Error | undefined {
+	if (status === 503) {
+		return inWords(
+			'The search took too long. Narrow it: a smaller area, fewer days or more choices.'
+		);
+	}
+	if (status !== 400) return undefined;
+	try {
+		const said = JSON.parse(new TextDecoder().decode(body)) as { error?: { message?: unknown } };
+		const message = said.error?.message;
+		if (typeof message === 'string' && message.trim()) {
+			const text = message.trim();
+			return inWords(`${text[0].toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? '' : '.'}`);
+		}
+	} catch {
+		// Not the server's words: the core says what it can.
+	}
+	return undefined;
+}
+
+/** The first and the first after a calendar month by UTC, as the ranking's periods write one ("2026-05"). */
+function monthSpan(month: string): { fromUnixS: number; toUnixS: number } | undefined {
+	const parts = /^(\d{4})-(\d{2})$/.exec(month);
+	if (!parts) return undefined;
+	const year = Number(parts[1]);
+	const index = Number(parts[2]) - 1;
+	return {
+		fromUnixS: Date.UTC(year, index, 1) / 1000,
+		toUnixS: Date.UTC(year, index + 1, 1) / 1000
+	};
 }
 
 /** A flight to lay beside another: one of the pilot's own, or a public one, by its address. */
@@ -147,9 +251,23 @@ export class CommunitySource {
 	async flights(asked: PublicFlightsAsked): Promise<PublicFlights | undefined> {
 		if (!(await this.#present())) return undefined;
 		const area = asked.near ? flownFromHere(asked.near.lat, asked.near.lon) : asked.area;
+		const search = asked.search;
 		const answer = await this.#get(
-			publicFlightsPath(asked.order, area, asked.fromUnixS, asked.toUnixS, asked.after)
+			search && isSearching(search)
+				? publicFlightsSearchPath(
+						asked.order,
+						area,
+						asked.fromUnixS,
+						asked.toUnixS,
+						search,
+						asked.after
+					)
+				: publicFlightsPath(asked.order, area, asked.fromUnixS, asked.toUnixS, asked.after)
 		);
+		if (search && isSearching(search)) {
+			const failure = searchFailure(answer.status, answer.body);
+			if (failure) throw failure;
+		}
 		return publicFlights(answer.status, answer.body);
 	}
 
@@ -174,10 +292,20 @@ export class CommunitySource {
 		handle: string,
 		fromUnixS?: number,
 		toUnixS?: number,
-		after?: string
+		after?: string,
+		search?: FlightSearch
 	): Promise<PublicFlights | undefined> {
 		if (!(await this.#present())) return undefined;
-		const answer = await this.#get(pilotFlightsPath(handle, fromUnixS, toUnixS, after));
+		const searching = search !== undefined && isSearching(search);
+		const answer = await this.#get(
+			searching
+				? pilotFlightsSearchPath(handle, 'newest', fromUnixS, toUnixS, search, after)
+				: pilotFlightsPath(handle, fromUnixS, toUnixS, after)
+		);
+		if (searching) {
+			const failure = searchFailure(answer.status, answer.body);
+			if (failure) throw failure;
+		}
 		return publicFlights(answer.status, answer.body);
 	}
 
@@ -226,15 +354,32 @@ export class CommunitySource {
 		season?: string,
 		near?: Coordinate,
 		nowUnixS?: number,
-		month?: string
+		month?: string,
+		search?: FlightSearch
 	): Promise<SeasonRanking | undefined> {
 		if (!(await this.#present())) return undefined;
 		const { seasons } = rankingSeasons(nowUnixS ?? (await this.#now()));
 		const asked = seasons.find((offered) => offered.name === season) ?? seasons[0];
 		const area = near ? flownFromHere(near.lat, near.lon) : undefined;
-		const answer = await this.#get(
-			month ? rankingMonthPath(area, month) : rankingPath(area, asked.fromUnixS, asked.toUnixS)
-		);
+		const searching = search !== undefined && isSearching(search);
+		// The core has no path for a month and a search at once: the month
+		// is then asked as its span, which is a calendar month by UTC.
+		const span = month ? monthSpan(month) : undefined;
+		let path: string;
+		if (searching && search) {
+			path = span
+				? rankingSearchPath(area, span.fromUnixS, span.toUnixS, search)
+				: rankingSearchPath(area, asked.fromUnixS, asked.toUnixS, search);
+		} else {
+			path = month
+				? rankingMonthPath(area, month)
+				: rankingPath(area, asked.fromUnixS, asked.toUnixS);
+		}
+		const answer = await this.#get(path);
+		if (searching) {
+			const failure = searchFailure(answer.status, answer.body);
+			if (failure) throw failure;
+		}
 		const ranked = ranking(answer.status, answer.body);
 		// The year a month lies in is the one whose months hold it.
 		const year = month

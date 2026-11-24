@@ -97,6 +97,8 @@ export type {
 	FlightFile,
 	FlightMoment,
 	FlightScore,
+	FlightSearch,
+	FlightSearchBounds,
 	FlightSharing,
 	GoogleSignUp,
 	GoogleWords,
@@ -321,6 +323,8 @@ export type {
 	FlightRef,
 	OpenedFlight,
 	PublicFlightsAsked,
+	SearchChip,
+	SearchChoices,
 	SeasonRanking
 } from './community-source';
 export type { LiveAnswer, LiveFollowAnswer, LiveOthersAnswer } from './live-source';

@@ -31,6 +31,8 @@
 	import PublicFlightList from '#lib/community/PublicFlightList.svelte';
 	import { dayOf } from '#lib/groups/days.ts';
 	import WhoseFlights from '#lib/community/WhoseFlights.svelte';
+	import SearchFilter from '#lib/community/SearchFilter.svelte';
+	import { isSearching, NO_SEARCH } from '#lib/community/flight-search.ts';
 	import { NOT_SEARCHED } from '#lib/community/search.ts';
 	import { nothingListed, RECKONING } from '#lib/community/words.ts';
 	import { format } from '#lib/design/format.ts';
@@ -73,7 +75,9 @@
 	// The head of the list: the best of today and the top of the year.
 	$effect(() => everyone?.showFront(dayOf(new Date())));
 	/** Whether the list is the plain one, newest first on any day, which the head stands over. */
-	const plain = $derived(asked.order === 'newest' && !asked.from && !asked.to && !following);
+	const plain = $derived(
+		asked.order === 'newest' && !asked.from && !asked.to && !isSearching(asked.search) && !following
+	);
 
 	/**
 	 * Asks for something else: the address changes in place, with the
@@ -163,60 +167,58 @@
 					}
 				/>
 			</div>
-			<!-- The days are behind one control; the span chosen stands beside
-			     it as a chip, which also lets go of it. -->
-			<div class="filter" hidden={following}>
-				<button
-					class="button-plain fold"
-					type="button"
-					aria-expanded={filtering}
-					aria-controls="{id}-days"
-					onclick={() => (filtering = !filtering)}
+			<!-- The days and the search are behind one control; each choice
+			     stands beside it as a chip, which also lets go of it. -->
+			{#if !following}
+				<SearchFilter
+					search={asked.search ?? NO_SEARCH}
+					onsearch={(search) => ask({ ...asked, search })}
+					bind:open={filtering}
 				>
-					<Icon name="filter" />
-					{app.said?.pages.filter ?? ''}
-				</button>
-				{#if span}
-					<span class="span numeric">
-						<ChipTick on />
-						{span}
-						<button
-							type="button"
-							aria-label={app.said?.pages.anyDay}
-							title={app.said?.pages.anyDay}
-							onclick={() => ask({ ...asked, from: '', to: '' })}
-						>
-							<Icon name="close" />
-						</button>
-					</span>
-				{/if}
-			</div>
-			{#if filtering && !following}
-				<!-- A day, or a span of days: choosing the first alone means that day. -->
-				<div class="days" id="{id}-days" role="group" aria-label="Days">
-					<span class="day">
-						<label for="{id}-from">From</label>
-						<input
-							id="{id}-from"
-							class="text-field"
-							type="date"
-							value={asked.from}
-							onchange={(event) =>
-								ask({ ...asked, ...withDay(asked, 'from', event.currentTarget.value) })}
-						/>
-					</span>
-					<span class="day">
-						<label for="{id}-to">to</label>
-						<input
-							id="{id}-to"
-							class="text-field"
-							type="date"
-							value={asked.to}
-							onchange={(event) =>
-								ask({ ...asked, ...withDay(asked, 'to', event.currentTarget.value) })}
-						/>
-					</span>
-				</div>
+					{#snippet chips()}
+						{#if span}
+							<span class="span numeric">
+								<ChipTick on />
+								{span}
+								<button
+									type="button"
+									aria-label={app.said?.pages.anyDay}
+									title={app.said?.pages.anyDay}
+									onclick={() => ask({ ...asked, from: '', to: '' })}
+								>
+									<Icon name="close" />
+								</button>
+							</span>
+						{/if}
+					{/snippet}
+					{#snippet fields()}
+						<!-- A day, or a span of days: choosing the first alone means that day. -->
+						<div class="days" role="group" aria-label="Days">
+							<span class="day">
+								<label for="{id}-from">From</label>
+								<input
+									id="{id}-from"
+									class="text-field"
+									type="date"
+									value={asked.from}
+									onchange={(event) =>
+										ask({ ...asked, ...withDay(asked, 'from', event.currentTarget.value) })}
+								/>
+							</span>
+							<span class="day">
+								<label for="{id}-to">to</label>
+								<input
+									id="{id}-to"
+									class="text-field"
+									type="date"
+									value={asked.to}
+									onchange={(event) =>
+										ask({ ...asked, ...withDay(asked, 'to', event.currentTarget.value) })}
+								/>
+							</span>
+						</div>
+					{/snippet}
+				</SearchFilter>
 			{/if}
 			<div class="who">
 				<span class="day">
@@ -342,25 +344,6 @@
 		max-width: 16rem;
 	}
 
-	/* "Filter", and the span chosen beside it. */
-	.filter {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--space-2);
-	}
-
-	.fold {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-2);
-	}
-
-	.fold :global(svg) {
-		width: 1.125rem;
-		height: 1.125rem;
-	}
-
 	/* The pack's chip, chosen: what the list is held to. */
 	.span {
 		display: inline-flex;
@@ -398,9 +381,6 @@
 	}
 
 	.days {
-		/* A row of its own under the others. */
-		flex-basis: 100%;
-		order: 1;
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;

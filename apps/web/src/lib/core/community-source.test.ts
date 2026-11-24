@@ -441,3 +441,78 @@ describe('what a pilot’s public flights add up to', () => {
 		expect(asked).toEqual([]);
 	});
 });
+
+describe('a search among public flights', () => {
+	/** The evening of 18 November 2026, seconds since 1970. */
+	const NOW = Date.UTC(2026, 10, 18, 19, 5) / 1000;
+	const search = {
+		near: { lat: 47.6642, lon: 11.7967 },
+		radiusKm: 10,
+		gliderClass: 'c' as const,
+		country: 'DE'
+	};
+
+	it('is asked of everyone’s flights, of a pilot’s and of the ranking in the server’s words', async () => {
+		const { asked, get } = server((path) => ({
+			status: 200,
+			body: recorded(path.startsWith('/v1/ranking') ? 'ranking.json' : 'public_flights.json')
+		}));
+		const community = new CommunitySource(
+			async () => true,
+			get,
+			async () => NOW
+		);
+
+		await community.flights({ order: 'best', search });
+		await community.pilotFlights('lena', undefined, undefined, undefined, search);
+		await community.ranking(undefined, undefined, NOW, undefined, { country: 'AT' });
+		await community.ranking(undefined, undefined, NOW, '2026-05', { country: 'AT' });
+
+		const [everyone, pilot, ranked, month] = asked.map((path) => new URL(path, 'http://venti'));
+		expect(everyone.searchParams.get('near')).toBe('47.6642,11.7967');
+		expect(everyone.searchParams.get('radius_km')).toBe('10');
+		expect(everyone.searchParams.get('class')).toBe('en_c');
+		expect(everyone.searchParams.get('country')).toBe('DE');
+		expect(everyone.searchParams.get('sort')).toBe('score');
+		expect(pilot.searchParams.get('pilot') ?? pilot.pathname).toMatch(/lena/);
+		expect(pilot.searchParams.get('class')).toBe('en_c');
+		expect(ranked.pathname).toBe('/v1/ranking');
+		expect(ranked.searchParams.get('country')).toBe('AT');
+		// A month with a search is its span by UTC.
+		expect(month.searchParams.get('country')).toBe('AT');
+		expect(month.searchParams.get('from')).toBe('2026-05-01T00:00:00Z');
+		expect(month.searchParams.get('to')).toBe('2026-06-01T00:00:00Z');
+	});
+
+	it('that takes the server too long says to narrow it', async () => {
+		const { get } = server(() => ({
+			status: 503,
+			body: bytes(JSON.stringify({ error: { code: 'unavailable', message: 'gave up' } }))
+		}));
+		const community = new CommunitySource(async () => true, get);
+
+		await expect(community.flights({ order: 'newest', search })).rejects.toMatchObject({
+			name: 'Server',
+			message: expect.stringMatching(/^The search took too long\. Narrow it/)
+		});
+		// Without a search a busy server is the core's to put in words.
+		await expect(community.flights({ order: 'newest' })).rejects.toMatchObject({
+			message: 'The server is busy or being restarted. Try again in a moment.'
+		});
+	});
+
+	it('that the server refuses is said in the server’s words', async () => {
+		const { get } = server(() => ({
+			status: 400,
+			body: bytes(
+				JSON.stringify({ error: { code: 'invalid_position', message: 'radius_km is 1 to 100' } })
+			)
+		}));
+		const community = new CommunitySource(async () => true, get);
+
+		await expect(community.flights({ order: 'newest', search })).rejects.toMatchObject({
+			name: 'Server',
+			message: 'Radius_km is 1 to 100.'
+		});
+	});
+});

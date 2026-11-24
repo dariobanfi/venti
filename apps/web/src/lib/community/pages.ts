@@ -9,8 +9,9 @@
  * connects it to the screens.
  */
 
-import type { PublicFlight, PublicFlightsOrder } from '#lib/core/index.ts';
+import type { FlightSearch, PublicFlight, PublicFlightsOrder } from '#lib/core/index.ts';
 import { isInWords } from '#lib/core/index.ts';
+import { isSearching, sameSearch, searchIn, searchParams } from './flight-search';
 
 /** One page of a list, as the worker hands it on. */
 export interface FlightsPage {
@@ -124,12 +125,19 @@ export interface Asked {
 	from: string;
 	/** The last day, itself included. */
 	to: string;
+	/** What else the flights are searched by: a radius, a drawn area, a class and more. None for every flight. */
+	search?: FlightSearch;
 }
 
 export const EVERYTHING: Asked = { order: 'newest', from: '', to: '' };
 
 export function sameAsked(first: Asked, second: Asked): boolean {
-	return first.order === second.order && first.from === second.from && first.to === second.to;
+	return (
+		first.order === second.order &&
+		first.from === second.from &&
+		first.to === second.to &&
+		sameSearch(first.search, second.search)
+	);
 }
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -190,10 +198,12 @@ export function askedIn(query: Pick<URLSearchParams, 'get'>): Asked {
 		const value = query.get(name) ?? '';
 		return DAY.test(value) ? value : '';
 	};
+	const search = searchIn(query);
 	return {
 		order: query.get('order') === 'best' ? 'best' : 'newest',
 		from: day('from'),
-		to: day('to')
+		to: day('to'),
+		search: isSearching(search) ? search : undefined
 	};
 }
 
@@ -203,6 +213,7 @@ export function queryOf(asked: Asked): string {
 	if (asked.order === 'best') query.set('order', 'best');
 	if (asked.from) query.set('from', asked.from);
 	if (asked.to) query.set('to', asked.to);
+	for (const [name, value] of searchParams(asked.search)) query.set(name, value);
 	const text = query.toString();
 	return text ? `?${text}` : '';
 }

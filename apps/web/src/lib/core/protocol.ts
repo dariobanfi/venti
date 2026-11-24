@@ -12,13 +12,18 @@ import type { AccountSource, GoogleEntered, NewAccount, NewGoogleAccount } from 
 import type { AlertsHeld, AlertsSource, AlertsSynced } from './alerts-source';
 import type { PushSubscribed, SocialSource } from './social-source';
 import type { AirspaceSource } from './airspace-source';
-import type {
-	CommunitySource,
-	Compared,
-	FlightRef,
-	OpenedFlight,
-	PublicFlightsAsked,
-	SeasonRanking
+import {
+	type CommunitySource,
+	type Compared,
+	type FlightRef,
+	type OpenedFlight,
+	type PublicFlightsAsked,
+	type SearchChip,
+	searchChips,
+	type SearchChoices,
+	searchChoices,
+	searchRefused,
+	type SeasonRanking
 } from './community-source';
 import type {
 	OpenedOwnFlight,
@@ -146,7 +151,8 @@ import type {
 	FlightVisibilityWords,
 	PictureWords,
 	PilotsNear,
-	Tendencies
+	Tendencies,
+	FlightSearch
 } from './pkg/venti_core_wasm.js';
 import {
 	allFlightsQuestion,
@@ -387,9 +393,15 @@ export interface Calls {
 	 * public flights. Nothing if this site has no server.
 	 */
 	ranking: {
-		given: { season?: string; near?: Coordinate; month?: string };
+		given: { season?: string; near?: Coordinate; month?: string; search?: FlightSearch };
 		answer: SeasonRanking | undefined;
 	};
+	/** The chips of a search of public flights, one a choice, in the core's words. */
+	searchChips: { given: FlightSearch; answer: SearchChip[] };
+	/** What a search's form offers: the server's bounds, the kinds of route by name. */
+	searchChoices: { given: undefined; answer: SearchChoices };
+	/** Why a search cannot be asked, in the core's words; nothing where it can. */
+	searchRefused: { given: FlightSearch; answer: string | undefined };
 	/**
 	 * The pilots whose handle or name holds a text. Refused in the core's
 	 * words for fewer than two letters. Nothing if this site has no server.
@@ -670,7 +682,13 @@ export interface Calls {
 	pilotsWords: { given: undefined; answer: PilotsWords };
 	/** A page of a pilot's public flights of a season, between two moments. */
 	pilotFlights: {
-		given: { handle: string; fromUnixS?: number; toUnixS?: number; after?: string };
+		given: {
+			handle: string;
+			fromUnixS?: number;
+			toUnixS?: number;
+			after?: string;
+			search?: FlightSearch;
+		};
 		answer: PublicFlights | undefined;
 	};
 	/** A route's places as a GPX file's text; given latitudes and longitudes in turn. */
@@ -931,7 +949,11 @@ export async function answer<Name extends CallName>(
 		liveAges: (asked) => live.ages(asked),
 		publicFlights: (asked) => community.flights(asked),
 		pilotPage: ({ handle, after }) => community.pilot(handle, after),
-		ranking: ({ season, near, month }) => community.ranking(season, near, undefined, month),
+		ranking: ({ season, near, month, search }) =>
+			community.ranking(season, near, undefined, month, search),
+		searchChips: (search) => searchChips(search),
+		searchChoices: () => searchChoices(),
+		searchRefused: (search) => searchRefused(search),
 		pilotsFound: (text) => community.pilots(text),
 		pilotStatistics: (handle) => community.statistics(handle),
 		pilotsNear: (place) => community.pilotsNear(place),
@@ -1027,8 +1049,8 @@ export async function answer<Name extends CallName>(
 		pushSubscribe: (subscribed) => social.pushSubscribe(subscribed),
 		pushUnsubscribe: (endpoint) => social.pushUnsubscribe(endpoint),
 		pilotsWords: () => pilotsWords(),
-		pilotFlights: ({ handle, fromUnixS, toUnixS, after }) =>
-			community.pilotFlights(handle, fromUnixS, toUnixS, after),
+		pilotFlights: ({ handle, fromUnixS, toUnixS, after, search }) =>
+			community.pilotFlights(handle, fromUnixS, toUnixS, after, search),
 		routeToGpx: (latLon) => routeToGpx(new Float64Array(latLon)),
 		routeFromGpx: (text) => routeFromGpx(text),
 		screenWords: () => ({

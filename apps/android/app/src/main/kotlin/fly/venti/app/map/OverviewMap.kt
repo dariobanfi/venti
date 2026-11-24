@@ -15,6 +15,8 @@ import fly.venti.core.FlownCellView
 import fly.venti.core.FlownThermals
 import fly.venti.app.forecast.ThermalHoursLayers
 import fly.venti.app.forecast.ThermalMapLayer
+import fly.venti.app.forecast.RegionLayers
+import fly.venti.app.forecast.RegionsDrawing
 import fly.venti.app.live.GliderFeature
 import fly.venti.app.live.LiveSymbols
 import fly.venti.app.live.OtherFeature
@@ -109,11 +111,22 @@ class OverviewMap : MapContent {
      */
     var onHourSquare: (place: Coordinate, cell: UInt?) -> Unit = { _, _ -> }
 
+    /** Told a region of the forecast by region that has a level, when the pilot taps one where nothing else of Venti's lies. */
+    var onForecastRegion: (String) -> Unit = {}
+
+    /** The forecast by region to draw, and what was drawn of it: its `id`, and the set of regions whose outlines the map holds. */
+    private var regions: RegionsDrawing? = null
+    private var drawnRegions: String? = null
+    private var drawnRegionsVersion: String? = null
+
     /** The hour's shapes drawn, and the key they are drawn with; compared by identity. */
     private var hourShapes: ThermalMapShapes? = null
     private var hourLegend: List<ThermalMapKey> = emptyList()
     private var drawnHourShapes: ThermalMapShapes? = null
     private var hoursOn = false
+
+    /** Whether the hour's squares are drawn, or its arrows alone (the wind and its gusts). */
+    private var hourSquares = true
 
     /** The rain radar's pictures to draw, and those drawn; compared by identity. */
     private var radar: RadarShown? = null
@@ -329,6 +342,7 @@ class OverviewMap : MapContent {
         // everything this map draws.
         ThermalMapLayer.add(style)
         ThermalHoursLayers.addSquares(style)
+        RegionLayers.add(style)
         // What this map draws on top of the base map: airspace lowest,
         // the flights over it, then the flying sites, the wind above them,
         // and other pilots above everything.
@@ -372,6 +386,9 @@ class OverviewMap : MapContent {
         drawSquares()
         drawnHourShapes = null
         drawHours()
+        drawnRegions = null
+        drawnRegionsVersion = null
+        drawRegions()
         // The rain radar's pictures over the forecast's squares, under all the rest.
         drawnRadar = null
         drawRadar()
@@ -445,18 +462,40 @@ class OverviewMap : MapContent {
         drawSites()
     }
 
-    fun showHours(shapes: ThermalMapShapes?, legend: List<ThermalMapKey>, on: Boolean) {
+    fun showHours(shapes: ThermalMapShapes?, legend: List<ThermalMapKey>, on: Boolean, squares: Boolean = true) {
+        if (squares != hourSquares) drawnHourShapes = null
+        hourSquares = squares
         hourShapes = shapes
         hourLegend = legend
         hoursOn = on
         drawHours()
     }
 
+    /** The thermal forecast by region, while the map shows the thermals and the regions have levels; `null` otherwise. */
+    fun showRegions(drawing: RegionsDrawing?) {
+        regions = drawing
+        drawRegions()
+    }
+
+    /** Draws the regions' levels when they, the day or the hour have changed; the outlines only when the set of regions has. */
+    private fun drawRegions() {
+        val style = style ?: return
+        val drawing = regions
+        val id = drawing?.id ?: ""
+        if (drawnRegions == id) return
+        drawnRegions = id
+        if (drawing != null && drawing.regions.version() != drawnRegionsVersion) {
+            drawnRegionsVersion = drawing.regions.version()
+            RegionLayers.showOutlines(drawing.regions.outlines(), style)
+        }
+        RegionLayers.show(drawing?.levels.orEmpty(), drawing?.under.orEmpty(), style)
+    }
+
     private fun drawHours() {
         val style = style ?: return
         if (hourShapes === drawnHourShapes) return
         drawnHourShapes = hourShapes
-        ThermalHoursLayers.show(hourShapes, hourLegend, style)
+        ThermalHoursLayers.show(hourShapes, hourLegend, style, hourSquares)
     }
 
     /**
@@ -1084,6 +1123,17 @@ class OverviewMap : MapContent {
                 ?.let(drawnFlown?.cells.orEmpty()::getOrNull)
                 ?.let { cell ->
                     onFlownCell(cell)
+                    return true
+                }
+        }
+        // A region of the forecast by region with a level, over the grid's squares.
+        val levels = regions?.levels.orEmpty()
+        if (levels.isNotEmpty() && style.getLayer(RegionLayers.FILL) != null) {
+            map.queryRenderedFeatures(point, RegionLayers.FILL)
+                .mapNotNull { it.getStringProperty(RegionLayers.ID) }
+                .firstOrNull { it in levels }
+                ?.let { id ->
+                    onForecastRegion(id)
                     return true
                 }
         }

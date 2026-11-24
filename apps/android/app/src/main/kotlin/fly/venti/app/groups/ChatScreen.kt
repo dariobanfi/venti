@@ -173,6 +173,22 @@ fun ChatScreen(
         chat.run()
     }
     DisposableEffect(id) { onDispose { onLeft() } }
+    // The chat on screen, while the app is in front: a push of its own messages then shows no banner.
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(id, lifecycle) {
+        val watch = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_START -> ChatOnScreen.id = id
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> if (ChatOnScreen.id == id) ChatOnScreen.id = null
+                else -> Unit
+            }
+        }
+        lifecycle.addObserver(watch)
+        onDispose {
+            lifecycle.removeObserver(watch)
+            if (ChatOnScreen.id == id) ChatOnScreen.id = null
+        }
+    }
 
     val messages = chat.log.messages
     val newestFirst = remember(messages) { messages.asReversed() }
@@ -781,4 +797,14 @@ private fun ChatComposer(chat: ChatModel, groups: GroupsModel, account: AccountM
             }
         }
     }
+}
+
+/**
+ * The group whose chat is on screen while the app is in front, by its
+ * identifier; `null` for none. A push of a message of that group shows no
+ * banner (`PushService`): the pilot reads it as it comes.
+ */
+object ChatOnScreen {
+    @Volatile
+    var id: String? = null
 }

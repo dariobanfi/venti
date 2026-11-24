@@ -116,6 +116,9 @@ interface Preferences {
     /** The height of its wind, metres above the sea; `null` for the ground. */
     var mapForecastHeightM: Int?
 
+    /** The height of the forecast map's wind above the model's ground, metres (250); `null` where the height is not one above the ground. */
+    var mapForecastAboveGroundM: Int?
+
     /** Whether the maps show the thermal map of thermal.kk7.ch. Off until the pilot switches it on; one choice for every map. */
     var mapShowsThermals: Boolean
 
@@ -291,6 +294,12 @@ class StoredPreferences(context: Context) : Preferences {
             if (value == null) remove("VentiMapForecastHeight") else putInt("VentiMapForecastHeight", value)
         }
 
+    override var mapForecastAboveGroundM: Int?
+        get() = if (store.contains("VentiMapForecastAboveGround")) store.getInt("VentiMapForecastAboveGround", 0) else null
+        set(value) = store.edit {
+            if (value == null) remove("VentiMapForecastAboveGround") else putInt("VentiMapForecastAboveGround", value)
+        }
+
     override var mapAirspaceCeilingM: Double?
         get() = if (store.contains("VentiMapAirspaceCeiling")) store.getFloat("VentiMapAirspaceCeiling", 0f).toDouble() else null
         set(value) = store.edit {
@@ -397,6 +406,7 @@ class MemoryPreferences : Preferences {
     override var mapAirspaceCeilingM: Double? = null
     override var mapShowsGusts = false
     override var mapForecastHeightM: Int? = null
+    override var mapForecastAboveGroundM: Int? = null
     override var mapShowsThermals = false
     override var mapShowsCandidates = false
     override var mapShowsClimbs = false

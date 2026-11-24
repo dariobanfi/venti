@@ -17,8 +17,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.input.pointer.pointerInput
@@ -37,7 +35,6 @@ import fly.venti.app.wind.WindGlyph
 import fly.venti.core.ThermalMapHoursView
 import fly.venti.core.ThermalMapKey
 import fly.venti.core.ThermalMapLayerChoice
-import fly.venti.core.ThermalMapLevel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -139,34 +136,6 @@ internal fun MapCard(
             verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
             content = content,
         )
-    }
-}
-
-/** The level of the wind: "Ground", "1000 m" … "4000 m", as a menu. */
-@Composable
-internal fun LevelMenu(levels: List<ThermalMapLevel>, heightM: Int?, onLevel: (Int?) -> Unit) {
-    var isOpen by remember { mutableStateOf(false) }
-    val shown = levels.firstOrNull { it.heightM == heightM } ?: levels.first()
-    Box {
-        TextButton(
-            onClick = { isOpen = true },
-            modifier = Modifier.heightIn(min = VentiSize.touch).testTag("forecast-level"),
-        ) {
-            Text(shown.name, maxLines = 1)
-            Icon(painterResource(R.drawable.ic_arrow_drop_down), contentDescription = null)
-        }
-        DropdownMenu(expanded = isOpen, onDismissRequest = { isOpen = false }) {
-            for (level in levels) {
-                DropdownMenuItem(
-                    text = { Text(level.name) },
-                    onClick = {
-                        isOpen = false
-                        onLevel(level.heightM)
-                    },
-                    modifier = Modifier.testTag("forecast-level-${level.heightM ?: "ground"}"),
-                )
-            }
-        }
     }
 }
 

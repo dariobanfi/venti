@@ -1,5 +1,8 @@
 package fly.venti.app.nearby
 
+import fly.venti.app.groups.ChatOnScreen
+import fly.venti.core.PhoneTarget
+import fly.venti.core.phoneMessageTarget
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -155,7 +158,9 @@ class PushService : FirebaseMessagingService() {
         val kind = message.data[PushNotifications.KIND] ?: return
         val id = message.data[PushNotifications.ID] ?: return
         val title = message.notification?.title ?: return
-        PushNotifications.show(this, title, message.notification?.body.orEmpty(), kind, id)
+        if (!PushNotifications.isOnScreen(kind, id)) {
+            PushNotifications.show(this, title, message.notification?.body.orEmpty(), kind, id)
+        }
         // A call for help or its answer: the lists are read again.
         val session = (application as VentiApplication).session as? Session.Ready ?: return
         if (kind.startsWith("help")) session.scope.launch { session.nearby.loadHelp() }
@@ -170,6 +175,17 @@ object PushNotifications {
     /** The extras a tap opens the app with: the keys of the message's data, as FCM hands them over. */
     const val KIND = "kind"
     const val ID = "id"
+
+    /**
+     * Whether what a push is about is on screen already: a group's message
+     * while that group's chat is open, which needs no banner. Which group a
+     * push names is the core's (`phoneMessageTarget`).
+     */
+    fun isOnScreen(kind: String, id: String): Boolean {
+        val open = ChatOnScreen.id ?: return false
+        val target = runCatching { phoneMessageTarget(kind, id) }.getOrNull()
+        return target is PhoneTarget.GroupChat && target.id == open
+    }
 
     /** Makes the channel, so that a message arriving in the back has it. Before any is shown. */
     fun prepare(context: Context) {

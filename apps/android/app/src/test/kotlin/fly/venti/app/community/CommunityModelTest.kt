@@ -617,4 +617,44 @@ class CommunityModelTest {
     private companion object {
         const val BASE = "https://venti.example.org"
     }
+
+    @Test
+    fun aSearchAsksForTheFlightsItFindsFromTheTop() = runBlocking {
+        val server = Server()
+        val community = model(server)
+        community.loadIfNeeded()
+        val search = fly.venti.core.FlightSearch(
+            near = fly.venti.core.Coordinate(lat = 47.7, lon = 11.8),
+            radiusKm = 20.0,
+            gliderClass = GliderClassKind.C,
+        )
+        community.search(search)
+        assertEquals(search, community.flightSearch)
+        val path = fly.venti.core.publicFlightsSearchPath(PublicFlightsOrder.NEWEST, null, null, null, search, null)
+        assertEquals(BASE + path, server.asked.last())
+        // The same search is not asked again; loading again keeps it.
+        val asked = server.asked.size
+        community.search(search)
+        community.loadIfNeeded()
+        assertEquals(asked, server.asked.size)
+        // Its chips in the core's words, each dropping its own choice.
+        val chips = searchChips(search)
+        assertEquals(listOf("Within 20 km", "EN C"), chips.map { it.words })
+        assertEquals(search.copy(gliderClass = null), chips[1].without)
+        community.search(chips[1].without)
+        assertTrue("class" !in server.asked.last())
+    }
+
+    @Test
+    fun anAreaWhoseEdgesCrossIsRefusedInTheCoresWords() {
+        val crossing = listOf(
+            fly.venti.core.Coordinate(lat = 47.0, lon = 11.0),
+            fly.venti.core.Coordinate(lat = 48.0, lon = 12.0),
+            fly.venti.core.Coordinate(lat = 47.0, lon = 12.0),
+            fly.venti.core.Coordinate(lat = 48.0, lon = 11.0),
+        )
+        assertTrue(searchRefused(fly.venti.core.FlightSearch(area = crossing)).orEmpty().contains("edges do not cross"))
+        assertNull(searchRefused(fly.venti.core.FlightSearch(area = crossing.take(3))))
+    }
+
 }

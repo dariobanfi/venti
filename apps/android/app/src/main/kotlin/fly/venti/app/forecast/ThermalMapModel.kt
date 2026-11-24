@@ -70,6 +70,9 @@ class ThermalMapModel(
     /** The map by the hour: the layer, the level and the hour the pilot looks at. */
     val hours = ThermalHoursModel(transport, background)
 
+    /** The thermal forecast by region over the same days, asked of the same server by the same clock. */
+    val regions = RegionForecastModel(transport, background)
+
     /** Whether the server is being asked. */
     var isAsking: Boolean by mutableStateOf(false)
         private set
@@ -223,6 +226,15 @@ class ThermalMapModel(
         hours.show(map, day.date, server, now, offsetAt(now))
     }
 
+    /** Asks for the forecast by region of the day looked at, where it is not at hand. */
+    suspend fun loadRegions() {
+        val map = map ?: return
+        val day = day ?: return
+        val server = server() ?: return
+        val now = clock()
+        regions.load(map, day.date, server, now, offsetAt(now))
+    }
+
     /** A square's days side by side, for a place, as the core reads them from the map's answer. */
     suspend fun strip(lat: Double, lon: Double): List<ThermalStripDay> {
         val answer = answer ?: return emptyList()
@@ -238,6 +250,7 @@ class ThermalMapModel(
 
     private fun forget() {
         hours.close()
+        regions.forget()
         answer = null
         map = null
         fetched = null

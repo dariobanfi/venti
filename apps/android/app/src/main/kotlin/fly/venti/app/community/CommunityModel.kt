@@ -34,6 +34,8 @@ import fly.venti.core.publicFlight
 import fly.venti.core.publicFlightPath
 import fly.venti.core.publicFlights
 import fly.venti.core.publicFlightsPath
+import fly.venti.core.publicFlightsSearchPath
+import fly.venti.core.FlightSearch
 import fly.venti.core.RankedPilot
 import fly.venti.core.RankingMonthChoice
 import fly.venti.core.RankingSeason
@@ -77,6 +79,10 @@ class CommunityModel(
 
     /** The order they are in. */
     var order: PublicFlightsOrder by mutableStateOf(PublicFlightsOrder.NEWEST)
+        private set
+
+    /** What the list is searched by (`FlightSearch`): nothing chosen lists every public flight. */
+    var flightSearch: FlightSearch by mutableStateOf(FlightSearch())
         private set
 
     /** Whether a page is being fetched. */
@@ -244,8 +250,8 @@ class CommunityModel(
      */
     private val known = mutableMapOf<String, PublicFlight>()
 
-    /** Which server and order the list is from. */
-    private var listed: Pair<String, PublicFlightsOrder>? = null
+    /** Which server, order and search the list is from. */
+    private var listed: Triple<String, PublicFlightsOrder, FlightSearch>? = null
 
     /**
      * Loads the list, unless it is there already for the server that is
@@ -257,7 +263,16 @@ class CommunityModel(
             forget()
             return
         }
-        if (listed == server to order) return
+        if (listed == Triple(server, order, flightSearch)) return
+        load(fromTheTop = true)
+    }
+
+    /** Shows the flights another search finds, from the list's top. */
+    suspend fun search(search: FlightSearch) {
+        if (search == flightSearch) return
+        flightSearch = search
+        flights = emptyList()
+        hasMore = false
         load(fromTheTop = true)
     }
 
@@ -290,23 +305,24 @@ class CommunityModel(
         if (isLoading) return
         isLoading = true
         val order = order
+        val search = flightSearch
         try {
-            val path = publicFlightsPath(order, null, null, null, if (fromTheTop) null else next)
+            val path = publicFlightsSearchPath(order, null, null, null, search, if (fromTheTop) null else next)
             val answer = transport(server + path)
             val page = withContext(background) { publicFlights(answer.status16, answer.body) }
-            // The pilot may have changed the server or the order while this
-            // was under way.
-            if (server != this.server() || order != this.order) return
+            // The pilot may have changed the server, the order or the search
+            // while this was under way.
+            if (server != this.server() || order != this.order || search != flightSearch) return
             flights = if (fromTheTop) page.flights else flights + page.flights
             known += page.flights.associateBy { it.id }
             next = page.next
             hasMore = page.next != null
-            listed = server to order
+            listed = Triple(server, order, search)
             problem = null
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
-            if (server != this.server() || order != this.order) return
+            if (server != this.server() || order != this.order || search != flightSearch) return
             problem = when (error) {
                 is CoreException -> error.pilotMessage
                 else -> "Venti could not be reached for other pilots' flights. ${error.pilotMessage}"

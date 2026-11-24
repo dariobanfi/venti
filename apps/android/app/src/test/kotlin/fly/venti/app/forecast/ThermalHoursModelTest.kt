@@ -72,7 +72,7 @@ class ThermalHoursModelTest {
         assertEquals(listOf("Thermals", "Wind", "Gusts", "Cloud", "Rain"), checkNotNull(forecast.map).layers.map { it.name })
         forecast.showHours()
 
-        assertEquals(listOf(thermalHoursPath(TODAY, ThermalHoursLayer.THERMALS, null)), server.askedForHours)
+        assertEquals(listOf(thermalHoursPath(TODAY, ThermalHoursLayer.THERMALS, null, null)), server.askedForHours)
         val hours = forecast.hours
         // "Day" first: the hours are read, and the map still shows the day's squares.
         assertNull(hours.hour)
@@ -110,7 +110,7 @@ class ThermalHoursModelTest {
         forecast.showHours()
         assertEquals("Gusts at the ground", view(forecast).title)
         // Asked once, read twice: the gusts come with the wind at the ground.
-        assertEquals(listOf(thermalHoursPath(TODAY, ThermalHoursLayer.WIND, null)), server.askedForHours)
+        assertEquals(listOf(thermalHoursPath(TODAY, ThermalHoursLayer.WIND, null, null)), server.askedForHours)
         assertEquals(1 to 2, hours.kept)
         // The gusts' arrows carry the gusts, not the wind's "speed/gusts".
         assertFalse(windArrows == checkNotNull(hours.shapes).arrows)
@@ -123,7 +123,7 @@ class ThermalHoursModelTest {
         hours.heightM = null
         forecast.showHours()
         assertEquals(
-            listOf(thermalHoursPath(TODAY, ThermalHoursLayer.WIND, null), thermalHoursPath(TODAY, ThermalHoursLayer.WIND, 2000)),
+            listOf(thermalHoursPath(TODAY, ThermalHoursLayer.WIND, null, null), thermalHoursPath(TODAY, ThermalHoursLayer.WIND, 2000, null)),
             server.askedForHours,
         )
         assertEquals(2 to 3, hours.kept)

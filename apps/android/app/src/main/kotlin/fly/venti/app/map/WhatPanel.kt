@@ -43,7 +43,8 @@ import fly.venti.app.design.LayerChip
 import fly.venti.app.design.Venti
 import fly.venti.app.design.numbers
 import fly.venti.app.forecast.KeyLines
-import fly.venti.app.forecast.LevelMenu
+import fly.venti.app.forecast.colourOnMap
+import fly.venti.core.RegionLevelKey
 import fly.venti.app.forecast.MapCard
 import fly.venti.app.forecast.Problem
 import fly.venti.app.forecast.Strip
@@ -90,7 +91,6 @@ fun WhatPanel(
     /** The wind's gusts in place of its mean, at the ground. */
     gusts: Boolean,
     onGusts: (Boolean) -> Unit,
-    onLevel: (Int?) -> Unit,
     /** The part of the world in view, to say when the forecast has nothing there. */
     region: Bounds?,
     onPlay: () -> Unit,
@@ -99,6 +99,8 @@ fun WhatPanel(
     onTryAgainMap: () -> Unit,
     onTryAgainHours: () -> Unit,
     modifier: Modifier = Modifier,
+    /** The key of the forecast by region, the best first, while its regions are drawn; empty otherwise. */
+    regionLevels: List<RegionLevelKey> = emptyList(),
     /** Whether the hour's wind colours the take-offs' fans, which then have their key under the layer's. */
     showsFansKey: Boolean = false,
 ) {
@@ -156,6 +158,13 @@ fun WhatPanel(
         else -> Key(emptyList(), null)
     }
 
+    // The regions' five levels, the worst first, each with its name, and its fuller words behind the "i".
+    val levels = if (!measured && what == MapWhat.THERMALS) {
+        regionLevels.reversed().map { Step(it.name, "${it.name}: ${it.words}", it.level.colourOnMap) }
+    } else {
+        emptyList()
+    }
+
     MapCard("what-panel", isUnfolded = showsAll, modifier = modifier) {
         Column(Modifier.padding(bottom = VentiSpace.s2), verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
             // The line in words, and the round controls at its right.
@@ -204,17 +213,17 @@ fun WhatPanel(
                 )
             }
 
-            // The wind's forecast: its height, and its gusts in place of its mean.
+            // The wind's forecast: its gusts in place of its mean. Its heights are a pill at the map's right.
             val gustsName = map?.layers?.firstOrNull { it.layer == ThermalHoursLayer.GUSTS }?.name
             if (what == MapWhat.WIND && !measured && gustsName != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
-                    val levels = map.levels.takeIf { !gusts && choice?.hasLevels == true && it.isNotEmpty() }
-                    if (levels != null) LevelMenu(levels, hours?.heightM, onLevel)
-                    LayerChip(gustsName, R.drawable.venti_wind, gusts, onChange = onGusts, Modifier.testTag("what-gusts"), floats = false)
-                }
+                LayerChip(gustsName, R.drawable.venti_wind, gusts, onChange = onGusts, Modifier.testTag("what-gusts"), floats = false)
             }
 
-            if (key.steps.isNotEmpty()) CompactKey(key)
+            if (levels.isNotEmpty()) {
+                LevelsStrip(levels)
+            } else if (key.steps.isNotEmpty()) {
+                CompactKey(key)
+            }
             if (showsFansKey) FansKey()
 
             // What the pilot has to be told about the data as it stands: never folded away.
@@ -244,9 +253,9 @@ fun WhatPanel(
             // Behind the "i": the whole key and the notes, without the project's own caveats.
             if (showsAll) {
                 Column(Modifier.padding(top = VentiSpace.s1), verticalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
-                    val lines = key.steps + listOfNotNull(key.veil)
+                    val lines = (key.steps + listOfNotNull(key.veil)).reversed() + levels
                     if (lines.isNotEmpty()) {
-                        KeyLines(lines.reversed().map { it.full to it.colour }, if (rain) "radar-key" else "forecast-key")
+                        KeyLines(lines.map { it.full to it.colour }, if (rain) "radar-key" else "forecast-key")
                     }
                     for ((note, tag) in notes(what, measured, radar, thermalMap)) {
                         Text(note, style = MaterialTheme.typography.bodySmall, color = colours.textSecondary, modifier = Modifier.testTag(tag))
@@ -306,6 +315,29 @@ private fun CompactKey(key: Key) {
             Column(Modifier.width(VentiSize.touch * 2), verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
                 Box(Modifier.width(VentiSpace.s6).height(VentiSpace.s3).background(veil.colour, RectangleShape).border(1.dp, colours.borderStrong, RectangleShape))
                 Text(veil.short, style = MaterialTheme.typography.labelSmall, color = colours.textSecondary, maxLines = 2)
+            }
+        }
+    }
+}
+
+/**
+ * The key of the forecast by region: five columns, a bar of each level's
+ * colour over its name, the worst first. TalkBack reads it as one.
+ */
+@Composable
+private fun LevelsStrip(levels: List<Step>) {
+    val colours = Venti.colours
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("what-levels")
+            .clearAndSetSemantics { contentDescription = levels.joinToString(", ") { it.short } },
+        horizontalArrangement = Arrangement.spacedBy(VentiSpace.s1 / 2),
+    ) {
+        for (level in levels) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
+                Box(Modifier.fillMaxWidth().height(VentiSpace.s3).background(level.colour, RectangleShape).border(1.dp, colours.borderStrong, RectangleShape))
+                Text(level.short, style = MaterialTheme.typography.labelSmall, color = colours.textSecondary, maxLines = 2)
             }
         }
     }

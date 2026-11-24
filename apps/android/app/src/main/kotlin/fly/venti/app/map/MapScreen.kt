@@ -69,6 +69,9 @@ import fly.venti.app.forecast.ThermalMapModel
 import fly.venti.app.forecast.ThermalMapWords
 import fly.venti.app.forecast.ThermalHourSheet
 import fly.venti.app.forecast.ThermalSquareSheet
+import fly.venti.app.forecast.RegionsDrawing
+import fly.venti.app.forecast.ThermalHoursState
+import fly.venti.core.regionLevels
 import fly.venti.core.ThermalHoursLayer
 import fly.venti.core.ThermalMapCell
 import androidx.compose.runtime.rememberCoroutineScope
@@ -201,6 +204,8 @@ fun MapScreen(
     var square by remember { mutableStateOf<ThermalMapCell?>(null) }
     // A square of the forecast map by the hour, tapped.
     var hourSquare by remember { mutableStateOf<Pair<Coordinate, UInt?>?>(null) }
+    // A region of the forecast by region, tapped.
+    var chosenRegion by remember { mutableStateOf<ChosenRegion?>(null) }
     val asking = rememberCoroutineScope()
     var isFollowing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
@@ -426,18 +431,21 @@ fun MapScreen(
     // the wind's height as the pilot left it, the hour not.
     val hours = thermalMap?.hours
     LaunchedEffect(hours) {
-        if (hours != null && preferences != null) hours.heightM = preferences.mapForecastHeightM
+        if (hours != null && preferences != null) {
+            hours.heightM = preferences.mapForecastHeightM
+            hours.aboveGroundM = preferences.mapForecastAboveGroundM
+        }
     }
     LaunchedEffect(hours, what, gusts) {
         val chosen = what
         if (hours != null && chosen != null) hours.layer = chosen.layer(gusts)
     }
     var hoursAttempt by remember { mutableIntStateOf(0) }
-    LaunchedEffect(forecastWanted, thermalMap?.map, thermalMap?.day?.date, hours?.layer, hours?.heightM, hoursAttempt) {
+    LaunchedEffect(forecastWanted, thermalMap?.map, thermalMap?.day?.date, hours?.layer, hours?.heightM, hours?.aboveGroundM, hoursAttempt) {
         if (forecastWanted) thermalMap?.showHours()
     }
     // The hours of every day, for the line of time.
-    LaunchedEffect(forecastWanted, thermalMap?.map, hours?.layer, hours?.heightM, hoursAttempt) {
+    LaunchedEffect(forecastWanted, thermalMap?.map, hours?.layer, hours?.heightM, hours?.aboveGroundM, hoursAttempt) {
         if (forecastWanted) thermalMap?.loadLine()
     }
     // The line of time of what is shown, from what was measured to the forecast's days.
@@ -541,6 +549,64 @@ fun MapScreen(
     LaunchedEffect(keptStillFlies) {
         if (!keptStillFlies) keepsGliderInView = false
     }
+    // The heights the forecast's mean wind can be shown at, while it is shown; none for the gusts and every other layer.
+    val windLevels = thermalMap?.map?.takeIf { read ->
+        what == MapWhat.WIND && showForecast && !gusts && read.layers.any { it.layer == ThermalHoursLayer.WIND && it.hasLevels }
+    }?.levels.orEmpty()
+
+    // The thermal forecast by region of the thermals' day shown, while the thermals are.
+    val regionModel = thermalMap?.regions
+    val regionsDate = thermalMap?.day?.date?.takeIf { what == MapWhat.THERMALS && showForecast }
+    LaunchedEffect(regionsDate, wind.address, thermalMap?.map) {
+        if (regionsDate != null) thermalMap.loadRegions()
+    }
+    val regionDay = regionsDate?.let { regionModel?.days?.get(it) }
+    // The regions' levels shown: those of the forecast by region's hour at
+    // the moment of the thermals' hour, else of the day. None where it has
+    // no such hour, or the thermals' hours are not there yet.
+    val hoursView = (hours?.state as? ThermalHoursState.There)?.view
+    val hourShown = hours?.hour
+    val regionReadings = remember(regionDay, hourShown, hoursView, hours?.layer) {
+        when {
+            regionDay == null -> emptyList()
+            hourShown == null -> regionDay.day()
+            hours.layer != ThermalHoursLayer.THERMALS || hoursView == null -> emptyList()
+            else -> {
+                val time = hoursView.hours.getOrNull(hourShown)?.timeUnixS
+                val index = regionDay.view().hours.indexOfFirst { it.timeUnixS == time }
+                if (time == null || index < 0) emptyList() else regionDay.hour(index.toUInt())
+            }
+        }
+    }
+    val forecastRegions = regionModel?.regions
+    val shownDay = thermalMap?.day
+    val regionsDrawing = remember(regionReadings, forecastRegions, shownDay) {
+        if (forecastRegions == null || shownDay == null || regionReadings.isEmpty()) {
+            null
+        } else {
+            val levels = regionReadings.associate { it.id to it.level }
+            RegionsDrawing(
+                id = "${forecastRegions.version()} ${System.identityHashCode(regionDay)} ${shownDay.date} ${hourShown ?: "day"}",
+                regions = forecastRegions,
+                levels = levels,
+                under = regionModel.cellsUnder(levels.keys, shownDay),
+            )
+        }
+    }
+    map.onForecastRegion = { id ->
+        regionReadings.firstOrNull { it.id == id }?.let { reading ->
+            square = null
+            hourSquare = null
+            chosenRegion = ChosenRegion(
+                id = id,
+                name = forecastRegions?.nameOf(id) ?: id,
+                level = reading.level,
+                words = reading.words,
+                detail = regionDay?.day()?.firstOrNull { it.id == id }?.detail.orEmpty(),
+            )
+        }
+    }
+
     // Whose wind, airspace and sites are on the map. Their licences ask for
     // the credit next to the data; the full wording is on each station's
     // and each site's page and on the airspace screen.
@@ -554,6 +620,8 @@ fun MapScreen(
         MapSetup.THERMALS_CREDIT.takeIf { thermals && offersThermals },
         thermalMap?.creditLine?.takeIf { showForecast },
     ) +
+        // The regions' own credit while they are drawn: "Regions: EAWS (CC0)".
+        regionsDrawing?.regions?.credits()?.map { it.text }.orEmpty() +
         // Each of the radar's sources asks for its credit directly at the data.
         radar?.creditLines?.takeIf { showsRadar }.orEmpty() +
         // The other networks' positions, while any of their aircraft is drawn.
@@ -570,12 +638,19 @@ fun MapScreen(
     val hourShapes = if (byTheHour) hours?.shapes else null
     // The hour's wind square by square, for the take-offs' fans: only an
     // hour with arrows colours them (plan item 19).
-    val fanWindFrom = remember(hourShapes) { hourShapes?.arrows?.let(SiteFans::windFrom)?.takeIf { it.isNotEmpty() } }
-    val hourLegend = thermalMap?.map?.layers?.firstOrNull { it.layer == hours?.layer }?.legend.orEmpty()
+    val atGround = hours?.heightM == null && hours?.aboveGroundM == null
+    val fanWindFrom = remember(hourShapes, atGround) {
+        hourShapes?.takeIf { atGround }?.arrows?.let(SiteFans::windFrom)?.takeIf { it.isNotEmpty() }
+    }
+    val hourChoice = thermalMap?.map?.layers?.firstOrNull { it.layer == hours?.layer }
+    val hourLegend = hourChoice?.legend.orEmpty()
+    // On the wind's layers the arrows stand in place of the squares.
+    val hourSquares = hourChoice?.hasArrows != true
     // The squares of the kind of day the pilot looks at, on the thermals'
     // "Day"; a day's squares are one list from the core, handed over whole.
     val showsDay = showForecast && what == MapWhat.THERMALS && hours?.layer == ThermalHoursLayer.THERMALS && hours.hour == null
     val squares = if (showsDay) thermalMap?.day?.cells.orEmpty() else emptyList()
+
 
     // A chip pressed: what the map shows, or nothing where the chosen one is pressed again.
     val chooseWhat = { next: MapWhat ->
@@ -585,6 +660,7 @@ fun MapScreen(
         along = null
         square = null
         hourSquare = null
+        chosenRegion = null
         playing?.cancel()
         // Another "what" opens where its line begins: today, at the hour the core names.
         thermalMap?.choose(null)
@@ -632,7 +708,8 @@ fun MapScreen(
                 map.showAerial(aerial)
                 map.showThermals(thermals && offersThermals)
                 map.showForecast(squares)
-                map.showHours(hourShapes, hourLegend, byTheHour)
+                map.showHours(hourShapes, hourLegend, byTheHour, hourSquares)
+                map.showRegions(regionsDrawing)
                 map.showFanWind(
                     hourShapes.takeIf { fanWindFrom != null },
                     fanWindFrom?.let { from -> { lat: Double, lon: Double -> hours?.cellAt(lat, lon)?.let { from[it] } } },
@@ -689,6 +766,20 @@ fun MapScreen(
                         LayerChip(chip.first, chip.second, what == one, onChange = { chooseWhat(one) }, Modifier.testTag("what-${one.key}"))
                     }
                 }
+            }
+            // The height of the forecast's wind, one small pill at the map's right under the chips.
+            if (!isPlacing && windLevels.isNotEmpty() && hours != null) {
+                HeightPill(
+                    windLevels,
+                    chosen = WindLevel(hours.heightM, hours.aboveGroundM),
+                    onChoose = { level ->
+                        hours.heightM = level.heightM
+                        hours.aboveGroundM = level.aboveGroundM
+                        preferences?.mapForecastHeightM = level.heightM
+                        preferences?.mapForecastAboveGroundM = level.aboveGroundM
+                    },
+                    modifier = Modifier.align(Alignment.End).padding(top = VentiSpace.s2, end = VentiSpace.s4),
+                )
             }
             // Airspace switched on and zoomed out too far to draw it, in the
             // core's words; it alone says to zoom in where both would.
@@ -751,10 +842,7 @@ fun MapScreen(
                         gusts = on
                         preferences?.mapShowsGusts = on
                     },
-                    onLevel = { height ->
-                        thermalMap?.hours?.heightM = height
-                        preferences?.mapForecastHeightM = height
-                    },
+                    regionLevels = if (regionsDrawing != null) regionLevels() else emptyList(),
                     region = region,
                     onPlay = {
                         val job = playing
@@ -1206,6 +1294,7 @@ fun MapScreen(
     if (shownSquare != null && forecastMap != null && forecastDay != null && showsDay) {
         ThermalSquareSheet(forecastMap, forecastDay, shownSquare, wind, onDismiss = { square = null })
     }
+    chosenRegion?.let { region -> RegionSheet(region, onDismiss = { chosenRegion = null }) }
     val shownHourSquare = hourSquare
     if (shownHourSquare != null && thermalMap != null && forecastMap != null && forecastDay != null && byTheHour) {
         ThermalHourSheet(thermalMap, shownHourSquare.first, shownHourSquare.second, wind, onDismiss = { hourSquare = null })

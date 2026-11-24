@@ -99,7 +99,6 @@ object CommunityPageWords {
     const val PLANS = "Plans"
     const val NEW_PLAN = "New plan"
     const val GROUPS = "Groups"
-    const val MAKE_OR_JOIN = "Make or join a group"
     const val ALL = "All"
     const val FIND = "Find a pilot"
     const val I_AM_IN = "I am in"
@@ -297,8 +296,10 @@ fun CommunityPage(
                 else -> item(key = "groups-loading") { Waiting() }
             }
 
-            // The plans of the pilot's groups.
-            item(key = "plans-head") {
+            // The plans of the pilot's groups; nothing of them in no group,
+            // where the groups' part above says so and leads to them.
+            val inNoGroup = groups.board?.groups?.isEmpty() == true
+            if (!inNoGroup) item(key = "plans-head") {
                 PartHead(CommunityPageWords.PLANS, Modifier.testTag("community-plans")) {
                     val board = groups.board
                     if (board != null && board.groups.isNotEmpty()) {
@@ -316,17 +317,7 @@ fun CommunityPage(
                     Quietly(groups.problem.orEmpty(), Modifier.testTag("community-plans-problem"))
                 }
                 board == null -> item(key = "plans-loading") { Waiting() }
-                board.groups.isEmpty() -> item(key = "plans-no-group") {
-                    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow, border = BorderStroke(1.dp, Venti.colours.border)) {
-                        Column(Modifier.fillMaxWidth().padding(VentiSpace.s4), verticalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
-                            Text(PlanWords.NO_GROUP, style = MaterialTheme.typography.bodyLarge)
-                            OutlinedButton(
-                                onClick = onOpenGroups,
-                                modifier = Modifier.heightIn(min = VentiSize.touch).testTag("community-make-group"),
-                            ) { Text(CommunityPageWords.MAKE_OR_JOIN) }
-                        }
-                    }
-                }
+                board.groups.isEmpty() -> Unit
                 else -> {
                     val plans = board.days.flatMap { day -> day.plans.map { day.day to it } }
                     if (plans.isEmpty()) {

@@ -43,6 +43,8 @@ class ThermalHoursLine(
     val layer: ThermalHoursLayer,
     val heightM: Int?,
     val days: List<ThermalMapHoursView?>,
+    /** For the wind, the height above the model's ground: 250. */
+    val aboveGroundM: Int? = null,
 )
 
 /**
@@ -67,6 +69,9 @@ class ThermalHoursModel(
 
     /** The height of the wind chosen, metres above the sea; `null` for the ground. */
     var heightM: Int? by mutableStateOf(null)
+
+    /** The height of the wind chosen above the model's ground, metres (250); `null` where it is not one. */
+    var aboveGroundM: Int? by mutableStateOf(null)
 
     var state: ThermalHoursState
         get() = stateNow
@@ -154,7 +159,12 @@ class ThermalHoursModel(
             return
         }
         val path = try {
-            thermalHoursPath(date, layer, heightM.takeIf { layer == ThermalHoursLayer.WIND })
+            thermalHoursPath(
+                date,
+                layer,
+                heightM.takeIf { layer == ThermalHoursLayer.WIND },
+                aboveGroundM.takeIf { layer == ThermalHoursLayer.WIND },
+            )
         } catch (error: CoreException) {
             state = ThermalHoursState.Failed(error.pilotMessage)
             return
@@ -229,13 +239,14 @@ class ThermalHoursModel(
         }
         val layer = layer
         val height = heightM.takeIf { layer == ThermalHoursLayer.WIND }
-        val same = line?.takeIf { it.map === map && it.layer == layer && it.heightM == height }
+        val aboveGround = aboveGroundM.takeIf { layer == ThermalHoursLayer.WIND }
+        val same = line?.takeIf { it.map === map && it.layer == layer && it.heightM == height && it.aboveGroundM == aboveGround }
         val views: MutableList<ThermalMapHoursView?> = same?.days?.toMutableList() ?: MutableList(map.days.size) { null }
-        if (same == null) line = ThermalHoursLine(map, layer, height, views.toList())
+        if (same == null) line = ThermalHoursLine(map, layer, height, views.toList(), aboveGround)
         for ((index, day) in map.days.withIndex()) {
             if (views.getOrNull(index) != null) continue
             val path = try {
-                thermalHoursPath(day.date, layer, height)
+                thermalHoursPath(day.date, layer, height, aboveGround)
             } catch (error: CoreException) {
                 continue
             }
@@ -258,9 +269,13 @@ class ThermalHoursModel(
                 null
             }
             // Another layer or height was chosen meanwhile: its own line is asked for.
-            if (this.layer != layer || heightM.takeIf { layer == ThermalHoursLayer.WIND } != height) return
+            if (this.layer != layer || heightM.takeIf { layer == ThermalHoursLayer.WIND } != height ||
+                aboveGroundM.takeIf { layer == ThermalHoursLayer.WIND } != aboveGround
+            ) {
+                return
+            }
             views[index] = hours?.view() ?: continue
-            line = ThermalHoursLine(map, layer, height, views.toList())
+            line = ThermalHoursLine(map, layer, height, views.toList(), aboveGround)
         }
     }
 

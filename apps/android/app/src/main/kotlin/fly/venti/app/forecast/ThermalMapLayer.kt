@@ -4,7 +4,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import app.venti.design.VentiLight
 import fly.venti.core.Flyability
+import fly.venti.core.RegionLevel
 import fly.venti.app.map.MapSetup
+import fly.venti.app.wind.arrowScale
+import fly.venti.core.WindBand
 import fly.venti.core.ThermalMapCell
 import fly.venti.core.ThermalMapKey
 import fly.venti.core.ThermalMapScale
@@ -13,6 +16,7 @@ import org.maplibre.android.style.layers.Property
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.FillLayer
+import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
@@ -156,8 +160,12 @@ object ThermalHoursLayers {
     const val CELL = "cell"
     const val STEP = "step"
 
-    /** How large the arrows are against a station's: smaller, so that they are not taken for one. */
-    private const val ARROW_SIZE = 0.62f
+    /**
+     * How large the arrows are against a station's of their band: a little
+     * smaller, so that the two are not taken for each other, and larger as
+     * the wind is stronger, as the stations' are.
+     */
+    private const val ARROW_SIZE = 0.8f
 
     /** The zoom from which the arrows' labels have room beside the squares. */
     private const val LABELS_FROM_ZOOM = 9f
@@ -214,7 +222,13 @@ object ThermalHoursLayers {
                 ),
                 PropertyFactory.iconRotate(Expression.get("heading")),
                 PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
-                PropertyFactory.iconSize(ARROW_SIZE),
+                PropertyFactory.iconSize(
+                    Expression.match(
+                        Expression.get("band"),
+                        Expression.literal(ARROW_SIZE),
+                        *WindBand.entries.map { band -> Expression.stop(band.name.lowercase(), Expression.literal(ARROW_SIZE * band.arrowScale.toFloat())) }.toTypedArray(),
+                    ),
+                ),
                 PropertyFactory.iconAllowOverlap(true),
                 PropertyFactory.textField(
                     Expression.step(Expression.zoom(), Expression.literal(""), Expression.stop(LABELS_FROM_ZOOM, Expression.get("label"))),
@@ -233,10 +247,12 @@ object ThermalHoursLayers {
 
     /**
      * Hands the two sources an hour's texts, and the squares' layer the
-     * colours of the chosen layer's key; empty to take them away.
+     * colours of the chosen layer's key; empty to take them away. Without
+     * `squares` the arrows alone are drawn: the wind and its gusts.
      */
-    fun show(shapes: ThermalMapShapes?, legend: List<ThermalMapKey>, style: Style) {
-        style.getSourceAs<GeoJsonSource>(SQUARES)?.setGeoJson(shapes?.squares ?: EMPTY)
+    fun show(shapes: ThermalMapShapes?, legend: List<ThermalMapKey>, style: Style, squares: Boolean = true) {
+        // On the wind's layers the arrows stand in place of the squares.
+        style.getSourceAs<GeoJsonSource>(SQUARES)?.setGeoJson(shapes?.squares?.takeIf { squares } ?: EMPTY)
         style.getSourceAs<GeoJsonSource>(ARROWS)?.setGeoJson(shapes?.arrows ?: EMPTY)
         val layer = style.getLayerAs<FillLayer>(SQUARES) ?: return
         val stops = legend.map { key -> Expression.stop(key.step.toInt(), Expression.color(colour(key).toArgb())) }
@@ -253,3 +269,95 @@ object ThermalHoursLayers {
 
     private const val EMPTY = """{"type":"FeatureCollection","features":[]}"""
 }
+
+/**
+ * How the thermal forecast by region is drawn (owner decision 27, the
+ * web's `regions.ts`, the iPhone's `RegionLayers`): each region that has a
+ * level filled with its level's colour at the level's own opacity
+ * (design/DESIGN.md, "Day levels"), the light theme's, the map being light
+ * in both appearances; a thin edge in the labels' paper round each; over
+ * the grid's squares and under the base map's cable cars, borders and
+ * names. The grid's squares under a region with a level are not drawn.
+ */
+object RegionLayers {
+    const val SOURCE = "forecast-regions"
+    const val FILL = "forecast-regions"
+    const val EDGE = "forecast-regions-edge"
+
+    /** A region's identifier, in the core's outlines. */
+    const val ID = "id"
+
+    /** Adds the two layers, empty, over the hours' squares: call it after `ThermalHoursLayers.addSquares`. */
+    fun add(style: Style) {
+        style.addSource(GeoJsonSource(SOURCE))
+        val fill = FillLayer(FILL, SOURCE).withProperties(
+            PropertyFactory.fillColor(Expression.color(Color.Transparent.toArgb())),
+            PropertyFactory.fillOpacity(0f),
+            PropertyFactory.fillAntialias(false),
+        )
+        val edge = LineLayer(EDGE, SOURCE).withProperties(
+            PropertyFactory.lineColor(MapSetup.halo),
+            PropertyFactory.lineWidth(
+                Expression.interpolate(Expression.linear(), Expression.zoom(), Expression.stop(7f, 0.5f), Expression.stop(11f, 1.5f)),
+            ),
+            PropertyFactory.lineOpacity(0f),
+        )
+        val hours = style.getLayer(ThermalHoursLayers.SQUARES)
+        if (hours != null) style.addLayerAbove(fill, hours.id) else style.addLayer(fill)
+        style.addLayerAbove(edge, FILL)
+    }
+
+    /** Sets the regions' outlines, the core's GeoJSON whose features carry their `id`; `null` for none. */
+    fun showOutlines(geoJson: String?, style: Style) {
+        style.getSourceAs<GeoJsonSource>(SOURCE)?.setGeoJson(geoJson ?: EMPTY)
+    }
+
+    /** Fills each region by its level, and leaves out the grid's squares under them; nothing filled and the whole grid for no levels. */
+    fun show(levels: Map<String, RegionLevel>, under: Set<Int>, style: Style) {
+        style.getLayerAs<FillLayer>(FILL)?.setProperties(
+            PropertyFactory.fillColor(byRegion(levels, { Expression.color(it.colourOnMap.toArgb()) }, Expression.color(Color.Transparent.toArgb()))),
+            PropertyFactory.fillOpacity(byRegion(levels, { Expression.literal(it.fillOpacityOnMap) }, Expression.literal(0f))),
+        )
+        style.getLayerAs<LineLayer>(EDGE)?.setProperties(
+            PropertyFactory.lineOpacity(byRegion(levels, { Expression.literal(EDGE_OPACITY) }, Expression.literal(0f))),
+        )
+        val outside = outside(under, ThermalMapLayer.CELL)
+        style.getLayerAs<FillLayer>(ThermalMapLayer.LAYER)?.setFilter(outside)
+        style.getLayerAs<FillLayer>(ThermalHoursLayers.SQUARES)?.setFilter(outside)
+    }
+
+    /** The squares whose place is not among `cells`; every square for none. */
+    fun outside(cells: Set<Int>, property: String): Expression =
+        if (cells.isEmpty()) {
+            Expression.literal(true)
+        } else {
+            Expression.match(
+                Expression.get(property),
+                Expression.literal(true),
+                *cells.sorted().map { Expression.stop(it, Expression.literal(false)) }.toTypedArray(),
+            )
+        }
+
+    private fun byRegion(levels: Map<String, RegionLevel>, value: (RegionLevel) -> Expression, otherwise: Expression): Expression {
+        if (levels.isEmpty()) return otherwise
+        val stops = levels.map { (id, level) -> Expression.stop(id, value(level)) }
+        return Expression.match(Expression.get(ID), otherwise, *stops.toTypedArray())
+    }
+
+    private const val EDGE_OPACITY = 0.9f
+    private const val EMPTY = """{"type":"FeatureCollection","features":[]}"""
+}
+
+/**
+ * What the map draws of the thermal forecast by region: the regions'
+ * outlines, the levels of the day or the hour shown by region, and the
+ * squares of the grid under a region with a level, which are not drawn.
+ * `id` names the set of regions, the day and the hour: the map draws again
+ * only when it changes.
+ */
+class RegionsDrawing(
+    val id: String,
+    val regions: fly.venti.core.ForecastRegions,
+    val levels: Map<String, RegionLevel>,
+    val under: Set<Int>,
+)

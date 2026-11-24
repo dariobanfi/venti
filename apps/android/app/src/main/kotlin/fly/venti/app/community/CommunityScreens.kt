@@ -258,6 +258,19 @@ private fun EveryonesFlights(community: CommunityModel, onOpen: (PublicFlight) -
         community.loadIfNeeded()
     }
     val flights = community.flights
+    // The search's choices, in a sheet over the list.
+    var searches by remember { mutableStateOf(false) }
+    if (searches) {
+        FlightSearchSheet(
+            community.flightSearch,
+            middle = fly.venti.app.map.OverviewMap.lastLookedAt,
+            onShow = { chosen ->
+                searches = false
+                scope.launch { community.search(chosen) }
+            },
+            onDismiss = { searches = false },
+        )
+    }
 
     PullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -288,9 +301,21 @@ private fun EveryonesFlights(community: CommunityModel, onOpen: (PublicFlight) -
                     }
                 }
             }
+            item(key = "search") {
+                FlightSearchBar(
+                    community.flightSearch,
+                    onOpen = { searches = true },
+                    onChange = { chosen -> scope.launch { community.search(chosen) } },
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+            }
             if (flights.isEmpty() && !community.isLoading) {
                 item(key = "none") {
-                    NoFlights("No public flights yet", community.problem ?: CommunityWords.NONE_YET, R.drawable.venti_league)
+                    if (searchChips(community.flightSearch).isEmpty()) {
+                        NoFlights("No public flights yet", community.problem ?: CommunityWords.NONE_YET, R.drawable.venti_league)
+                    } else {
+                        NoFlights(FlightSearchWords.NONE_FOUND, community.problem ?: FlightSearchWords.NONE_FOUND_LINE, R.drawable.venti_league)
+                    }
                 }
             }
             itemsIndexed(flights, key = { _, flight -> flight.id }) { index, flight ->

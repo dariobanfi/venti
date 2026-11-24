@@ -1,5 +1,6 @@
 package fly.venti.app
 
+import fly.venti.app.community.FlightSearchWords
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.click
 import android.content.Context
@@ -2945,7 +2946,8 @@ class VentiUiTest {
             tapChip(tag)
             toClock("13:00")
             waitFor(line and hasText("$title, ", substring = true) and hasText("13:00, forecast, ", substring = true))
-            drawn("forecast-hours-squares")
+            // The wind is arrows alone; the others are squares.
+            drawn(if (tag == "what-wind") "forecast-hours-arrows" else "forecast-hours-squares")
             assertTrue((tag == "what-wind") == exists(hasTestTag("what-gusts")))
             letTheMapDraw()
             keepScreenshot("$prefix-map-hours-${index + 3}-${tag.removePrefix("what-")}")
@@ -2957,7 +2959,7 @@ class VentiUiTest {
         tap(hasTestTag("what-gusts"))
         waitFor(line and hasText("Gusts at the ground, ", substring = true))
         assertFalse(exists(hasTestTag("forecast-level")))
-        drawn("forecast-hours-squares")
+        drawn("forecast-hours-arrows")
         letTheMapDraw()
         keepScreenshot("$prefix-map-hours-6-gusts")
         tap(hasTestTag("what-gusts"))
@@ -2984,7 +2986,7 @@ class VentiUiTest {
         // the square, which says so.
         chooseForecastHeight("1000", "1000 m")
         waitFor(line and hasText("Wind at 1000 m, ", substring = true))
-        drawn("forecast-hours-squares")
+        drawn("forecast-hours-arrows")
         letTheMapDraw(2)
         TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.8, lon = 11.9)))
         val sheet = hasTestTag("forecast-hour-square")
@@ -3221,8 +3223,152 @@ class VentiUiTest {
         return strip.config[SemanticsProperties.ProgressBarRangeInfo].range.endInclusive.toInt() + 1
     }
 
+    /**
+     * Everyone's flights narrowed by a search, against the development
+     * server: a circle of 30 km round the Tegernsee, set on the sheet's
+     * map where the map tab rests, leaves fewer flights; a glider's class
+     * on top of it leaves none, since the server's made-up flights name no
+     * class. The chips say each choice in the core's words, and the × of
+     * one drops it.
+     */
+    @Test
+    fun aSearchNarrowsEveryonesFlightsByARadiusAndAClass() = inBothAppearances {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(described("Show my position"))
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.68, lon = 11.76, zoom = 9.0))
+        letTheMapDraw()
+        tap(tab("Community"))
+        showEveryonesFlights()
+        val row = hasTestTag("public-flight-row")
+        waitFor(row)
+        // The flights listed, all of them: a lazy list holds only those in view.
+        fun rows(): Int {
+            var listed = -1
+            scenario.onActivity { activity ->
+                listed = ((activity.application as VentiApplication).testSession as? Session.Ready)?.community?.flights?.size ?: -1
+            }
+            return listed
+        }
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { rows() > 0 }
+        val before = rows()
+        TestDevice.say("searchFlightsBefore", before.toString())
+
+        // The sheet: the area as a mark with a radius on a map.
+        tap(hasTestTag("flights-filter"))
+        waitFor(hasTestTag("flight-search"))
+        keepScreenshot("light-search-1-sheet")
+        tap(hasTestTag("flight-search-area"))
+        waitFor(hasTestTag("search-area-map"))
+        screen.onNode(hasTestTag("search-area-radius")).performSemanticsAction(SemanticsActions.SetProgress) { it(30f) }
+        waitFor(hasTestTag("search-area-radius") and saying("30 km"))
+        letTheMapDraw()
+        keepScreenshot("light-search-2-area")
+        tap(hasTestTag("search-area-use"))
+        waitFor(hasTestTag("flight-search-area") and hasText("Within 30 km", substring = true))
+        tap(hasTestTag("flight-search-show"))
+        waitFor(hasTestTag("search-chip-near") and hasText("Within 30 km"))
+        assertTrue(exists(hasTestTag("flights-filter") and described("Filter, 1 on")))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { exists(row) && rows() in 1 until before }
+        TestDevice.say("searchFlightsWithin30Km", rows().toString())
+        keepScreenshot("light-search-3-narrowed")
+
+        // A class on top of it: none of the made-up flights names one.
+        tap(hasTestTag("flights-filter"))
+        waitFor(hasTestTag("flight-search"))
+        tap(hasTestTag("search-class-c"))
+        tap(hasTestTag("flight-search-show"))
+        waitFor(hasTestTag("search-chip-class") and hasText("EN C"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(row) && exists(hasText(FlightSearchWords.NONE_FOUND)) }
+        keepScreenshot("light-search-4-none")
+
+        // The × of a chip drops its choice.
+        tap(hasTestTag("search-chip-class"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("search-chip-class")) && exists(row) }
+        tap(hasTestTag("search-chip-near"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { rows() == before }
+    }
+
     @Test
     fun theForecastMapByTheHour() = inEveryLook { lookAtTheForecastByTheHour("light", dark = false) }
+
+    /**
+     * The thermal forecast by region and the wind 250 m above the ground,
+     * against the development server, whose forecast by region has two
+     * regions by the Tegernsee (DE-BY-42 and AT-07-05), both "Not flyable:
+     * rain" by the model's ground: the day filled by region, the key of the five levels, a
+     * region tapped with its words and its detail, its credit behind the
+     * map's (i), the whole key behind the panel's "i"; then the wind's
+     * arrows at 250 m above the ground, chosen from the height's pill, and
+     * the pill gone with the gusts. It leaves the wind at the ground, its
+     * mean, as the other tests expect it.
+     */
+    @Test
+    fun theForecastMapShowsRegionsAndTheWindAboveTheGround() = inBothAppearances {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(hasTestTag("map-layers"))
+        switchLayer("layer-sites", on = false)
+        switchLayer("layer-pilots", on = false)
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.62, lon = 11.8, zoom = 8.6))
+
+        // The day by region: the regions filled, the key of the five levels, worst first.
+        tapChip("what-thermals")
+        val levels = hasTestTag("what-levels")
+        waitFor(levels)
+        assertTrue(exists(levels and described("Not flyable, Glides only, Weak, Good, Very good")))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, "forecast-regions") ?: 0) > 0 }
+        letTheMapDraw(3)
+        keepScreenshot("light-map-regions-1-day")
+        seeInCredits(hasText("Regions: EAWS (CC0)", substring = true))
+
+        // A region tapped: the Bavarian Prealps Central, at the place the server labels it.
+        TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.6745, lon = 11.6758)))
+        val words = hasTestTag("forecast-region-words")
+        waitFor(words)
+        assertTrue(exists(words and hasContentDescription("Not flyable: rain", substring = true)))
+        assertTrue(exists(hasTestTag("forecast-region-detail") and hasText("From the model's ground")))
+        keepScreenshot("light-map-regions-2-region")
+        tap(hasTestTag("forecast-region-done"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(words) }
+
+        // The whole key behind the "i": each level in its fuller words.
+        unfoldTheKeyAndNotes("what-info")
+        waitFor(hasTestTag("forecast-key"))
+        keepScreenshot("light-map-regions-3-key")
+        screen.onNode(hasTestTag("what-info")).performClick()
+
+        // The wind at one o'clock, 250 m above the ground: arrows only.
+        tapChip("what-wind")
+        toClock("13:00")
+        val line = hasTestTag("what-line")
+        waitFor(line and hasText("13:00, forecast, ", substring = true))
+        keepScreenshot("light-map-wind-0-height-closed")
+        press(hasTestTag("forecast-level"))
+        waitFor(hasTestTag("forecast-level-250agl"))
+        keepScreenshot("light-map-wind-1-height-open")
+        press(hasTestTag("forecast-level-250agl"))
+        waitFor(hasTestTag("forecast-level") and hasText("250 m AGL"))
+        waitFor(line and hasText("250", substring = true) and hasText("13:00, forecast, ", substring = true))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, "forecast-hours-arrows") ?: 0) > 0 }
+        assertEquals(0, TestDevice.drawnOnTheMap(scenario, "forecast-hours-squares") ?: 0)
+        letTheMapDraw(3)
+        keepScreenshot("light-map-wind-2-250-agl")
+
+        // The gusts have no heights.
+        tap(hasTestTag("what-gusts"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("forecast-level")) }
+        tap(hasTestTag("what-gusts"))
+
+        // As the other tests expect it: the wind at the ground.
+        chooseForecastHeight("ground", "Ground")
+        switchLayer("layer-sites", on = true)
+        switchLayer("layer-pilots", on = true)
+    }
 
     @Test
     fun todaySaysWhatTheForecastSaysOfTheTakeoffs() = inBothAppearances { lookAtToday("light", dark = false) }

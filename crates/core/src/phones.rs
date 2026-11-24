@@ -142,6 +142,11 @@ pub enum PhoneTarget {
         /// The request.
         id: String,
     },
+    /// A new message in one of the pilot's groups: that group's chat.
+    GroupChat {
+        /// The group.
+        id: String,
+    },
 }
 
 fn invalid(message: &str) -> CoreError {
@@ -403,6 +408,7 @@ pub fn phone_message_target(kind: String, id: String) -> Option<PhoneTarget> {
         "alert" => Some(PhoneTarget::Alert { id }),
         "open_plan" => Some(PhoneTarget::OpenPlan { id }),
         "help_request" | "help_answer" => Some(PhoneTarget::Help { id }),
+        "group_message" => Some(PhoneTarget::GroupChat { id }),
         _ => None,
     }
 }
@@ -513,6 +519,17 @@ mod tests {
         assert_eq!(
             phone_message_target("other".to_owned(), ID.to_owned()),
             None
+        );
+        // The server's word for a group's message, and the group's id it
+        // carries as `id`.
+        assert_eq!(
+            phone_message_target(
+                api::PhoneMessageKind::GroupMessage.as_str().to_owned(),
+                "eagles".to_owned()
+            ),
+            Some(PhoneTarget::GroupChat {
+                id: "eagles".to_owned()
+            })
         );
         assert!(phone_request_done(204, Vec::new()).is_ok());
     }

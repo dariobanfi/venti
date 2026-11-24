@@ -381,43 +381,95 @@ pub fn community_words() -> CommunityWords {
 }
 
 /// The links to Venti's own records in a message's text, in the order
-/// they stand, each once: an address of a Venti page whose path is
-/// `/flights/{id}`, `/sites/{id}`, `/open-plans/{id}` or
-/// `/pilots/{handle}`, on any host, with or without `https://`.
+/// they stand, each once: an address of a Venti page, on any host and
+/// under any folder, with or without `https://`. The pages are those of
+/// the API's records (`/flights/{id}`, `/sites/{id}`, `/open-plans/{id}`,
+/// `/pilots/{handle}`) and the website's own: a site's place
+/// (`/places/{lat},{lon}/?site={id}`, and the older
+/// `/logbook/everyone/place/?lat=…&lon=…&site={id}`), an open plan
+/// (`/plans/open/?id={id}`), and the older addresses of a flight and a
+/// pilot (`/logbook/everyone/flight/?id=…`, `/logbook/everyone/pilot/?handle=…`).
 #[uniffi::export]
 pub fn message_links(text: String) -> Vec<LinkDraft> {
     let mut found: Vec<LinkDraft> = Vec::new();
     for word in text.split_whitespace() {
         let word =
             word.trim_matches(|c: char| matches!(c, '(' | ')' | '<' | '>' | ',' | '.' | '!' | '?'));
-        let path = word
+        let address = word
             .strip_prefix("https://")
             .or_else(|| word.strip_prefix("http://"))
             .and_then(|rest| rest.find('/').map(|at| &rest[at..]));
-        let Some(path) = path else {
+        let Some(link) = address.and_then(venti_link) else {
             continue;
-        };
-        let path = path.split(['?', '#']).next().unwrap_or(path);
-        let mut parts = path.trim_matches('/').split('/');
-        let (Some(first), Some(id), None) = (parts.next(), parts.next(), parts.next()) else {
-            continue;
-        };
-        let kind = match first {
-            "flights" | "f" if id.parse::<api::FlightId>().is_ok() => "flight",
-            "sites" if id.parse::<venti_domain::SiteId>().is_ok() => "site",
-            "open-plans" if id.parse::<api::PlanId>().is_ok() => "open_plan",
-            "pilots" if Handle::new(id).is_ok() => "pilot",
-            _ => continue,
-        };
-        let link = LinkDraft {
-            kind: kind.to_owned(),
-            id: id.to_owned(),
         };
         if !found.contains(&link) {
             found.push(link);
         }
     }
     found
+}
+
+/// The record an address's path and query name, if it is one of Venti's
+/// pages: see [`message_links`].
+fn venti_link(address: &str) -> Option<LinkDraft> {
+    let address = address.split('#').next().unwrap_or(address);
+    let (path, query) = address.split_once('?').unwrap_or((address, ""));
+    let parts: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
+    let asked = |name: &str| {
+        query
+            .split('&')
+            .filter_map(|pair| pair.split_once('='))
+            .find(|(key, _)| *key == name)
+            .and_then(|(_, value)| decoded(value))
+    };
+    let (kind, id) = match parts.as_slice() {
+        [.., "places", _] | [.., "logbook", "everyone", "place"] => ("site", asked("site")?),
+        [.., "plans", "open"] => ("open_plan", asked("id")?),
+        [.., "logbook", "everyone", "flight"] => ("flight", asked("id")?),
+        [.., "logbook", "everyone", "pilot"] => ("pilot", asked("handle")?),
+        [.., "flights" | "f", id] => ("flight", (*id).to_owned()),
+        [.., "sites", id] => ("site", (*id).to_owned()),
+        [.., "open-plans", id] => ("open_plan", (*id).to_owned()),
+        [.., "pilots", id] => ("pilot", (*id).to_owned()),
+        _ => return None,
+    };
+    let known = match kind {
+        "flight" => id.parse::<api::FlightId>().is_ok(),
+        "site" => id.parse::<venti_domain::SiteId>().is_ok(),
+        "open_plan" => id.parse::<api::PlanId>().is_ok(),
+        _ => Handle::new(&id).is_ok(),
+    };
+    known.then(|| LinkDraft {
+        kind: kind.to_owned(),
+        id,
+    })
+}
+
+/// A value of a query string as it was before it was written into one:
+/// `%3A` a colon, `+` a space. `None` for one that is not text.
+fn decoded(value: &str) -> Option<String> {
+    let bytes = value.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        match bytes[at] {
+            b'%' => {
+                let hex = value.get(at + 1..at + 3)?;
+                out.push(u8::from_str_radix(hex, 16).ok()?);
+                at += 3;
+            }
+            b'+' => {
+                out.push(b' ');
+                at += 1;
+            }
+            byte => {
+                out.push(byte);
+                at += 1;
+            }
+        }
+    }
+    let text = String::from_utf8(out).ok()?;
+    (!text.is_empty()).then_some(text)
 }
 
 #[uniffi::export]
@@ -475,15 +527,18 @@ impl Core {
 
     /// Reads the server's answer to [`Core::groups_request`] as the
     /// groups' section shows it: each with its unread messages and its
-    /// last message.
+    /// last message, the pilot's own as "You: …".
     pub fn communities(&self, status: u16, body: Vec<u8>) -> Result<Vec<CommunityView>, CoreError> {
         let response: GroupsResponse = answer(status, &body)?;
+        let me = self.my_handle()?.unwrap_or_default();
         Ok(response
             .groups
             .iter()
             .map(|group| {
                 let chat = response.chats.iter().find(|chat| chat.group == group.id);
-                let last = chat.and_then(|chat| chat.last_message.as_ref());
+                let last = chat
+                    .and_then(|chat| chat.last_message.as_ref())
+                    .map(|message| (message, me.as_str()));
                 community(group, chat.map(|chat| &chat.me), last)
             })
             .collect())
@@ -503,6 +558,27 @@ impl Core {
             home: draft.home.as_ref().map(home).transpose()?,
         };
         json_request("POST", api::GROUPS_PATH, &request, true)
+    }
+
+    /// Reads the server's answer to [`Core::create_community_request`]:
+    /// the group as it was made, with the pilot as its owner and only
+    /// member.
+    pub fn community_made(&self, status: u16, body: Vec<u8>) -> Result<CommunityDetail, CoreError> {
+        let response: api::CreateGroupResponse = answer(status, &body)?;
+        let group = response.group;
+        let made = GroupResponse {
+            members: vec![group.keeper.clone()],
+            admins: Vec::new(),
+            me: Some(GroupMe {
+                role: Some(GroupRole::Owner),
+                invited: false,
+                muted: false,
+                unread: 0,
+                read_up_to: "0".to_owned(),
+            }),
+            group,
+        };
+        self.community_detail(&made)
     }
 
     /// The request that changes a group's name, description and home. Its
@@ -543,41 +619,7 @@ impl Core {
     /// picture.
     pub fn community(&self, status: u16, body: Vec<u8>) -> Result<CommunityDetail, CoreError> {
         let response: GroupResponse = answer(status, &body)?;
-        let me = self.my_handle()?.unwrap_or_default();
-        let view = community(&response.group, response.me.as_ref(), None);
-        let role = view.my_role;
-        let members = response
-            .members
-            .iter()
-            .map(|member| {
-                let role = if member.handle == response.group.keeper.handle {
-                    CommunityRole::Owner
-                } else if response.admins.contains(&member.handle) {
-                    CommunityRole::Admin
-                } else {
-                    CommunityRole::Member
-                };
-                CommunityMember {
-                    handle: member.handle.to_string(),
-                    name: member.display_name.clone(),
-                    role_words: role_words(role).to_owned(),
-                    role,
-                    is_me: member.handle.as_str() == me,
-                }
-            })
-            .collect();
-        let is_in = matches!(
-            role,
-            CommunityRole::Member | CommunityRole::Admin | CommunityRole::Owner
-        );
-        Ok(CommunityDetail {
-            can_join: !is_in && (view.is_public || role == CommunityRole::Invited),
-            can_read: is_in || view.is_public,
-            can_post: is_in,
-            can_moderate: matches!(role, CommunityRole::Admin | CommunityRole::Owner),
-            group: view,
-            members,
-        })
+        self.community_detail(&response)
     }
 
     /// The request that takes the pilot into a public group, or one they
@@ -868,6 +910,46 @@ impl Core {
 }
 
 impl Core {
+    /// A group with its members and what the pilot may do in it, by the
+    /// handle of the account: the pilot's own row is "me".
+    fn community_detail(&self, response: &GroupResponse) -> Result<CommunityDetail, CoreError> {
+        let me = self.my_handle()?.unwrap_or_default();
+        let view = community(&response.group, response.me.as_ref(), None);
+        let role = view.my_role;
+        let members = response
+            .members
+            .iter()
+            .map(|member| {
+                let role = if member.handle == response.group.keeper.handle {
+                    CommunityRole::Owner
+                } else if response.admins.contains(&member.handle) {
+                    CommunityRole::Admin
+                } else {
+                    CommunityRole::Member
+                };
+                CommunityMember {
+                    handle: member.handle.to_string(),
+                    name: member.display_name.clone(),
+                    role_words: role_words(role).to_owned(),
+                    role,
+                    is_me: member.handle.as_str() == me,
+                }
+            })
+            .collect();
+        let is_in = matches!(
+            role,
+            CommunityRole::Member | CommunityRole::Admin | CommunityRole::Owner
+        );
+        Ok(CommunityDetail {
+            can_join: !is_in && (view.is_public || role == CommunityRole::Invited),
+            can_read: is_in || view.is_public,
+            can_post: is_in,
+            can_moderate: matches!(role, CommunityRole::Admin | CommunityRole::Owner),
+            group: view,
+            members,
+        })
+    }
+
     fn chat_me(&self) -> Result<String, CoreError> {
         self.my_handle()?.ok_or_else(crate::account::not_signed_in)
     }
@@ -1022,7 +1104,13 @@ fn role_words(role: CommunityRole) -> &'static str {
     }
 }
 
-fn community(group: &Group, me: Option<&GroupMe>, last: Option<&api::Message>) -> CommunityView {
+/// A group as a card shows it. `last` is its newest message with the
+/// handle of the pilot of this device, whose own message reads "You: …".
+fn community(
+    group: &Group,
+    me: Option<&GroupMe>,
+    last: Option<(&api::Message, &str)>,
+) -> CommunityView {
     let members = match group.member_count {
         1 => "1 member".to_owned(),
         count => format!("{count} members"),
@@ -1052,13 +1140,14 @@ fn community(group: &Group, me: Option<&GroupMe>, last: Option<&api::Message>) -
         muted: me.is_some_and(|me| me.muted),
         unread,
         unread_badge: badge(unread),
-        last_message: last.map(last_line),
-        last_message_at: last.map(|message| message.created_at.to_rfc3339()),
+        last_message: last.map(|(message, me)| last_line(message, me)),
+        last_message_at: last.map(|(message, _)| message.created_at.to_rfc3339()),
     }
 }
 
-/// A message in one line, for the list of groups.
-fn last_line(message: &api::Message) -> String {
+/// A message in one line, for the list of groups: the pilot's own, by
+/// the handle `me`, as "You: …".
+fn last_line(message: &api::Message, me: &str) -> String {
     let said = if message.removed.is_some() {
         "a message was removed".to_owned()
     } else if message.kind == api::MessageKind::Plan {
@@ -1077,7 +1166,11 @@ fn last_line(message: &api::Message) -> String {
     } else {
         "a link".to_owned()
     };
-    format!("{}: {said}", message.author.display_name)
+    if message.author.handle.as_str() == me {
+        format!("You: {said}")
+    } else {
+        format!("{}: {said}", message.author.display_name)
+    }
 }
 
 fn chat_message(message: &api::Message, me: &str) -> ChatMessage {
@@ -1396,6 +1489,83 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn the_websites_own_addresses_of_a_site_and_an_open_plan_are_links_too() {
+        let plan = "0123456789abcdefghjkmnpqrs";
+        let found = message_links(format!(
+            "Today at https://venti.fly/places/47.70100,12.01200/?site=dhv%3A1234, \
+             or http://localhost:5173/logbook/everyone/place/?lat=47.7&lon=12.0&site=dhv:99#top \
+             with https://venti.fly/plans/open/?id={plan}. \
+             Old ones: https://venti.fly/logbook/everyone/flight/?id={plan} and \
+             https://venti.fly/app/logbook/everyone/pilot/?handle=mara, \
+             not https://venti.fly/places/47.7,12.0/ nor https://venti.fly/plans/open/?id=x \
+             nor https://venti.fly/places/47.7,12.0/?site=nocolon"
+        ));
+        let link = |kind: &str, id: &str| LinkDraft {
+            kind: kind.to_owned(),
+            id: id.to_owned(),
+        };
+        assert_eq!(
+            found,
+            [
+                link("site", "dhv:1234"),
+                link("site", "dhv:99"),
+                link("open_plan", plan),
+                link("flight", plan),
+                link("pilot", "mara"),
+            ]
+        );
+        // What it read before, also under a folder of a site.
+        assert_eq!(
+            message_links(format!(
+                "https://venti.fly/sites/dhv:7 https://venti.fly/open-plans/{plan} \
+                 https://example.org/venti/flights/{plan}/"
+            )),
+            [
+                link("site", "dhv:7"),
+                link("open_plan", plan),
+                link("flight", plan)
+            ]
+        );
+        assert_eq!(decoded("a%3Ab+c").as_deref(), Some("a:b c"));
+        assert_eq!(decoded("%3"), None);
+        assert_eq!(decoded(""), None);
+    }
+
+    #[test]
+    fn a_group_just_made_reads_with_the_pilot_as_its_owner() {
+        let folder = TempFolder::new();
+        let core = signed_in(&folder);
+        let made = core
+            .community_made(201, golden("group_created.json"))
+            .unwrap();
+        assert_eq!(made.group.name, "Zweite Mustergruppe");
+        assert_eq!(made.group.my_role, CommunityRole::Owner);
+        assert_eq!(made.group.summary, "1 member");
+        assert_eq!(made.members.len(), 1);
+        assert!(made.members[0].is_me);
+        assert_eq!(made.members[0].role_words, "Owner");
+        assert!(made.can_post && made.can_moderate && made.can_read && !made.can_join);
+        // The answer is not a group with members, which `community` reads.
+        assert!(core.community(201, golden("group_created.json")).is_err());
+    }
+
+    #[test]
+    fn the_pilots_own_last_message_reads_you() {
+        let folder = TempFolder::new();
+        let core = signed_in(&folder);
+        let theirs = core.communities(200, golden("groups.json")).unwrap();
+        assert_eq!(
+            theirs[0].last_message.as_deref(),
+            Some("Jonas Beispiel: a plan")
+        );
+        let mine = String::from_utf8(golden("groups.json"))
+            .unwrap()
+            .replace(r#""handle": "jonas""#, r#""handle": "demo""#);
+        let mine = core.communities(200, mine.into_bytes()).unwrap();
+        assert_eq!(mine[0].last_message.as_deref(), Some("You: a plan"));
     }
 
     #[test]

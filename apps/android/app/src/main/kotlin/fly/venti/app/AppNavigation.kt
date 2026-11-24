@@ -256,6 +256,14 @@ class AppNavigation {
         leaguePath += LeagueRoute.Groups
     }
 
+    /** A group's chat, on the League tab, from a tapped push: by the id until the server says the name. */
+    fun showChat(id: String) {
+        tab = AppTab.League
+        leaguePath.clear()
+        leaguePath += LeagueRoute.Groups
+        leaguePath += LeagueRoute.Chat(id, "")
+    }
+
     /** One of everyone's flights, on the League tab, from wherever it was found. */
     fun showPublic(flight: String) {
         tab = AppTab.League

@@ -436,6 +436,8 @@ struct PushedScreen: View {
                     OpenPlanScreen(id: id)
                 case .alert:
                     EmptyView()
+                case .groupChat(let id):
+                    GroupChatScreen(id: id, name: "")
                 }
             }
             .toolbar {
@@ -456,6 +458,7 @@ extension PhoneTarget: @retroactive Identifiable {
         case .alert(let id): "alert \(id)"
         case .openPlan(let id): "open plan \(id)"
         case .help(let id): "help \(id)"
+        case .groupChat(let id): "group chat \(id)"
         }
     }
 }

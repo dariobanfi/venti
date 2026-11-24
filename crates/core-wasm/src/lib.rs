@@ -1143,8 +1143,6 @@ impl Core {
     // the page sends it with the session token. Nothing of it is kept.
     //
     // Every request is refused in words while this browser is signed out.
-    // The list of the pilot's groups alone (`groups_request`) is not bound:
-    // the board carries the groups, and no page asks for them without it.
 
     /// The request for the plans of every group the pilot is in, from a
     /// day on and, if given, up to one: both written `2026-11-21`. The
@@ -1466,7 +1464,15 @@ impl Core {
             .collect()
     }
 
-    /// Reads the answer to `groupsRequest` as the groups' section shows it.
+    /// The request for the groups the pilot is in. Its answer goes to
+    /// `communities`.
+    #[wasm_bindgen(js_name = groupsRequest)]
+    pub fn groups_request(&self) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(venti_core::Core::groups_request)
+    }
+
+    /// Reads the answer to `groupsRequest` as the groups' section shows it:
+    /// the pilot's own last message as "You: …".
     #[wasm_bindgen(js_name = communities)]
     pub fn communities(
         &self,
@@ -1490,6 +1496,21 @@ impl Core {
     ) -> Result<Ts<ServerRequest>, JsValue> {
         let draft = from_js(&draft)?;
         self.request(|core| core.create_community_request(draft, public))
+    }
+
+    /// Reads the answer to `createCommunityRequest`: the group as it was
+    /// made, with the pilot as its owner and only member.
+    #[wasm_bindgen(js_name = communityMade)]
+    pub fn community_made(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Ts<CommunityDetail>, JsValue> {
+        let made = self
+            .session
+            .call(|core| core.community_made(status, body))
+            .map_err(thrown)?;
+        to_js(&made)
     }
 
     /// The request that changes a group's name, description and home.
@@ -1743,6 +1764,20 @@ pub fn community_words() -> Result<Ts<CommunityWords>, JsValue> {
 #[wasm_bindgen(js_name = messageLinks)]
 pub fn message_links(text: String) -> Result<Vec<Ts<LinkDraft>>, JsValue> {
     venti_core::message_links(text).iter().map(to_js).collect()
+}
+
+/// Who sees a plan and how long it is kept, under a list of plans:
+/// `isPublic` is whether the group is public or, for the board, whether
+/// one of its groups is.
+#[wasm_bindgen(js_name = whoSeesAPlan)]
+pub fn who_sees_a_plan(is_public: bool) -> String {
+    venti_core::who_sees_a_plan(is_public)
+}
+
+/// The same under the form of a plan, before it is posted in a group.
+#[wasm_bindgen(js_name = whoSeesThisPlan)]
+pub fn who_sees_this_plan(is_public: bool) -> String {
+    venti_core::who_sees_this_plan(is_public)
 }
 
 /// The form for a report about a message of a group or a picture in one.
@@ -5088,6 +5123,79 @@ mod tests {
             .unwrap_err();
         assert_eq!(CoreErrorKind::of(&error), CoreErrorKind::Server);
         assert_eq!(error.to_string(), "This device is not signed in.");
+    }
+
+    #[test]
+    fn the_pilot_is_you_in_a_group_and_its_chat_also_after_a_reload() {
+        let mut store = Store::new();
+        let session = open(&store);
+        session
+            .call(|core| {
+                core.signed_in(
+                    "https://venti.example".to_owned(),
+                    201,
+                    recorded("sign_in.json"),
+                )
+            })
+            .unwrap();
+        commit(&session.staged, &mut store);
+
+        // Each reader of a group that tells the pilot's own asks for the
+        // account first, and reads "you" once the page has fetched it.
+        let session = open(&store);
+        let made = recorded("group_created.json");
+        let error = session
+            .call(|core| core.community_made(201, made.clone()))
+            .unwrap_err();
+        assert_eq!(CoreErrorKind::of(&error), CoreErrorKind::Storage);
+        assert_eq!(fetch(&session.staged, &store, usize::MAX), 1);
+        let made = session.call(|core| core.community_made(201, made)).unwrap();
+        assert!(made.members[0].is_me);
+
+        let session = open(&store);
+        let mine = String::from_utf8(recorded("groups.json"))
+            .unwrap()
+            .replace(r#""handle": "jonas""#, r#""handle": "demo""#)
+            .into_bytes();
+        assert!(
+            session
+                .call(|core| core.communities(200, mine.clone()))
+                .is_err()
+        );
+        fetch(&session.staged, &store, usize::MAX);
+        let groups = session.call(|core| core.communities(200, mine)).unwrap();
+        assert_eq!(groups[0].last_message.as_deref(), Some("You: a plan"));
+
+        let session = open(&store);
+        let group = recorded("group.json");
+        assert!(
+            session
+                .call(|core| core.community(200, group.clone()))
+                .is_err()
+        );
+        fetch(&session.staged, &store, usize::MAX);
+        let detail = session.call(|core| core.community(200, group)).unwrap();
+        assert!(detail.members.iter().any(|member| member.is_me));
+
+        let session = open(&store);
+        let page = String::from_utf8(recorded("group_messages.json"))
+            .unwrap()
+            .replace(r#""handle": "timo""#, r#""handle": "demo""#)
+            .into_bytes();
+        assert!(
+            session
+                .call(|core| core.chat_page(200, page.clone()))
+                .is_err()
+        );
+        fetch(&session.staged, &store, usize::MAX);
+        let page = session.call(|core| core.chat_page(200, page)).unwrap();
+        assert!(page.messages[0].is_mine && !page.messages[1].is_mine);
+
+        // Each call drops the account from memory again afterwards.
+        assert!(session.call(|core| core.groups_request()).is_err());
+        fetch(&session.staged, &store, usize::MAX);
+        let request = session.call(|core| core.groups_request()).unwrap();
+        assert_eq!(request.path, "/v1/groups");
     }
 
     #[test]

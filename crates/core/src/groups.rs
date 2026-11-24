@@ -644,6 +644,36 @@ pub(crate) fn plan_view(plan: &Plan, group: Option<&Group>, me: &str) -> PlanVie
     }
 }
 
+/// Who sees a plan and how long it is kept, under a list of plans: the
+/// board of the pilot's groups, one group's plans. `is_public` is whether
+/// the group is public or, for the board, whether one of its groups is: a
+/// public group's plans are read by anyone (decision 26), a private
+/// group's by its members alone.
+#[uniffi::export]
+pub fn who_sees_a_plan(is_public: bool) -> String {
+    if is_public {
+        "A plan in a public group is seen by anyone, one in a private group by its members \
+         and nobody else. A plan is removed two days after its day."
+    } else {
+        "A plan is seen by the members of its group and nobody else, and is removed two \
+         days after its day."
+    }
+    .to_owned()
+}
+
+/// The same under the form of a plan, before it is posted in a group:
+/// `is_public` is whether that group is public.
+#[uniffi::export]
+pub fn who_sees_this_plan(is_public: bool) -> String {
+    if is_public {
+        "The group is public: anyone can see the plan. It is removed two days after its day."
+    } else {
+        "The members of the group see the plan, and nobody else. It is removed two days after \
+         its day."
+    }
+    .to_owned()
+}
+
 /// Who is in, in a line: every name up to three, then the first two and
 /// how many more.
 pub(crate) fn in_words(names: &[String]) -> String {
@@ -693,6 +723,19 @@ mod tests {
 
     fn json(request: &ServerRequest) -> serde_json::Value {
         serde_json::from_slice(request.body.as_ref().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn a_plan_in_a_public_group_is_said_to_be_seen_by_anyone() {
+        assert!(who_sees_a_plan(true).contains("public group is seen by anyone"));
+        assert!(who_sees_this_plan(true).contains("anyone can see the plan"));
+        // A private group keeps the words it had.
+        assert_eq!(
+            who_sees_a_plan(false),
+            "A plan is seen by the members of its group and nobody else, and is removed two \
+             days after its day."
+        );
+        assert!(who_sees_this_plan(false).starts_with("The members of the group see the plan"));
     }
 
     #[test]

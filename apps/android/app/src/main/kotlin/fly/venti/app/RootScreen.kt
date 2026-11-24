@@ -157,6 +157,7 @@ fun RootScreen(
             is PhoneTarget.Alert -> navigation.showAlerts()
             is PhoneTarget.OpenPlan -> navigation.showOpenPlan(opensTarget.id)
             is PhoneTarget.Help -> navigation.help = HelpOpening.One(opensTarget.id)
+            is PhoneTarget.GroupChat -> navigation.showChat(opensTarget.id)
         }
         onTargetOpened()
     }

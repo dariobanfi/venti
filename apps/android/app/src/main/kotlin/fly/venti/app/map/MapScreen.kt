@@ -92,7 +92,6 @@ import kotlinx.coroutines.delay
 import fly.venti.app.live.OtherAircraftSheet
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.radar.RadarModel
-import fly.venti.app.radar.RadarWords
 import kotlinx.coroutines.Job
 import fly.venti.app.sites.AddSiteEntry
 import fly.venti.app.sites.SiteEditModel
@@ -362,7 +361,7 @@ fun MapScreen(
     val hasServer = wind.server is WindServer.Usable
     val forecastWanted = what != null && hasServer && thermalMap != null
     LaunchedEffect(forecastWanted, wind.address, lifecycle) {
-        if (forecastWanted && thermalMap != null) {
+        if (forecastWanted) {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { thermalMap.keepCurrent() }
         }
     }
@@ -444,11 +443,11 @@ fun MapScreen(
     }
     var hoursAttempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(forecastWanted, thermalMap?.map, thermalMap?.day?.date, hours?.layer, hours?.heightM, hours?.aboveGroundM, hoursAttempt) {
-        if (forecastWanted) thermalMap?.showHours()
+        if (forecastWanted) thermalMap.showHours()
     }
     // The hours of every day, for the line of time.
     LaunchedEffect(forecastWanted, thermalMap?.map, hours?.layer, hours?.heightM, hours?.aboveGroundM, hoursAttempt) {
-        if (forecastWanted) thermalMap?.loadLine()
+        if (forecastWanted) thermalMap.loadLine()
     }
     // The line of time of what is shown, from what was measured to the forecast's days.
     val shownLine = hours?.line?.takeIf { it.map === thermalMap.map && it.layer == hours.layer }
@@ -637,7 +636,7 @@ fun MapScreen(
     // its files, else the core's lines for OpenFreeMap's tiles and the terrain.
     val allCredits = (credits + (drawnFrom?.credits?.takeIf { it.isNotEmpty() } ?: MapWords.baseCredits)).distinct()
     val byTheHour = showForecast && hours?.isOn == true
-    val hourShapes = if (byTheHour) hours?.shapes else null
+    val hourShapes = if (byTheHour) hours.shapes else null
     // The hour's wind square by square, for the take-offs' fans: only an
     // hour with arrows colours them (plan item 19).
     val atGround = hours?.heightM == null && hours?.aboveGroundM == null
@@ -651,7 +650,7 @@ fun MapScreen(
     // The squares of the kind of day the pilot looks at, on the thermals'
     // "Day"; a day's squares are one list from the core, handed over whole.
     val showsDay = showForecast && what == MapWhat.THERMALS && hours?.layer == ThermalHoursLayer.THERMALS && hours.hour == null
-    val squares = if (showsDay) thermalMap?.day?.cells.orEmpty() else emptyList()
+    val squares = if (showsDay) thermalMap.day?.cells.orEmpty() else emptyList()
 
 
     // A chip pressed: what the map shows, or nothing where the chosen one is pressed again.

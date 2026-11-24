@@ -3,8 +3,6 @@ package fly.venti.app.settings
 import app.venti.design.VentiSpace
 import fly.venti.core.pagesWords
 import fly.venti.app.maps.OfflineMapsWords
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,13 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,23 +38,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import fly.venti.app.BuildConfig
 import fly.venti.app.R
 import fly.venti.app.SettingsRoute
 import fly.venti.app.account.AccountModel
-import fly.venti.app.design.Format
-import fly.venti.app.design.numbers
 import fly.venti.app.design.Group
 import fly.venti.app.design.LinkRow
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
 import fly.venti.app.wind.WindModel
-import fly.venti.core.mapLayersWords
-import fly.venti.core.GliderClassKind
 import fly.venti.app.design.Common
 
 /** The pilot's settings, and what the app is made of. */

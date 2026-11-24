@@ -2,7 +2,6 @@ package fly.venti.app.wind
 
 import fly.venti.core.nothingFoundWords
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,11 +41,11 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
+import fly.venti.app.design.EmptyList
 import fly.venti.app.design.Format
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.numbers
@@ -129,7 +127,7 @@ private fun StationList(wind: WindModel, onOpen: (WindStation) -> Unit, onDone: 
             TextButton(onClick = onDone) { Text(Common.words.done) }
         }
         if (wind.stations.isEmpty()) {
-            EmptyList("No stations here", wind.problem ?: "Move the map to an area with wind stations.")
+            EmptyList(R.drawable.venti_wind, "No stations here", wind.problem ?: "Move the map to an area with wind stations.")
         } else {
             OutlinedTextField(
                 value = search,
@@ -146,7 +144,7 @@ private fun StationList(wind: WindModel, onOpen: (WindStation) -> Unit, onDone: 
             )
             if (shown.isEmpty()) {
                 val nothing = nothingFoundWords(wanted)
-                EmptyList(nothing.title, nothing.line)
+                EmptyList(R.drawable.venti_wind, nothing.title, nothing.line)
             } else {
                 LazyColumn(Modifier.testTag("station-list"), contentPadding = PaddingValues(bottom = 32.dp)) {
                     items(shown, key = { it.id }) { station ->
@@ -167,30 +165,6 @@ private fun StationList(wind: WindModel, onOpen: (WindStation) -> Unit, onDone: 
                 }
             }
         }
-    }
-}
-
-/** Said in place of the list when it would be empty. */
-@Composable
-private fun EmptyList(title: String, text: String) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(
-            painterResource(R.drawable.venti_wind),
-            contentDescription = null,
-            modifier = Modifier.size(40.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(title, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
-        Text(
-            text,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
     }
 }
 

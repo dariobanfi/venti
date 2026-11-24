@@ -219,16 +219,6 @@ class WindModel(
     val now: Long get() = (clock() / 1000.0 + (serverClock?.first ?: 0.0)).roundToLong()
 
     /**
-     * The current time by the server's clock, read from the server first if
-     * it has not been yet. This phone's own time when there is no server or
-     * no answer.
-     */
-    suspend fun serverNow(): Long {
-        readClockIfUnread()
-        return now
-    }
-
-    /**
      * The server's clock as last read, advanced by the time passed since,
      * in seconds since 1970; read from the server first if it has not been
      * yet. 0 while there is no answer, never this phone's own time: the

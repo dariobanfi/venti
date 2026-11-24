@@ -100,7 +100,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 object CommunityPageWords {
     const val PLANS = "Plans"
     const val NEW_PLAN = "New plan"
-    const val GROUPS = "Groups"
     const val ALL = "All"
     const val FIND = "Find a pilot"
     const val SIGNED_OUT =

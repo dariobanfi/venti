@@ -271,7 +271,7 @@ fun FlightSocialBar(
             cheers?.let { shown ->
                 val cheered = shown.cheered
                 val showsButton = cheered != null && social.isSignedIn && !isOwn
-                if (showsButton && cheered != null) {
+                if (showsButton) {
                     // A button in the pills' manner, filled while cheered, as on the iPhone.
                     Pill(
                         cheerButton(cheered),

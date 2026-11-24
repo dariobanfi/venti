@@ -367,7 +367,7 @@ class WindModelTest {
         // No answer yet: zero, where the old clock gave the phone's time.
         server.isReachable = false
         assertEquals(0L, wind.serverTimeOrZero())
-        assertEquals(server.clock + 3 * 86_400, wind.serverNow())
+        assertEquals(0L, wind.serverTimeOrZero())
         // Each look asks again while the clock is unread.
         val asked = server.asked.count { it.endsWith(serverStatusPath()) }
         assertTrue("asked $asked times", asked >= 2)
@@ -380,7 +380,6 @@ class WindModelTest {
         // Once read, it is not asked again for this.
         server.isReachable = false
         assertEquals(server.clock + 300, wind.serverTimeOrZero())
-        assertEquals(server.clock + 300, wind.serverNow())
     }
 
     private suspend fun waitUntil(isTrue: () -> Boolean) {

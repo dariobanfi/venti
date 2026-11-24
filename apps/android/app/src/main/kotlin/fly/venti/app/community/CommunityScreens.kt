@@ -62,9 +62,7 @@ import fly.venti.app.R
 import fly.venti.app.account.AccountModel
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
-import fly.venti.app.design.LinkRow
 import fly.venti.app.design.SectionFooter
-import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.Venti
 import fly.venti.app.design.numbers
 import fly.venti.app.logbook.TrackThumbnail

@@ -12,7 +12,6 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
@@ -36,7 +35,6 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performScrollToIndex
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
@@ -273,7 +271,7 @@ class VentiUiTest {
         val drawn = { TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0 }
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { drawn() > 0 }
         var last = drawn()
-        repeat(TestDevice.PATIENCE_SECONDS.toInt()) {
+        repeat(TestDevice.PATIENCE_SECONDS) {
             TestDevice.letTheAppRun(screen, 1)
             val now = drawn()
             if (now == last && now > 0) return

@@ -5,7 +5,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import fly.venti.app.design.Format
-import fly.venti.app.design.Palette
 import fly.venti.core.LandingOption
 import fly.venti.core.Reach
 import fly.venti.core.ReachView

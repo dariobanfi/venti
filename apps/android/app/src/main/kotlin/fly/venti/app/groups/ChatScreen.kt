@@ -93,7 +93,6 @@ import fly.venti.app.community.PilotPictures
 import fly.venti.app.community.PlanCard
 import fly.venti.app.community.ReportSheet
 import fly.venti.app.community.Reported
-import fly.venti.app.design.ChipTick
 import fly.venti.app.design.Common
 import fly.venti.app.design.Format
 import fly.venti.app.design.Venti

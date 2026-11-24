@@ -3,7 +3,6 @@ package fly.venti.app.forecast
 import fly.venti.app.HttpAnswer
 import fly.venti.core.ThermalHoursLayer
 import fly.venti.core.thermalHoursPath
-import fly.venti.core.thermalMapPath
 import java.net.URI
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.runBlocking

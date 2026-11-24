@@ -4,6 +4,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -263,6 +265,30 @@ fun ActionRow(title: String, colour: Color, modifier: Modifier = Modifier, enabl
             title,
             style = MaterialTheme.typography.bodyLarge,
             color = if (enabled) colour else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+        )
+    }
+}
+
+/** Said in place of a list when it would be empty: a sign, a title and a line, centred. */
+@Composable
+fun EmptyList(@DrawableRes icon: Int, title: String, text: String) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            painterResource(icon),
+            contentDescription = null,
+            modifier = Modifier.size(40.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(title, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
         )
     }
 }

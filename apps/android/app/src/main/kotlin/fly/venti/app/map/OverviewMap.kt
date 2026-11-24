@@ -940,7 +940,7 @@ class OverviewMap : MapContent {
             }
         }
         source.setGeoJson(FeatureCollection.fromFeatures(features))
-        style?.getSourceAs<GeoJsonSource>(SiteAreas.SOURCE)
+        style.getSourceAs<GeoJsonSource>(SiteAreas.SOURCE)
             ?.setGeoJson(FeatureCollection.fromFeatures(SiteAreas.all(sites, unsaidSites)))
     }
 

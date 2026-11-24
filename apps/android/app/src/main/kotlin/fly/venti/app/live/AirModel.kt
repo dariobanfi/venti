@@ -9,7 +9,6 @@ import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
 import fly.venti.core.FlownThermals
 import fly.venti.core.LiveClimbs
-import fly.venti.core.cockpitClimbsPath
 import fly.venti.core.flownThermals
 import fly.venti.core.flownThermalsPath
 import fly.venti.core.liveClimbs
@@ -115,13 +114,6 @@ class AirModel(
         return siteAirWords(air, siteId, siteName)
     }
 
-    /** The climbs around a glider, for the cockpit; `null` when they cannot be read. */
-    suspend fun climbsAround(lat: Double, lon: Double): LiveClimbs? {
-        val server = server() ?: return null
-        val path = cockpitClimbsPath(lat, lon) ?: return null
-        return ask(server + path) { status, body -> liveClimbs(status, body) }
-    }
-
     private suspend fun <T> ask(url: String, read: (UShort, ByteArray) -> T): T? = try {
         val answer = transport(url)
         withContext(background) { read(answer.status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort(), answer.body) }
@@ -134,9 +126,6 @@ class AirModel(
     companion object {
         /** How often the climbs are asked for again while their layer is on, as the core asks. */
         const val CLIMBS_EVERY_MILLISECONDS = 30_000L
-
-        /** How often the cockpit asks for the climbs around the glider. */
-        const val COCKPIT_EVERY_MILLISECONDS = 60_000L
 
         /** How long the map rests before it is asked about. */
         const val REST_MILLISECONDS = 400L

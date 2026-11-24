@@ -176,7 +176,7 @@ fun LogbookScreen(
                 LostFolderCard(
                     lost,
                     onChooseAgain = { watchPicker.launch(null) },
-                    onStop = { watched?.stop() },
+                    onStop = { watched.stop() },
                     modifier = Modifier.padding(start = VentiSpace.s4, end = VentiSpace.s4, top = VentiSpace.s1, bottom = VentiSpace.s2),
                 )
             }

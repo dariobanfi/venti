@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.dp
 import fly.venti.app.R
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
-import fly.venti.app.design.Palette
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.numbers

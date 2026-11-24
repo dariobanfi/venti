@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import fly.venti.app.design.Axis
 import fly.venti.app.design.Format
-import fly.venti.app.design.Palette
 import fly.venti.app.design.numbers
 import fly.venti.core.StationHistory
 import kotlin.math.abs

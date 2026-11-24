@@ -65,7 +65,6 @@ import fly.venti.core.LeagueHandover
 import fly.venti.core.LeagueRequest
 import fly.venti.core.dhvxcUploaded
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import fly.venti.app.design.Common
 

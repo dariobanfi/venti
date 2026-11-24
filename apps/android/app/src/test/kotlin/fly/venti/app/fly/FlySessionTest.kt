@@ -466,7 +466,7 @@ class FlySessionTest {
         val voice = Spoken()
         val fly = FlySession(TestSupport.newFolder("fly"), MemoryPreferences(), FakeSensors(), SilentTone(), scope, voice)
         // The stations Venti's own tests keep, read ten minutes after the newest of them.
-        val now = java.time.Instant.parse("2026-11-18T19:10:00Z").epochSecond.toLong()
+        val now = java.time.Instant.parse("2026-11-18T19:10:00Z").epochSecond
         val stations = windMap(200u, TestSupport.recordedAnswers.resolve("stations.json").readBytes(), now)
         val asked = CopyOnWriteArrayList<Pair<Coordinate, Coordinate?>>()
         fly.windOnTheGround = { place, landing ->

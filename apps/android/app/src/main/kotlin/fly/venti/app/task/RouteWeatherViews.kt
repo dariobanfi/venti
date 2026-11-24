@@ -41,7 +41,6 @@ import fly.venti.app.design.SegmentedPills
 import fly.venti.app.design.Venti
 import fly.venti.app.design.numbers
 import fly.venti.app.forecast.ThermalMapModel
-import fly.venti.app.forecast.ThermalMapWords
 import fly.venti.core.Coordinate
 import kotlinx.coroutines.launch
 import fly.venti.app.design.Common

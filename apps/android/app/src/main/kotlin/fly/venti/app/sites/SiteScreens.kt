@@ -75,6 +75,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
+import fly.venti.app.design.EmptyList
 import fly.venti.app.design.StatusChip
 import fly.venti.app.design.Venti
 import fly.venti.app.design.status
@@ -552,6 +553,7 @@ private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -
         }
         if (sites.sites.isEmpty()) {
             EmptyList(
+                R.drawable.ic_location_off,
                 "No flying sites here",
                 sites.problem ?: "Zoom the map in on an area, and the sites its source knows there are listed.",
             )
@@ -582,7 +584,7 @@ private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -
             )
             if (fitting.isEmpty() && unsaid.isEmpty() && wanted.isNotEmpty()) {
                 val nothing = nothingFoundWords(wanted)
-                EmptyList(nothing.title, nothing.line)
+                EmptyList(R.drawable.ic_location_off, nothing.title, nothing.line)
             } else {
                 LazyColumn(modifier = Modifier.testTag("site-list"), contentPadding = PaddingValues(bottom = 32.dp)) {
                     items(fitting, key = { it.id }) { site ->
@@ -622,30 +624,6 @@ private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -
                 }
             }
         }
-    }
-}
-
-/** Said in place of the list when it would be empty. */
-@Composable
-private fun EmptyList(title: String, text: String) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(
-            painterResource(R.drawable.ic_location_off),
-            contentDescription = null,
-            modifier = Modifier.size(40.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(title, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
-        Text(
-            text,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
     }
 }
 

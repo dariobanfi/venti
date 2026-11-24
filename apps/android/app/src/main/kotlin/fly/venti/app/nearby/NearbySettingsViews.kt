@@ -126,16 +126,15 @@ fun NearbySettings(model: NearbyModel, scope: CoroutineScope) {
                 SwitchRow(
                     words[0],
                     words[1],
-                    isOn = settings?.openPlansNear != null,
-                    enabled = settings != null && !model.isSaving,
+                    isOn = settings.openPlansNear != null,
+                    enabled = !model.isSaving,
                     modifier = Modifier.testTag("nearby-open-plans"),
                 ) { on ->
-                    val now = settings ?: return@SwitchRow
                     if (on) askFor(false)
-                    change(now.copy(openPlansNear = if (on) OverviewMap.lastLookedAt else null))
+                    change(settings.copy(openPlansNear = if (on) OverviewMap.lastLookedAt else null))
                 }
-                val place = settings?.openPlansNear
-                if (settings != null && place != null) {
+                val place = settings.openPlansNear
+                if (place != null) {
                     Column(
                         Modifier.padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s3),
                         verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
@@ -171,13 +170,12 @@ fun NearbySettings(model: NearbyModel, scope: CoroutineScope) {
             SwitchRow(
                 words[2],
                 words[3],
-                isOn = settings?.mayBeAskedForHelp == true,
-                enabled = settings != null && !model.isSaving,
+                isOn = settings.mayBeAskedForHelp,
+                enabled = !model.isSaving,
                 modifier = Modifier.testTag("nearby-help"),
             ) { on ->
-                val now = settings ?: return@SwitchRow
                 if (on) askFor(true)
-                change(now.copy(mayBeAskedForHelp = on))
+                change(settings.copy(mayBeAskedForHelp = on))
             }
         }
     }

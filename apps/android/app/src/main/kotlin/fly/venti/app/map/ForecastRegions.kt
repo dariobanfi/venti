@@ -59,9 +59,6 @@ import fly.venti.core.ThermalMapLevel
 data class WindLevel(val heightM: Int? = null, val aboveGroundM: Int? = null) {
     constructor(level: ThermalMapLevel) : this(level.heightM, level.aboveGroundM)
 
-    /** Whether this is the wind at the ground, which the take-offs' fans are coloured by. */
-    val isGround: Boolean get() = heightM == null && aboveGroundM == null
-
     /** The end of a choice's test tag: "ground", "250agl", "2000". */
     val tag: String get() = heightM?.toString() ?: aboveGroundM?.let { "${it}agl" } ?: "ground"
 

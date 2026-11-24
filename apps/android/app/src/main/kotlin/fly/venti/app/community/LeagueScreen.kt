@@ -65,7 +65,6 @@ import fly.venti.app.design.Format
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.Venti
 import fly.venti.app.design.numbers
-import fly.venti.app.logbook.groupedShape
 import androidx.compose.material3.IconButton
 import fly.venti.app.account.AccountModel
 import fly.venti.app.design.Common

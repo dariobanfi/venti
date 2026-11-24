@@ -62,8 +62,8 @@ pub struct TokenForm {
     pub scopes: Vec<TokenScope>,
     /// The label of the end date: "Ends on".
     pub ends_label: String,
-    /// What leaving it empty means: "Leave empty for access that does not
-    /// end until you withdraw it."
+    /// Under the end date, whichever control sets it: "Without an end
+    /// date, the access lasts until you withdraw it."
     pub ends_hint: String,
     /// The label of the password: "Your password".
     pub password_label: String,
@@ -75,6 +75,9 @@ pub struct TokenForm {
     pub empty: String,
     /// What no token can do, whatever it is allowed.
     pub never: String,
+    /// The line while the list is asked for: "Asking Venti…".
+    #[uniffi(default = "")]
+    pub loading: String,
 }
 
 /// A token as its pilot sees it in the list.
@@ -236,7 +239,7 @@ pub fn token_form() -> TokenForm {
         scopes_title: "What it may do".to_owned(),
         scopes: token_scopes(),
         ends_label: "Ends on".to_owned(),
-        ends_hint: "Leave empty for access that does not end until you withdraw it.".to_owned(),
+        ends_hint: "Without an end date, the access lasts until you withdraw it.".to_owned(),
         password_label: "Your password".to_owned(),
         password_reason: "Asked for so that nobody who picks up this device can give a program \
                           access to your account."
@@ -246,6 +249,7 @@ pub fn token_form() -> TokenForm {
         never: "No program can change your password, delete your account, see your devices \
                 or give access to another program, whatever you allow it."
             .to_owned(),
+        loading: "Asking Venti\u{2026}".to_owned(),
     }
 }
 
@@ -488,6 +492,11 @@ mod tests {
         assert_eq!(form.title, "Programs with access");
         assert_eq!(form.scopes, scopes);
         assert_eq!(form.name_max_length, 60);
+        assert_eq!(
+            form.ends_hint,
+            "Without an end date, the access lasts until you withdraw it."
+        );
+        assert_eq!(form.loading, "Asking Venti…");
     }
 
     #[test]

@@ -223,6 +223,62 @@ impl From<SlopeClass> for SlopeBand {
     }
 }
 
+/// The words of the card that asks for a glide's reach and shows it, the
+/// same in the three apps. The answer's own words are [`GlideReach`]'s.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct GlideReachCardWords {
+    /// The entry in what a long press on the map opens: "What a glide
+    /// reaches from here".
+    #[uniffi(default = "")]
+    pub entry: String,
+    /// The card's title: "What a glide reaches".
+    #[uniffi(default = "")]
+    pub title: String,
+    /// While the ground is loaded and the glide laid over it: "Loading…".
+    #[uniffi(default = "")]
+    pub working: String,
+    /// The button that takes the area off the map: "Clear".
+    #[uniffi(default = "")]
+    pub clear: String,
+    /// The setting of [`GlideReachSetting::glide_ratio`]: "Glide".
+    #[uniffi(default = "")]
+    pub glide: String,
+    /// The setting of the start's height: "Start height".
+    #[uniffi(default = "")]
+    pub start: String,
+    /// Its value for a start from the place itself: "On the ground".
+    #[uniffi(default = "")]
+    pub on_the_ground: String,
+    /// The switch of the wind: "Wind".
+    #[uniffi(default = "")]
+    pub wind: String,
+    /// Where the wind comes from: "Wind from".
+    #[uniffi(default = "")]
+    pub wind_from: String,
+    /// How strong it is: "Wind speed".
+    #[uniffi(default = "")]
+    pub wind_speed: String,
+}
+
+/// The words of the glide reach's card.
+#[uniffi::export]
+pub fn glide_reach_card_words() -> GlideReachCardWords {
+    GlideReachCardWords {
+        entry: "What a glide reaches from here".to_owned(),
+        title: "What a glide reaches".to_owned(),
+        working: "Loading\u{2026}".to_owned(),
+        clear: "Clear".to_owned(),
+        glide: "Glide".to_owned(),
+        start: "Start height".to_owned(),
+        on_the_ground: "On the ground".to_owned(),
+        wind: "Wind".to_owned(),
+        wind_from: "Wind from".to_owned(),
+        wind_speed: "Wind speed".to_owned(),
+    }
+}
+
 /// What a straight glide reaches from a place on the map over the ground
 /// in `terrain`: see the module's rules. The shell loads the ground
 /// around the place first, with [`Terrain::tiles_wanted`] or, for a high
@@ -515,6 +571,17 @@ fn direction(degrees: f64) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_card_has_its_words() {
+        let words = glide_reach_card_words();
+        assert_eq!(words.title, "What a glide reaches");
+        assert_eq!(words.working, "Loading…");
+        assert_eq!(
+            [words.start, words.wind_from, words.wind_speed],
+            ["Start height", "Wind from", "Wind speed"]
+        );
+    }
 
     /// A terrain of one tile of zoom 11 around the Wallberg, its pixels'
     /// heights given by column and row.

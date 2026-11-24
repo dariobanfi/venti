@@ -319,16 +319,28 @@ pub fn flight_search_words(search: FlightSearch) -> Vec<String> {
     words
 }
 
-/// The name of a kind of route in a choice of them: "Free flight",
-/// "Flat triangle", "FAI triangle".
+/// The name of a kind of route, in a choice of them and wherever a kind
+/// is named without a score: "Free flight", "Triangle", "FAI triangle".
 #[uniffi::export]
 pub fn route_kind_words(kind: RouteKind) -> String {
     match kind {
         RouteKind::FreeFlight => "Free flight",
-        RouteKind::FreeTriangle => "Flat triangle",
+        RouteKind::FreeTriangle => "Triangle",
         RouteKind::FaiTriangle => "FAI triangle",
     }
     .to_owned()
+}
+
+/// What a flight is scored as, by its kind and whether the triangle
+/// closed: [`route_kind_words`], and for a closed triangle "Closed
+/// triangle" and "Closed FAI triangle". A free flight is never closed.
+#[uniffi::export]
+pub fn score_kind_words(kind: RouteKind, closed: bool) -> String {
+    match (kind, closed) {
+        (RouteKind::FreeFlight, _) | (_, false) => route_kind_words(kind),
+        (RouteKind::FreeTriangle, true) => "Closed triangle".to_owned(),
+        (RouteKind::FaiTriangle, true) => "Closed FAI triangle".to_owned(),
+    }
 }
 
 /// Kilometres as a chip says them: whole, or to one decimal below ten.
@@ -542,6 +554,27 @@ mod tests {
         assert_eq!(
             said(searched_ranking(500, b"not json".to_vec())),
             "The server could not answer (status 500)."
+        );
+    }
+
+    #[test]
+    fn a_kind_of_flight_has_one_name_everywhere() {
+        let kinds = [
+            RouteKind::FreeFlight,
+            RouteKind::FreeTriangle,
+            RouteKind::FaiTriangle,
+        ];
+        assert_eq!(
+            kinds.map(route_kind_words),
+            ["Free flight", "Triangle", "FAI triangle"]
+        );
+        assert_eq!(
+            kinds.map(|kind| score_kind_words(kind, true)),
+            ["Free flight", "Closed triangle", "Closed FAI triangle"]
+        );
+        assert_eq!(
+            score_kind_words(RouteKind::FaiTriangle, false),
+            "FAI triangle"
         );
     }
 }

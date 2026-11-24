@@ -194,6 +194,15 @@ pub struct PictureWords {
     /// The heading of the list of pilots near a place: "Pilots near".
     #[uniffi(default = "")]
     pub near_title: String,
+    /// Where the pilots near were looked for when it was the pilot's own
+    /// position, after [`PilotsNear::words`] and a " · ": "around you",
+    /// as in "Within 25 km, the last 12 months · around you".
+    #[uniffi(default = "")]
+    pub near_around_you: String,
+    /// The same when it was the middle of the map: "around the map's
+    /// middle".
+    #[uniffi(default = "")]
+    pub near_around_map: String,
     /// The switch of the account's setting: "Show me among pilots near a
     /// place".
     #[uniffi(default = "")]
@@ -215,6 +224,8 @@ pub fn picture_words() -> PictureWords {
         remove: "Remove picture".to_owned(),
         public_line: "Everyone sees it, on your page and beside your flights.".to_owned(),
         near_title: "Pilots near".to_owned(),
+        near_around_you: "around you".to_owned(),
+        near_around_map: "around the map's middle".to_owned(),
         shown_near_places: "Show me among pilots near a place".to_owned(),
         shown_near_places_line: "From your public flights only.".to_owned(),
         report: "Report picture".to_owned(),
@@ -292,6 +303,14 @@ mod tests {
         assert_eq!(
             picture_words().shown_near_places,
             "Show me among pilots near a place"
+        );
+        let words = picture_words();
+        assert_eq!(
+            (
+                words.near_around_you.as_str(),
+                words.near_around_map.as_str()
+            ),
+            ("around you", "around the map's middle")
         );
     }
 }

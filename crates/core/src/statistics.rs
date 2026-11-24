@@ -209,6 +209,68 @@ pub struct LogbookStatistics {
     pub best_climb: Option<BestFlight>,
 }
 
+/// The headings of the logbook's statistics, in the order the screen
+/// shows its parts. The heading over the places flown from is the one a
+/// pilot's page has: [`crate::PilotsWords::sites_title`].
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct LogbookStatisticsWords {
+    /// The screen's title: "Statistics".
+    #[uniffi(default = "")]
+    pub title: String,
+    /// Over [`LogbookStatistics::months`]: "Last twelve months".
+    #[uniffi(default = "")]
+    pub months_title: String,
+    /// Over [`LogbookStatistics::years`]: "Years".
+    #[uniffi(default = "")]
+    pub years_title: String,
+    /// Over [`LogbookStatistics::seasons`]: "Through the year".
+    #[uniffi(default = "")]
+    pub seasons_title: String,
+    /// Over [`LogbookStatistics::typical`]: "A typical flight".
+    #[uniffi(default = "")]
+    pub typical_title: String,
+    /// Under it: that each figure is the middle one of all flights.
+    #[uniffi(default = "")]
+    pub typical_note: String,
+    /// Over [`LogbookStatistics::routes`]: "Kinds of flight".
+    #[uniffi(default = "")]
+    pub routes_title: String,
+    /// Over [`LogbookStatistics::gliders`]: "Gliders".
+    #[uniffi(default = "")]
+    pub gliders_title: String,
+    /// A glider flown without a name: "Not named".
+    #[uniffi(default = "")]
+    pub glider_not_named: String,
+    /// Over the bests: "Your bests".
+    #[uniffi(default = "")]
+    pub bests_title: String,
+    /// The row that leads to the pilot's tendencies: "How you fly".
+    #[uniffi(default = "")]
+    pub how_you_fly: String,
+}
+
+/// The headings of the logbook's statistics.
+#[uniffi::export]
+pub fn logbook_statistics_words() -> LogbookStatisticsWords {
+    LogbookStatisticsWords {
+        title: "Statistics".to_owned(),
+        months_title: "Last twelve months".to_owned(),
+        years_title: "Years".to_owned(),
+        seasons_title: "Through the year".to_owned(),
+        typical_title: "A typical flight".to_owned(),
+        typical_note: "The middle one of all your flights for each figure, so that one long day \
+                       does not speak for the rest."
+            .to_owned(),
+        routes_title: "Kinds of flight".to_owned(),
+        gliders_title: "Gliders".to_owned(),
+        glider_not_named: "Not named".to_owned(),
+        bests_title: "Your bests".to_owned(),
+        how_you_fly: "How you fly".to_owned(),
+    }
+}
+
 #[uniffi::export]
 impl Core {
     /// Statistics over the whole logbook.
@@ -532,6 +594,37 @@ mod tests {
 
     fn sample() -> String {
         igc::write(&synthetic_flight())
+    }
+
+    #[test]
+    fn the_statistics_have_their_headings() {
+        let words = logbook_statistics_words();
+        assert_eq!(
+            [
+                words.months_title,
+                words.years_title,
+                words.seasons_title,
+                words.typical_title,
+                words.routes_title,
+                words.gliders_title,
+                words.bests_title,
+                words.how_you_fly,
+            ],
+            [
+                "Last twelve months",
+                "Years",
+                "Through the year",
+                "A typical flight",
+                "Kinds of flight",
+                "Gliders",
+                "Your bests",
+                "How you fly",
+            ]
+        );
+        assert_eq!(
+            crate::pilots_words().sites_title,
+            "Take-offs flown from most"
+        );
     }
 
     #[test]

@@ -3715,6 +3715,13 @@ pub fn glide_reach(
     ))
 }
 
+/// The words of the glide reach's card: its entry, title, working line,
+/// the names of its settings and "Clear".
+#[wasm_bindgen(js_name = glideReachCardWords)]
+pub fn glide_reach_card_words() -> Result<Ts<venti_core::GlideReachCardWords>, JsValue> {
+    to_js(&venti_core::glide_reach_card_words())
+}
+
 /// How steep the ground in `terrain` is at each place, in the order
 /// given, with its class. A place whose ground is not loaded has neither.
 #[wasm_bindgen(js_name = slopeClasses)]
@@ -3854,11 +3861,19 @@ pub fn flight_search_bounds() -> Result<Ts<FlightSearchBounds>, JsValue> {
     to_js(&venti_core::flight_search_bounds())
 }
 
-/// The name of a kind of route in a choice of them: "Free flight",
-/// "Flat triangle", "FAI triangle".
+/// The name of a kind of route, in a choice of them and wherever a kind
+/// is named without a score: "Free flight", "Triangle", "FAI triangle".
 #[wasm_bindgen(js_name = routeKindWords)]
 pub fn route_kind_words(kind: Ts<venti_core::RouteKind>) -> Result<String, JsValue> {
     Ok(venti_core::route_kind_words(from_js(&kind)?))
+}
+
+/// What a flight is scored as, by its kind and whether the triangle
+/// closed: "Free flight", "Triangle", "Closed triangle", "FAI triangle",
+/// "Closed FAI triangle".
+#[wasm_bindgen(js_name = scoreKindWords)]
+pub fn score_kind_words(kind: Ts<venti_core::RouteKind>, closed: bool) -> Result<String, JsValue> {
+    Ok(venti_core::score_kind_words(from_js(&kind)?, closed))
 }
 
 /// The path and query to `GET` for one page of the public flights that
@@ -4013,10 +4028,23 @@ pub fn planner_words() -> Result<Ts<PlannerWords>, JsValue> {
 }
 
 /// The words of the controls every screen has: "Done", "Back", "More",
-/// "OK", "Cancel", "Try again", "Close".
+/// "OK", "Cancel", "Try again", "Close", "Working…", "Sign in".
 #[wasm_bindgen(js_name = commonWords)]
 pub fn common_words() -> Result<Ts<CommonWords>, JsValue> {
     to_js(&venti_core::common_words())
+}
+
+/// What a list of sites, stations or waypoints says when none matches
+/// `searched`: "No results for “Brau”" and a line under it.
+#[wasm_bindgen(js_name = nothingFoundWords)]
+pub fn nothing_found_words(searched: String) -> Result<Ts<venti_core::NothingFoundWords>, JsValue> {
+    to_js(&venti_core::nothing_found_words(searched))
+}
+
+/// The headings of the logbook's statistics.
+#[wasm_bindgen(js_name = logbookStatisticsWords)]
+pub fn logbook_statistics_words() -> Result<Ts<venti_core::LogbookStatisticsWords>, JsValue> {
+    to_js(&venti_core::logbook_statistics_words())
 }
 
 /// The words of pages that have only a few of their own: everyone's

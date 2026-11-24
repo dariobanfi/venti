@@ -321,13 +321,7 @@ fn planned_score(
         scoring::RouteKind::FreeTriangle => RouteKind::FreeTriangle,
         scoring::RouteKind::FaiTriangle => RouteKind::FaiTriangle,
     };
-    let name = match (kind, score.closed) {
-        (RouteKind::FreeFlight, _) => "Free flight",
-        (RouteKind::FreeTriangle, false) => "Triangle",
-        (RouteKind::FreeTriangle, true) => "Closed triangle",
-        (RouteKind::FaiTriangle, false) => "FAI triangle",
-        (RouteKind::FaiTriangle, true) => "Closed FAI triangle",
-    };
+    let name = crate::score_kind_words(kind, score.closed);
     let planned = PlannedScore {
         kind,
         closed: score.closed,
@@ -344,7 +338,7 @@ fn planned_score(
             })
             .collect(),
         closing_m: score.closing_m,
-        name: name.to_owned(),
+        name,
     };
     Some((planned, closing))
 }

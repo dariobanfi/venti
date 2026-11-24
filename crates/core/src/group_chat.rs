@@ -353,8 +353,38 @@ pub struct CommunityWords {
     pub public: String,
     /// "Private": by invite.
     pub private: String,
-    /// "I'm in".
+    /// A pilot's word on a plan, on its card, its page and its post in
+    /// the chat alike: "I'm in".
     pub im_in: String,
+    /// The same taken back: "I'm out".
+    #[uniffi(default = "")]
+    pub im_out: String,
+    /// The question before leaving a group: "Leave this group?"
+    #[uniffi(default = "")]
+    pub leave_question: String,
+    /// Its yes: "Leave the group". The no is [`crate::CommonWords::cancel`].
+    #[uniffi(default = "")]
+    pub leave_confirm: String,
+    /// What leaving means for the group's owner: the member who has been
+    /// in longest keeps it, and the last one's leaving deletes it.
+    #[uniffi(default = "")]
+    pub leave_means_owner: String,
+    /// What it means for a member of a public group: "You can join it
+    /// again at any time."
+    #[uniffi(default = "")]
+    pub leave_means_public: String,
+    /// What it means for a member of a private group: "You come back in
+    /// only when invited again."
+    #[uniffi(default = "")]
+    pub leave_means_private: String,
+    /// What the groups' screens say to a pilot who is signed out, with
+    /// [`crate::CommonWords::sign_in`] under it: "A group and its chat
+    /// are for pilots with an account on Venti."
+    #[uniffi(default = "")]
+    pub signed_out: String,
+    /// What the board of plans says to a pilot who is signed out.
+    #[uniffi(default = "")]
+    pub plans_signed_out: String,
 }
 
 /// The words of the groups' screens.
@@ -377,6 +407,18 @@ pub fn community_words() -> CommunityWords {
         public: "Public".to_owned(),
         private: "Private".to_owned(),
         im_in: "I'm in".to_owned(),
+        im_out: "I'm out".to_owned(),
+        leave_question: "Leave this group?".to_owned(),
+        leave_confirm: "Leave the group".to_owned(),
+        leave_means_owner: "The member who has been in longest becomes its owner; if you are \
+                            the last, the group is deleted."
+            .to_owned(),
+        leave_means_public: "You can join it again at any time.".to_owned(),
+        leave_means_private: "You come back in only when invited again.".to_owned(),
+        signed_out: "A group and its chat are for pilots with an account on Venti.".to_owned(),
+        plans_signed_out: "Plans for a flying day are shared in groups on Venti. Sign in under \
+                           Settings, Account, then join a group near you or make one."
+            .to_owned(),
     }
 }
 
@@ -1609,5 +1651,29 @@ mod tests {
         assert_eq!(badge(0), None);
         assert_eq!(badge(120).as_deref(), Some("99+"));
         assert_eq!(encode("Inn valley"), "Inn%20valley");
+    }
+
+    #[test]
+    fn a_plan_is_joined_and_a_group_left_in_one_set_of_words() {
+        let words = community_words();
+        assert_eq!(
+            (words.im_in.as_str(), words.im_out.as_str()),
+            ("I'm in", "I'm out")
+        );
+        assert_eq!(
+            (words.leave_question.as_str(), words.leave_confirm.as_str()),
+            ("Leave this group?", "Leave the group")
+        );
+        assert!(
+            words
+                .leave_means_owner
+                .contains("in longest becomes its owner")
+        );
+        assert!(words.signed_out.ends_with("with an account on Venti."));
+        assert!(
+            words
+                .plans_signed_out
+                .ends_with("join a group near you or make one.")
+        );
     }
 }

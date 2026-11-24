@@ -113,10 +113,15 @@ pub struct CockpitDetailsWords {
     /// [`crate::CockpitView::nearest_landing`]: "Nearest landing".
     #[uniffi(default = "")]
     pub nearest_landing: String,
+    /// The row of [`crate::CockpitView::wind_words`], the first of the
+    /// rows: "Wind".
+    #[uniffi(default = "")]
+    pub wind: String,
 }
 
 /// The words of the cockpit's details sheet. A row is shown only when its
-/// reading is there, in this order.
+/// reading is there, in this order: wind, airspeed, heading, altitude,
+/// QNH, air, speed to fly.
 #[uniffi::export]
 pub fn cockpit_details_words() -> CockpitDetailsWords {
     CockpitDetailsWords {
@@ -132,6 +137,7 @@ pub fn cockpit_details_words() -> CockpitDetailsWords {
                last measured."
             .to_owned(),
         nearest_landing: "Nearest landing".to_owned(),
+        wind: "Wind".to_owned(),
     }
 }
 
@@ -218,6 +224,10 @@ pub struct StationSheetWords {
     /// "More about the air here".
     #[uniffi(default = "")]
     pub more_air_title: String,
+    /// The heading over [`crate::StationAir::temperature_step`]:
+    /// "Temperature up the slope".
+    #[uniffi(default = "")]
+    pub temperature_step_title: String,
 }
 
 /// The words of a station's sheet that no reading carries.
@@ -225,6 +235,7 @@ pub struct StationSheetWords {
 pub fn station_sheet_words() -> StationSheetWords {
     StationSheetWords {
         more_air_title: "More about the air here".to_owned(),
+        temperature_step_title: "Temperature up the slope".to_owned(),
     }
 }
 
@@ -525,6 +536,14 @@ pub struct CommonWords {
     /// The button that closes a sheet or a message: "Close".
     #[uniffi(default = "")]
     pub close: String,
+    /// The button, or the line beside a spinner, while something sent is
+    /// being done: "Working…".
+    #[uniffi(default = "")]
+    pub working: String,
+    /// The button or link that leads a pilot who is signed out to the
+    /// account: "Sign in".
+    #[uniffi(default = "")]
+    pub sign_in: String,
 }
 
 /// The words of the controls every screen has.
@@ -538,6 +557,32 @@ pub fn common_words() -> CommonWords {
         cancel: "Cancel".to_owned(),
         try_again: "Try again".to_owned(),
         close: "Close".to_owned(),
+        working: "Working\u{2026}".to_owned(),
+        sign_in: "Sign in".to_owned(),
+    }
+}
+
+/// What a list says when nothing in it matches what was searched for:
+/// the sites', the stations' and the waypoints' alike.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct NothingFoundWords {
+    /// The title, with the text searched for: "No results for “Brau”".
+    #[uniffi(default = "")]
+    pub title: String,
+    /// The line under it: "Check the spelling or try a new search."
+    #[uniffi(default = "")]
+    pub line: String,
+}
+
+/// What a list of sites, stations or waypoints says when none matches
+/// `searched`, which is said without the spaces around it.
+#[uniffi::export]
+pub fn nothing_found_words(searched: String) -> NothingFoundWords {
+    NothingFoundWords {
+        title: format!("No results for \u{201c}{}\u{201d}", searched.trim()),
+        line: "Check the spelling or try a new search.".to_owned(),
     }
 }
 
@@ -727,6 +772,18 @@ mod tests {
                 common.close
             ],
             ["Done", "Back", "More", "OK", "Cancel", "Try again", "Close"]
+        );
+        assert_eq!(
+            (common.working.as_str(), common.sign_in.as_str()),
+            ("Working…", "Sign in")
+        );
+        let nothing = nothing_found_words("  Brau ".to_owned());
+        assert_eq!(nothing.title, "No results for “Brau”");
+        assert_eq!(nothing.line, "Check the spelling or try a new search.");
+        assert_eq!(cockpit_details_words().wind, "Wind");
+        assert_eq!(
+            station_sheet_words().temperature_step_title,
+            "Temperature up the slope"
         );
         let pages = pages_words();
         assert_eq!(pages.everyones_flights, "Everyone’s flights");

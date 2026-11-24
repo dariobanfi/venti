@@ -361,6 +361,20 @@ struct ImportReport: Sendable, Equatable {
     }
 }
 
+extension URL {
+    /// Opens the pair a file or folder picked in the Files app is readable
+    /// inside, and hands back what closes it. One in the app's own
+    /// container needs none, and the pair is then not opened.
+    func startAccess() -> () -> Void {
+        let isScoped = startAccessingSecurityScopedResource()
+        return {
+            if isScoped {
+                stopAccessingSecurityScopedResource()
+            }
+        }
+    }
+}
+
 /// A message about an import, shown as an alert.
 struct ImportNotice: Sendable, Equatable {
     let title: String

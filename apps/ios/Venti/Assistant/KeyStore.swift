@@ -94,10 +94,6 @@ enum LeagueStore {
     static func saveDhvxcPassword(_ password: String) -> Bool {
         Keychain.save(password, service: service, account: dhvxc)
     }
-
-    static func removeDhvxcPassword() {
-        Keychain.remove(service: service, account: dhvxc)
-    }
 }
 
 /// The token of the session with the pilot's Venti server. It is sent only

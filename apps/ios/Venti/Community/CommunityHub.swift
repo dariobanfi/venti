@@ -433,7 +433,7 @@ struct CommunityHub: View {
                                     PilotFlightsScreen(pilot: PilotRoute(handle: line.handle, name: "@\(line.handle)"))
                                 }
                             } label: {
-                                HStack(spacing: VentiSpace.s3) {
+                                HubRowLabel {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(verbatim: line.line)
                                             .foregroundStyle(.venti(.text))
@@ -442,13 +442,7 @@ struct CommunityHub: View {
                                             .font(.venti(.footnote))
                                             .foregroundStyle(.venti(.textSecondary))
                                     }
-                                    Spacer(minLength: 0)
-                                    HubChevron()
                                 }
-                                .padding(.horizontal, VentiSpace.s4)
-                                .padding(.vertical, VentiSpace.s3)
-                                .frame(minHeight: VentiSize.touch)
-                                .contentShape(.rect)
                             }
                             .buttonStyle(.plain)
                             .accessibilityElement(children: .combine)
@@ -493,7 +487,7 @@ struct CommunityHub: View {
                     NavigationLink {
                         HelpScreen(id: call.id, first: call)
                     } label: {
-                        HStack(spacing: VentiSpace.s3) {
+                        HubRowLabel {
                             PilotFace(name: call.pilot.name, size: VentiSpace.s6)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(call.pilot.name)
@@ -509,13 +503,7 @@ struct CommunityHub: View {
                                     .foregroundStyle(.venti(.textSecondary))
                             }
                             .multilineTextAlignment(.leading)
-                            Spacer(minLength: 0)
-                            HubChevron()
                         }
-                        .padding(.horizontal, VentiSpace.s4)
-                        .padding(.vertical, VentiSpace.s3)
-                        .frame(minHeight: VentiSize.touch)
-                        .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
                     .accessibilityElement(children: .combine)
@@ -535,7 +523,7 @@ struct CommunityHub: View {
                 Button {
                     isAskingForHelp = true
                 } label: {
-                    HStack(spacing: VentiSpace.s3) {
+                    HubRowLabel {
                         Image("icon-landing")
                             .resizable()
                             .frame(width: VentiSize.icon, height: VentiSize.icon)
@@ -552,13 +540,7 @@ struct CommunityHub: View {
                             }
                         }
                         .multilineTextAlignment(.leading)
-                        Spacer(minLength: 0)
-                        HubChevron()
                     }
-                    .padding(.horizontal, VentiSpace.s4)
-                    .padding(.vertical, VentiSpace.s3)
-                    .frame(minHeight: VentiSize.touch)
-                    .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .accessibilityElement(children: .combine)
@@ -600,18 +582,12 @@ struct CommunityHub: View {
                         NavigationLink {
                             PilotFlightsScreen(pilot: PilotRoute(handle: pilot.handle, name: pilot.name))
                         } label: {
-                            HStack(spacing: VentiSpace.s3) {
+                            HubRowLabel(vertical: VentiSpace.s2) {
                                 PilotFace(name: pilot.name, picturePath: pilot.picturePath, size: VentiSpace.s6)
                                 Text(pilot.words)
                                     .foregroundStyle(.venti(.text))
                                     .multilineTextAlignment(.leading)
-                                Spacer(minLength: 0)
-                                HubChevron()
                             }
-                            .padding(.horizontal, VentiSpace.s4)
-                            .padding(.vertical, VentiSpace.s2)
-                            .frame(minHeight: VentiSize.touch)
-                            .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
                         .accessibilityElement(children: .combine)
@@ -644,7 +620,6 @@ struct PlanCard: View {
     let myName: String?
 
     @Environment(GroupsModel.self) private var groups
-    @ScaledMetric(relativeTo: .body) private var sign = VentiSpace.s5
 
     @State private var isSending = false
     @State private var problem: String?
@@ -655,30 +630,7 @@ struct PlanCard: View {
                 PlanScreen(id: plan.id)
             } label: {
                 VStack(alignment: .leading, spacing: VentiSpace.s2) {
-                    HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s2) {
-                        Text(PlanWords.title(ofDay: plan.day))
-                            .font(.venti(.subheadline, .semibold))
-                            .foregroundStyle(.venti(.link))
-                        Spacer(minLength: 0)
-                        if let time = plan.meetAt {
-                            Text(time)
-                                .font(.ventiType(.instrumentM))
-                                .foregroundStyle(.venti(.text))
-                        }
-                    }
-                    HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s2) {
-                        Image("icon-site")
-                            .resizable()
-                            .frame(width: sign, height: sign)
-                            .foregroundStyle(.venti(.textMuted))
-                            .alignmentGuide(.firstTextBaseline) { $0[.bottom] * 0.8 }
-                            .accessibilityHidden(true)
-                        Text(plan.place)
-                            .font(.ventiType(.heading))
-                            .foregroundStyle(.venti(.text))
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                    PlanCardTop(day: plan.day, meetAt: plan.meetAt, place: plan.place)
                     if !plan.groupName.isEmpty {
                         Text(plan.groupName)
                             .font(.venti(.footnote))
@@ -748,6 +700,43 @@ struct PlanCard: View {
             } catch {
                 problem = AccountModel.words(for: error)
             }
+        }
+    }
+}
+
+/// The top of a plan's card, an open one's too: its day and time, the
+/// time large, and the place with the pack's site sign.
+struct PlanCardTop: View {
+    let day: String
+    let meetAt: String?
+    let place: String
+
+    @ScaledMetric(relativeTo: .body) private var sign = VentiSpace.s5
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s2) {
+            Text(PlanWords.title(ofDay: day))
+                .font(.venti(.subheadline, .semibold))
+                .foregroundStyle(.venti(.link))
+            Spacer(minLength: 0)
+            if let meetAt {
+                Text(meetAt)
+                    .font(.ventiType(.instrumentM))
+                    .foregroundStyle(.venti(.text))
+            }
+        }
+        HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s2) {
+            Image("icon-site")
+                .resizable()
+                .frame(width: sign, height: sign)
+                .foregroundStyle(.venti(.textMuted))
+                .alignmentGuide(.firstTextBaseline) { $0[.bottom] * 0.8 }
+                .accessibilityHidden(true)
+            Text(place)
+                .font(.ventiType(.heading))
+                .foregroundStyle(.venti(.text))
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -840,7 +829,7 @@ struct NearPilotRow: View {
     let pilot: NearPilotLine
 
     var body: some View {
-        HStack(spacing: VentiSpace.s3) {
+        HubRowLabel {
             PilotFace(
                 name: pilot.name, picturePath: pilot.picturePath, size: VentiSpace.s7,
                 initials: pilot.initials
@@ -861,13 +850,7 @@ struct NearPilotRow: View {
                 }
             }
             .multilineTextAlignment(.leading)
-            Spacer(minLength: 0)
-            HubChevron()
         }
-        .padding(.horizontal, VentiSpace.s4)
-        .padding(.vertical, VentiSpace.s3)
-        .frame(minHeight: VentiSize.touch)
-        .contentShape(.rect)
         .accessibilityElement(children: .combine)
     }
 }
@@ -919,12 +902,25 @@ private struct HubDivider: View {
     }
 }
 
-private struct HubChevron: View {
+/// A row of the page's lists: what it says, then the chevron at its end,
+/// with the row's room around and a touch's height.
+private struct HubRowLabel<Content: View>: View {
+    var vertical = VentiSpace.s3
+    @ViewBuilder let content: Content
+
     var body: some View {
-        Image(systemName: "chevron.forward")
-            .font(.venti(.footnote, .semibold))
-            .foregroundStyle(.venti(.textMuted))
-            .accessibilityHidden(true)
+        HStack(spacing: VentiSpace.s3) {
+            content
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.forward")
+                .font(.venti(.footnote, .semibold))
+                .foregroundStyle(.venti(.textMuted))
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, VentiSpace.s4)
+        .padding(.vertical, vertical)
+        .frame(minHeight: VentiSize.touch)
+        .contentShape(.rect)
     }
 }
 

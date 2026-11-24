@@ -2,6 +2,19 @@ import Foundation
 import Observation
 import VentiCore
 
+/// How a model's asking of Venti stands: the forecast map's and its
+/// hours', Today's and foehn's.
+enum AskingState: Equatable {
+    /// Nothing asked yet, or no Venti to ask.
+    case idle
+    /// Asked, and no answer yet.
+    case loading
+    /// The answer is there.
+    case loaded
+    /// Refused or not reached, in words for the pilot.
+    case failed(String)
+}
+
 /// The forecast map: the kind of day, square by square, over the area
 /// Venti has forecasts for (`GET /v1/thermals`).
 ///
@@ -17,16 +30,8 @@ final class ThermalMapModel {
     /// Fetches an address and returns the HTTP status and the body.
     typealias Transport = @Sendable (URL) async throws -> (Int, Data)
 
-    enum State: Equatable {
-        /// Nothing asked yet, or no Venti to ask.
-        case idle
-        /// Asked, and no map yet.
-        case loading
-        /// There is a map.
-        case loaded
-        /// No map: refused or not reached, in words for the pilot.
-        case failed(String)
-    }
+    /// The map's: loaded once there is a map.
+    typealias State = AskingState
 
     /// How long a map is shown before Venti is asked again.
     static let keepFor: TimeInterval = 30 * 60
@@ -58,16 +63,9 @@ final class ThermalMapModel {
         var aboveGroundM: Int32? = nil
     }
 
-    enum HoursState: Equatable {
-        /// No layer of hours asked for: the map shows the day.
-        case idle
-        /// Asked, and no answer yet.
-        case loading
-        /// The hours are there.
-        case loaded
-        /// Refused or not reached, in words; the map shows the day.
-        case failed(String)
-    }
+    /// The hours': idle while no layer of hours is asked for, and the map
+    /// shows the day, as it does when they failed.
+    typealias HoursState = AskingState
 
     private(set) var hoursState = HoursState.idle
     /// The hours of the layer asked for last, once they are there.

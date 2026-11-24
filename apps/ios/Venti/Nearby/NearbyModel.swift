@@ -87,7 +87,7 @@ final class NearbyModel {
             settingsProblem = nil
         } catch {
             guard !Self.isCancelled(error), wasQuiet, changesUnderway == 0, changesSent == sentBefore else { return }
-            settingsProblem = Self.words(for: error)
+            settingsProblem = Social.words(for: error)
         }
     }
 
@@ -110,7 +110,7 @@ final class NearbyModel {
             }
             return nil
         } catch {
-            let words = Self.words(for: error)
+            let words = Social.words(for: error)
             settingsProblem = words
             return words
         }
@@ -142,7 +142,7 @@ final class NearbyModel {
             helpProblem = nil
         } catch {
             if Self.isCancelled(error) { return }
-            helpProblem = Self.words(for: error)
+            helpProblem = Social.words(for: error)
         }
     }
 
@@ -215,15 +215,6 @@ final class NearbyModel {
     private static func isCancelled(_ error: any Error) -> Bool {
         error is CancellationError || (error as? URLError)?.code == .cancelled
     }
-
-    /// What went wrong, in words for the pilot: the core's refusal in its
-    /// own words, or that Venti was not reached.
-    static func words(for error: any Error) -> String {
-        if error is CoreError || (error as? URLError)?.code == .userAuthenticationRequired {
-            return AccountModel.words(for: error)
-        }
-        return pilotsWords().unreachable
-    }
 }
 
 /// What the screens of help after landing and of the settings for pilots
@@ -256,6 +247,5 @@ enum HelpWords {
     /// The settings' heading on the account's page.
     static let pilotsNearby = "Pilots nearby"
     static let whereTheMapIs = "Where the map is"
-    static let myPosition = "My position"
     static let distance = "Distance"
 }

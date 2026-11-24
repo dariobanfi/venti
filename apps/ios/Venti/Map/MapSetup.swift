@@ -26,6 +26,16 @@ enum MapSetup {
         return map
     }
 
+    /// Adds a single tap to a map. The map's own double tap zooms, so the
+    /// single tap waits for it.
+    static func addTap(to map: MLNMapView, target: Any, action: Selector) {
+        let tap = UITapGestureRecognizer(target: target, action: action)
+        for recognizer in map.gestureRecognizers ?? [] where recognizer is UITapGestureRecognizer {
+            tap.require(toFail: recognizer)
+        }
+        map.addGestureRecognizer(tap)
+    }
+
     /// The layers of the map's two views, read from the shared style once.
     private static let views = try? MapStyle.views()
 
@@ -64,13 +74,6 @@ enum MapSetup {
                 raster.rasterOpacity = NSExpression(forConstantValue: opacity)
             }
         }
-    }
-
-    /// Whether this map's style has the thermal map: only where the app
-    /// has a domain to name to its author.
-    static func hasThermalMap(on map: MLNMapView) -> Bool {
-        guard let views, let style = map.style else { return false }
-        return views.thermals.contains { style.layer(withIdentifier: $0) != nil }
     }
 
     /// The layers of photographs of the shared style, read once.

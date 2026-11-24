@@ -94,7 +94,7 @@ final class OpenPlansModel {
         } catch is CancellationError {
         } catch {
             if (error as? URLError)?.code == .cancelled { return }
-            problem = Self.words(for: error)
+            problem = Social.words(for: error)
         }
     }
 
@@ -148,18 +148,6 @@ final class OpenPlansModel {
             near = shown
         }
         return said
-    }
-
-    /// What went wrong, in words for the pilot: the core's refusal in its
-    /// own words, or that Venti was not reached.
-    static func words(for error: any Error) -> String {
-        if error is CoreError {
-            return error.words
-        }
-        if (error as? URLError)?.code == .userAuthenticationRequired {
-            return AccountModel.words(for: error)
-        }
-        return pilotsWords().unreachable
     }
 
     /// Puts a request together, sends it (with the account's token where

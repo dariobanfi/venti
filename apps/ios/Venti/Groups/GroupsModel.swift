@@ -80,6 +80,14 @@ final class GroupsModel {
         return String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
     }
 
+    /// The moment a time of day written "09:30" names on a day. `nil` for
+    /// anything else.
+    nonisolated static func date(ofTime time: String, on day: Date, calendar: Calendar = .current) -> Date? {
+        let parts = time.split(separator: ":").compactMap { Int($0) }
+        guard parts.count == 2 else { return nil }
+        return calendar.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: day)
+    }
+
     /// Asks for the board: every plan of the pilot's groups from today on.
     func load() async {
         guard account.isSignedIn else {

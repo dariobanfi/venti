@@ -422,14 +422,9 @@ struct PlanForm: View {
             position = editing.position
             note = editing.note ?? ""
             day = GroupsModel.date(ofDay: editing.day) ?? Date()
-            if let meetAt = editing.meetAt {
-                let parts = meetAt.split(separator: ":").compactMap { Int($0) }
-                if parts.count == 2,
-                   let at = Calendar.current.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: day)
-                {
-                    hasTime = true
-                    time = at
-                }
+            if let at = editing.meetAt.flatMap({ GroupsModel.date(ofTime: $0, on: day) }) {
+                hasTime = true
+                time = at
             }
         } else if let inGroup {
             group = inGroup

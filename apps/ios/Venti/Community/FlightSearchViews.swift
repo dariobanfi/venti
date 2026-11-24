@@ -378,12 +378,7 @@ private struct SearchAreaMap: UIViewRepresentable {
             let at = FlightSearchChoices.middle
             map.setCenter(at.location, zoomLevel: 7.4, animated: false)
         }
-        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
-        // The map's own double tap zooms; a single tap waits for it.
-        for recognizer in map.gestureRecognizers ?? [] where recognizer is UITapGestureRecognizer {
-            tap.require(toFail: recognizer)
-        }
-        map.addGestureRecognizer(tap)
+        MapSetup.addTap(to: map, target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
         return map
     }
 

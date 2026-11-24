@@ -53,12 +53,8 @@ final class TaskModel {
     /// Keeps the task in a file the pilot chose.
     @discardableResult
     func keep(fileAt url: URL) -> Bool {
-        let isScoped = url.startAccessingSecurityScopedResource()
-        defer {
-            if isScoped {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
+        let endAccess = url.startAccess()
+        defer { endAccess() }
         let data: Data
         do {
             data = try Data(contentsOf: url)

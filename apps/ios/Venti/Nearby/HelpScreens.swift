@@ -167,7 +167,7 @@ struct HelpAskSheet: View {
             do {
                 asked = try await nearby.ask(at: place, note: note)
             } catch {
-                problem = NearbyModel.words(for: error)
+                problem = Social.words(for: error)
             }
         }
     }
@@ -394,9 +394,9 @@ struct HelpScreen: View {
         } catch {
             if (error as? URLError)?.code == .cancelled { return }
             if shown == nil {
-                missing = NearbyModel.words(for: error)
+                missing = Social.words(for: error)
             } else {
-                problem = NearbyModel.words(for: error)
+                problem = Social.words(for: error)
             }
         }
     }
@@ -413,7 +413,7 @@ struct HelpScreen: View {
                     read = try? await nearby.one(id)
                 }
             } catch {
-                problem = NearbyModel.words(for: error)
+                problem = Social.words(for: error)
             }
         }
     }

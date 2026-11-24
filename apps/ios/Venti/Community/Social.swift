@@ -178,7 +178,8 @@ struct Social {
     }
 
     /// What went wrong, in words for the pilot: the core's refusal, or
-    /// the core's sentence that Venti was not reached.
+    /// the core's sentence that Venti was not reached. The open plans and
+    /// help after landing say their problems with it too.
     static func words(for error: any Error) -> String {
         if error is CoreError {
             return error.words

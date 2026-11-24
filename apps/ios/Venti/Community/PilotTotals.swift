@@ -139,10 +139,18 @@ struct PublicFlightByAddress: View {
 }
 
 /// A site that is named by its identifier alone, as a pilot's totals name
-/// the take-offs flown from: read from Venti as it stands, then shown on
-/// the site's own page.
+/// the take-offs flown from and a card of a chat names it: read from Venti
+/// as it stands, then shown on the site's own page.
 struct SiteByAddress: View {
     let id: String
+    /// Over the problem, when the site cannot be read.
+    var title = "This site could not be opened"
+    /// The problem in words.
+    var words: (any Error) -> String = { error in
+        error is CoreError
+            ? error.words
+            : "Venti could not be reached for this site. \(error.localizedDescription)"
+    }
 
     @Environment(AccountModel.self) private var account
     @Environment(WindModel.self) private var wind
@@ -157,7 +165,7 @@ struct SiteByAddress: View {
             } else if let problem {
                 ContentUnavailableView {
                     Label {
-                        Text("This site could not be opened")
+                        Text(title)
                     } icon: {
                         Image("icon-caution")
                     }
@@ -172,9 +180,7 @@ struct SiteByAddress: View {
             do {
                 page = try await SiteEditing(account: account, wind: wind).page(id)
             } catch {
-                problem = error is CoreError
-                    ? error.words
-                    : "Venti could not be reached for this site. \(error.localizedDescription)"
+                problem = words(error)
             }
         }
     }

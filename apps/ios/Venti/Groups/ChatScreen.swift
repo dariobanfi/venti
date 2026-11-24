@@ -409,7 +409,7 @@ struct ChatCard: View {
             .buttonStyle(.plain)
         case "site":
             NavigationLink {
-                SiteByID(id: card.id, name: card.title)
+                SiteByAddress(id: card.id, title: card.title, words: SiteEditing.words(for:))
             } label: {
                 lines(identifier: "chat-card-site") {
                     sign("icon-site")
@@ -512,46 +512,6 @@ struct ChatCard: View {
             defer { isSending = false }
             if let plan = try? await openPlans.setIn(card.id, !isIn) {
                 amIn = plan.amIn
-            }
-        }
-    }
-}
-
-/// A site named by its identifier, as a card of a chat names it: read from
-/// Venti, then shown as any site is.
-struct SiteByID: View {
-    let id: String
-    let name: String
-
-    @Environment(AccountModel.self) private var account
-    @Environment(WindModel.self) private var wind
-
-    @State private var page: SitePage?
-    @State private var problem: String?
-
-    var body: some View {
-        Group {
-            if let page {
-                SiteScreen(site: page.site, credits: page.credit.map { [$0] })
-            } else if let problem {
-                ContentUnavailableView {
-                    Label {
-                        Text(name)
-                    } icon: {
-                        Image("icon-caution")
-                    }
-                } description: {
-                    Text(problem)
-                }
-            } else {
-                ProgressView()
-            }
-        }
-        .task(id: id) {
-            do {
-                page = try await SiteEditing(account: account, wind: wind).page(id)
-            } catch {
-                problem = SiteEditing.words(for: error)
             }
         }
     }

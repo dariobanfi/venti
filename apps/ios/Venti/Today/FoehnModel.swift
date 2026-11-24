@@ -16,14 +16,7 @@ final class FoehnModel {
     /// Fetches an address and returns the HTTP status and the body.
     typealias Transport = @Sendable (URL) async throws -> (Int, Data)
 
-    enum State: Equatable {
-        /// Nothing asked yet.
-        case idle
-        case loading
-        case loaded
-        /// Refused or not reached, in words for the pilot.
-        case failed(String)
-    }
+    typealias State = AskingState
 
     /// How long an answer is read again before the server is asked anew:
     /// the stations report every ten minutes.

@@ -71,7 +71,6 @@ struct OpenPlanCard: View {
     let myName: String?
 
     @Environment(OpenPlansModel.self) private var model
-    @ScaledMetric(relativeTo: .body) private var sign = VentiSpace.s5
 
     @State private var isSending = false
     @State private var problem: String?
@@ -82,30 +81,7 @@ struct OpenPlanCard: View {
                 OpenPlanScreen(id: plan.id)
             } label: {
                 VStack(alignment: .leading, spacing: VentiSpace.s2) {
-                    HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s2) {
-                        Text(PlanWords.title(ofDay: plan.day))
-                            .font(.venti(.subheadline, .semibold))
-                            .foregroundStyle(.venti(.link))
-                        Spacer(minLength: 0)
-                        if let time = plan.meetAt {
-                            Text(time)
-                                .font(.ventiType(.instrumentM))
-                                .foregroundStyle(.venti(.text))
-                        }
-                    }
-                    HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s2) {
-                        Image("icon-site")
-                            .resizable()
-                            .frame(width: sign, height: sign)
-                            .foregroundStyle(.venti(.textMuted))
-                            .alignmentGuide(.firstTextBaseline) { $0[.bottom] * 0.8 }
-                            .accessibilityHidden(true)
-                        Text(plan.place)
-                            .font(.ventiType(.heading))
-                            .foregroundStyle(.venti(.text))
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                    PlanCardTop(day: plan.day, meetAt: plan.meetAt, place: plan.place)
                     // Who offers what.
                     HStack(spacing: VentiSpace.s3) {
                         PilotFace(
@@ -205,7 +181,7 @@ struct OpenPlanCard: View {
             do {
                 _ = try await model.setIn(plan.id, !plan.amIn)
             } catch {
-                problem = OpenPlansModel.words(for: error)
+                problem = Social.words(for: error)
             }
         }
     }
@@ -451,7 +427,7 @@ struct OpenPlanScreen: View {
                     dismiss()
                 }
             } catch {
-                problem = OpenPlansModel.words(for: error)
+                problem = Social.words(for: error)
             }
         }
     }
@@ -633,14 +609,9 @@ struct OpenPlanForm: View {
         } else {
             offer = .company
         }
-        if let meetAt = editing.meetAt {
-            let parts = meetAt.split(separator: ":").compactMap { Int($0) }
-            if parts.count == 2,
-               let at = Calendar.current.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: day)
-            {
-                hasTime = true
-                time = at
-            }
+        if let at = editing.meetAt.flatMap({ GroupsModel.date(ofTime: $0, on: day) }) {
+            hasTime = true
+            time = at
         }
     }
 
@@ -669,7 +640,7 @@ struct OpenPlanForm: View {
                 done(saved)
                 dismiss()
             } catch {
-                problem = OpenPlansModel.words(for: error)
+                problem = Social.words(for: error)
             }
         }
     }

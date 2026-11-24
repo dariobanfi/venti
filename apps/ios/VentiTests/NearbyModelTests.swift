@@ -103,7 +103,7 @@ final class NearbyModelTests: XCTestCase {
             _ = try await nearby.ask(at: Coordinate(lat: 47.27, lon: 11.39), note: String(repeating: "x", count: 281))
             XCTFail("A note of 281 characters was sent")
         } catch {
-            XCTAssertEqual(NearbyModel.words(for: error), "The note has room for 280 characters.")
+            XCTAssertEqual(Social.words(for: error), "The note has room for 280 characters.")
         }
     }
 

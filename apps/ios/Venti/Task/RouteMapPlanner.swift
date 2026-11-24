@@ -198,12 +198,8 @@ struct RouteMapPlanner: View {
     /// route, and the core's line says what was read; a file that holds
     /// none is refused in the core's words.
     private func take(fileAt url: URL) {
-        let isScoped = url.startAccessingSecurityScopedResource()
-        defer {
-            if isScoped {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
+        let endAccess = url.startAccess()
+        defer { endAccess() }
         do {
             let data = try Data(contentsOf: url)
             let text = String(data: data, encoding: .utf8) ?? String(decoding: data, as: Unicode.ASCII.self)
@@ -385,12 +381,7 @@ struct RouteDrawingMap: UIViewRepresentable {
             map.setCenter(CLLocationCoordinate2D(latitude: at.lat, longitude: at.lon), zoomLevel: at.zoom, animated: false)
         }
 
-        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
-        // The map's own double tap zooms; a single tap must wait for it.
-        for recognizer in map.gestureRecognizers ?? [] where recognizer is UITapGestureRecognizer {
-            tap.require(toFail: recognizer)
-        }
-        map.addGestureRecognizer(tap)
+        MapSetup.addTap(to: map, target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
         return map
     }
 

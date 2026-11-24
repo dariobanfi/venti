@@ -57,35 +57,10 @@ struct ForecastSquareSheet: View {
                             band: ThermalBand(scaleStep: step)
                         )
                     }
-                    if let ground = square.cell.groundM {
-                        Text("Judged at the model's ground, \(Format.metres(ground)) m")
-                            .foregroundStyle(.venti(.textSecondary))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    // The forecast for the middle of the square, as a
-                    // site's page leads to it, on the day the map showed:
-                    // the hours behind that day's verdict.
-                    NavigationLink {
-                        ForecastScreen(
-                            place: square.middle, title: Format.place(lat: square.middle.lat, lon: square.middle.lon),
-                            opening: square.opening
-                        )
-                    } label: {
-                        Label("Forecast for this place", systemImage: "cloud.sun")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.venti(.quiet))
-                    .accessibilityIdentifier("forecast-square-forecast")
-                    VStack(alignment: .leading, spacing: VentiSpace.s2) {
-                        Text(square.note)
-                        ForEach(square.credits, id: \.source) { credit in
-                            Text(credit.text)
-                        }
-                    }
-                    .font(.ventiType(.caption))
-                    .foregroundStyle(.venti(.textSecondary))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, VentiSpace.s2)
+                    SquareSheetFoot(
+                        groundM: square.cell.groundM, middle: square.middle, opening: square.opening,
+                        note: square.note, credits: square.credits
+                    )
                 }
                 .padding(VentiSpace.s4)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -102,6 +77,49 @@ struct ForecastSquareSheet: View {
                 }
             }
         }
+    }
+}
+
+/// The foot of a square's sheet, of a day's map and of an hour's: the
+/// model's ground; the way to the forecast for the middle of the square,
+/// as a site's page leads to it, on the day the map showed; the notes and
+/// whose data it is.
+struct SquareSheetFoot: View {
+    let groundM: Double?
+    let middle: Coordinate
+    let opening: ForecastOpening
+    let note: String
+    let credits: [Credit]
+
+    var body: some View {
+        if let groundM {
+            Text("Judged at the model's ground, \(Format.metres(groundM)) m")
+                .foregroundStyle(.venti(.textSecondary))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        NavigationLink {
+            ForecastScreen(
+                place: middle, title: Format.place(lat: middle.lat, lon: middle.lon),
+                opening: opening
+            )
+        } label: {
+            Label("Forecast for this place", systemImage: "cloud.sun")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.venti(.quiet))
+        .accessibilityIdentifier("forecast-square-forecast")
+        VStack(alignment: .leading, spacing: VentiSpace.s2) {
+            if !note.isEmpty {
+                Text(note)
+            }
+            ForEach(credits, id: \.source) { credit in
+                Text(credit.text)
+            }
+        }
+        .font(.ventiType(.caption))
+        .foregroundStyle(.venti(.textSecondary))
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.top, VentiSpace.s2)
     }
 }
 

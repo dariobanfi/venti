@@ -34,13 +34,7 @@ final class TodayModel {
         var id: String { site.id }
     }
 
-    enum State: Equatable {
-        /// Nothing asked yet.
-        case idle
-        case loading
-        case loaded
-        case failed(String)
-    }
+    typealias State = AskingState
 
     /// How long an answer is shown before the server is asked again.
     static let keepFor: TimeInterval = 30 * 60

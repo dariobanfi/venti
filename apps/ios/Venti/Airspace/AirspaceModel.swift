@@ -100,13 +100,8 @@ final class AirspaceModel {
         let lines = await Task.detached(priority: .userInitiated) { () -> [String] in
             var lines: [String] = []
             for url in urls {
-                // Files picked in the Files app are only readable inside this pair.
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer {
-                    if scoped {
-                        url.stopAccessingSecurityScopedResource()
-                    }
-                }
+                let endAccess = url.startAccess()
+                defer { endAccess() }
                 do {
                     let result = try core.importAirspace(
                         fileName: url.lastPathComponent, bytes: Data(contentsOf: url), nowUnixS: now

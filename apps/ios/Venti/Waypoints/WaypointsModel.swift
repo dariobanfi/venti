@@ -35,13 +35,8 @@ final class WaypointsModel {
             var (added, known): (UInt32, UInt32) = (0, 0)
             var problems: [String] = []
             for url in urls {
-                // Files picked in the Files app are only readable inside this pair.
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer {
-                    if scoped {
-                        url.stopAccessingSecurityScopedResource()
-                    }
-                }
+                let endAccess = url.startAccess()
+                defer { endAccess() }
                 do {
                     let result = try core.importWaypoints(text: Self.text(at: url))
                     added += result.added

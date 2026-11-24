@@ -93,14 +93,8 @@ final class WatchedFolder {
     /// folder; the folder watched before stays then.
     @discardableResult
     func watch(_ folder: URL) async throws -> ImportReport? {
-        // A folder picked in the Files app is readable only inside this
-        // pair; one in the app's own container needs none and says false.
-        let isScoped = folder.startAccessingSecurityScopedResource()
-        defer {
-            if isScoped {
-                folder.stopAccessingSecurityScopedResource()
-            }
-        }
+        let endAccess = folder.startAccess()
+        defer { endAccess() }
         let bookmark = try bookmarks.make(folder)
         stop()
         let shown = (try? folder.resourceValues(forKeys: [.localizedNameKey]))?.localizedName
@@ -145,12 +139,8 @@ final class WatchedFolder {
             isLost = true
             return nil
         }
-        let isScoped = folder.startAccessingSecurityScopedResource()
-        defer {
-            if isScoped {
-                folder.stopAccessingSecurityScopedResource()
-            }
-        }
+        let endAccess = folder.startAccess()
+        defer { endAccess() }
         if isStale {
             // Still good this once: a fresh one in its place, or the
             // folder is lost the next time.

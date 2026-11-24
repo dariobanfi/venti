@@ -136,12 +136,7 @@ struct OverviewMap: UIViewRepresentable {
         let at = LaunchOptions.mapAt ?? (lat: Self.start.lat, lon: Self.start.lon, zoom: 7.4)
         map.setCenter(CLLocationCoordinate2D(latitude: at.lat, longitude: at.lon), zoomLevel: at.zoom, animated: false)
 
-        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
-        // The map's own double tap zooms; a single tap must wait for it.
-        for recognizer in map.gestureRecognizers ?? [] where recognizer is UITapGestureRecognizer {
-            tap.require(toFail: recognizer)
-        }
-        map.addGestureRecognizer(tap)
+        MapSetup.addTap(to: map, target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
         // A long press asks about the place under the finger.
         let press = UILongPressGestureRecognizer(
             target: context.coordinator, action: #selector(Coordinator.pressed(_:))

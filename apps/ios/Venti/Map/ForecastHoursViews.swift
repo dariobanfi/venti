@@ -168,34 +168,10 @@ struct ForecastHourSquareSheet: View {
                                 .accessibilityIdentifier("forecast-square-status")
                         }
                     }
-                    if let ground = chosen.square.groundM {
-                        Text("Judged at the model's ground, \(Format.metres(ground)) m")
-                            .foregroundStyle(.venti(.textSecondary))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    NavigationLink {
-                        ForecastScreen(
-                            place: chosen.middle, title: Format.place(lat: chosen.middle.lat, lon: chosen.middle.lon),
-                            opening: chosen.opening
-                        )
-                    } label: {
-                        Label("Forecast for this place", systemImage: "cloud.sun")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.venti(.quiet))
-                    .accessibilityIdentifier("forecast-square-forecast")
-                    VStack(alignment: .leading, spacing: VentiSpace.s2) {
-                        if !chosen.note.isEmpty {
-                            Text(chosen.note)
-                        }
-                        ForEach(chosen.credits, id: \.source) { credit in
-                            Text(credit.text)
-                        }
-                    }
-                    .font(.ventiType(.caption))
-                    .foregroundStyle(.venti(.textSecondary))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, VentiSpace.s2)
+                    SquareSheetFoot(
+                        groundM: chosen.square.groundM, middle: chosen.middle, opening: chosen.opening,
+                        note: chosen.note, credits: chosen.credits
+                    )
                 }
                 .padding(VentiSpace.s4)
                 .frame(maxWidth: .infinity, alignment: .leading)

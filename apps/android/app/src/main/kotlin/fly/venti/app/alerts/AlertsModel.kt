@@ -60,6 +60,13 @@ class AlertsModel(
     /** Whether the pilot is signed in: alarms live on the account. */
     val isSignedIn: Boolean get() = account.isSignedIn
 
+    /** Why the last fetch failed, in words for the pilot; `null` when it came through. */
+    val problem: String? get() = account.alertsProblem
+
+    /** Whether a fetch is under way, which "Try again" waits for. */
+    var isFetching: Boolean by mutableStateOf(false)
+        private set
+
     /** Reads the list and what fired from what the phone holds. */
     /** The marker of what is new, moved when what fired was shown. */
     var unread: fly.venti.app.community.UnreadModel? = null
@@ -78,8 +85,13 @@ class AlertsModel(
 
     /** Fetches the list and what fired from the account, and reads it. */
     suspend fun fetch() {
-        account.syncAlerts()
-        read()
+        isFetching = true
+        try {
+            account.syncAlerts()
+            read()
+        } finally {
+            isFetching = false
+        }
     }
 
     /** What a draft waits for, in the core's one line. */

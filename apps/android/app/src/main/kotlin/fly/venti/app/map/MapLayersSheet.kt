@@ -276,7 +276,12 @@ fun MapCreditsButton(tint: Color, onOpen: () -> Unit, modifier: Modifier = Modif
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MapCreditsSheet(lines: List<String>, onDismiss: () -> Unit) {
+fun MapCreditsSheet(
+    lines: List<String>,
+    onDismiss: () -> Unit,
+    /** Opens "Data and licences", every provider's full wording, as the iPhone's sheet does; `null` for none. */
+    onAllCredits: (() -> Unit)? = null,
+) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -307,6 +312,18 @@ fun MapCreditsSheet(lines: List<String>, onDismiss: () -> Unit) {
             ) {
                 for (line in lines) {
                     Text(line, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+            if (onAllCredits != null) {
+                Group(Modifier.padding(top = VentiSpace.s2)) {
+                    row {
+                        LinkRow(
+                            "Data and licences",
+                            R.drawable.ic_chevron_right,
+                            modifier = Modifier.testTag("map-credits-all"),
+                            onClick = onAllCredits,
+                        )
+                    }
                 }
             }
             Box(Modifier.heightIn(min = VentiSpace.s2))

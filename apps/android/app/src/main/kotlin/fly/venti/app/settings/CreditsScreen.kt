@@ -15,7 +15,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -43,6 +50,27 @@ import fly.venti.app.design.Common
  * on the iPhone. The libraries are this app's own: what an Android app is
  * built from differs.
  */
+/**
+ * "Data and licences" over the screen it was opened from, with its page of
+ * licences: the map's credits lead here, as the iPhone's sheet does, and
+ * back leads to the map again.
+ */
+@Composable
+fun AllCreditsDialog(wind: WindModel, onDismiss: () -> Unit) {
+    var licences by rememberSaveable { mutableStateOf(false) }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        if (licences) {
+            BackHandler { licences = false }
+            LicencesScreen(onBack = { licences = false })
+        } else {
+            CreditsScreen(wind, onLicences = { licences = true }, onBack = onDismiss)
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreditsScreen(wind: WindModel, onLicences: () -> Unit, onBack: () -> Unit) {

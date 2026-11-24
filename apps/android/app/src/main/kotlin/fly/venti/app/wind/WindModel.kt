@@ -144,12 +144,20 @@ class WindModel(
     var registration: Registration? by mutableStateOf(null)
         private set
 
+    /**
+     * Whether the health answer was read at least once, or could not be:
+     * the account's sign-in form waits for it before it offers a way in.
+     */
+    var hasAskedStatus: Boolean by mutableStateOf(false)
+        private set
+
     /** Takes in what the server's health answer says. */
     private fun take(state: ServerStatus) {
         serverClock = (state.timeUnixS - clock() / 1000.0) to clock()
         takesSitesFromPilots = state.takesSitesFromPilots
         googleSignIn = state.googleSignIn
         registration = state.registration
+        hasAskedStatus = true
     }
 
     /**
@@ -167,6 +175,7 @@ class WindModel(
         } catch (_: Exception) {
             // What was known stays.
         }
+        hasAskedStatus = true
     }
 
     /** Venti's address. Empty only in a test that names no server. */

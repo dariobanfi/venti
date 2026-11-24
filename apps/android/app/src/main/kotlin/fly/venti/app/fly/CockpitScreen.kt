@@ -719,6 +719,7 @@ fun CockpitScreen(
             waypoints = waypoints,
             position = view.position,
             chosen = fly.chosenPlace,
+            fliesTask = hasTask,
             reach = fly::reach,
             onChoose = { waypoint -> fly.goTo(waypoint?.place) },
             onDismiss = { isChoosingTarget = false },

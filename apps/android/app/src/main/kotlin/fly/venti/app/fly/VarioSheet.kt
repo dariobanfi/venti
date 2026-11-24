@@ -180,10 +180,11 @@ private fun NearbyDevices(vario: VarioLink) {
             }
         }
     }
+    // The iPhone's words, with "phone" for "iPhone".
     SectionFooter(
-        "Switch the vario on and choose it here, not in the phone's Bluetooth settings. Venti reads " +
-            "LK8EX1, OpenVario, XC Tracer, LXWP0 and BlueFly data. Without an external vario the " +
-            "phone's own pressure sensor is used. It is slower.",
+        "Without an external vario the phone's own pressure sensor is used. Switch the vario on and " +
+            "choose it here, not in the phone's Bluetooth settings. Venti reads LK8EX1, OpenVario, " +
+            "XC Tracer, LXWP0 and BlueFly data.",
     )
 }
 

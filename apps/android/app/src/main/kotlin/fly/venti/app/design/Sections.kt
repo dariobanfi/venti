@@ -185,12 +185,14 @@ fun LinkRow(
     modifier: Modifier = Modifier,
     @DrawableRes leading: Int? = null,
     value: String? = null,
+    /** Whether it can be pressed just now; one that cannot is set in grey, as an `ActionRow` is. */
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .heightIn(min = 52.dp)
             // Room above and below a title of two lines, which large text makes of a sentence.
             .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
@@ -200,7 +202,12 @@ fun LinkRow(
             Icon(painterResource(leading), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.width(16.dp))
         }
-        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text(
+            title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (enabled) Color.Unspecified else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            modifier = Modifier.weight(1f),
+        )
         if (value != null) {
             Text(
                 value,

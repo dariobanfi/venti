@@ -59,6 +59,7 @@ import fly.venti.app.design.Venti
 import fly.venti.app.settings.Preferences
 import fly.venti.app.sites.SiteActions
 import fly.venti.app.R
+import fly.venti.app.settings.AllCreditsDialog
 import fly.venti.app.account.AccountModel
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.airspace.AirspaceOverSheet
@@ -217,6 +218,7 @@ fun MapScreen(
     var showsLayers by remember { mutableStateOf(false) }
     // Every credit in full, behind the (i).
     var showsCredits by remember { mutableStateOf(false) }
+    var showsAllCredits by remember { mutableStateOf(false) }
     // A climb and a cell of where thermals have been, tapped on the map.
     var chosenClimb by remember { mutableStateOf<ClimbView?>(null) }
     var chosenFlown by remember { mutableStateOf<FlownCellView?>(null) }
@@ -1024,7 +1026,18 @@ fun MapScreen(
     }
 
     if (showsCredits) {
-        MapCreditsSheet(allCredits, onDismiss = { showsCredits = false })
+        MapCreditsSheet(
+            allCredits,
+            onDismiss = { showsCredits = false },
+            onAllCredits = {
+                showsCredits = false
+                showsAllCredits = true
+            },
+        )
+    }
+
+    if (showsAllCredits) {
+        AllCreditsDialog(wind, onDismiss = { showsAllCredits = false })
     }
 
     chosenClimb?.let { climb ->

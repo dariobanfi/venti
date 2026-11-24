@@ -81,6 +81,7 @@ import fly.venti.core.TokenCreated
 import fly.venti.core.TokenForm
 import fly.venti.core.TokenScope
 import fly.venti.core.TokenView
+import fly.venti.core.tokenWithdrawal
 import kotlinx.coroutines.launch
 import fly.venti.app.design.Common
 
@@ -249,9 +250,20 @@ private fun ListPage(
                     modifier = Modifier.padding(horizontal = VentiSpace.s1).testTag("tokens-empty"),
                 )
             } else {
-                Group(Modifier.testTag("tokens")) {
+                // Each its own group, with the core's `confirm` under it, as on the iPhone.
+                Column(Modifier.testTag("tokens"), verticalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
                     for (token in listed.tokens) {
-                        row { TokenRow(token, onWithdraw = { onWithdraw(token) }) }
+                        Group {
+                            row { TokenRow(token) }
+                            row {
+                                ActionRow(
+                                    tokenWithdrawal(token.name).confirm,
+                                    MaterialTheme.colorScheme.error,
+                                    Modifier.testTag("token-withdraw"),
+                                    onClick = { onWithdraw(token) },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -267,24 +279,21 @@ private fun ListPage(
     }
 }
 
-/** One token: its name, what it may do, when it was made, last used and ends, and the button that withdraws it. */
+/** One token: its name, what it may do, when it was made, last used and ends. */
 @Composable
-private fun TokenRow(token: TokenView, onWithdraw: () -> Unit) {
+private fun TokenRow(token: TokenView) {
     val detail = TokenWords.detail(token)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("token")
-            .heightIn(min = VentiSize.touch)
-            .padding(start = VentiSpace.s4, end = VentiSpace.s1, top = VentiSpace.s3, bottom = VentiSpace.s3),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    Column(Modifier.fillMaxWidth().testTag("token")) {
         Column(
             // One element for a screen reader: the name, then the rest.
-            modifier = Modifier.weight(1f).clearAndSetSemantics {
-                contentDescription = token.name
-                stateDescription = detail
-            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = VentiSize.touch)
+                .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3)
+                .clearAndSetSemantics {
+                    contentDescription = token.name
+                    stateDescription = detail
+                },
             verticalArrangement = Arrangement.spacedBy(VentiSpace.s1),
         ) {
             Text(token.name, style = MaterialTheme.typography.bodyLarge)
@@ -296,13 +305,6 @@ private fun TokenRow(token: TokenView, onWithdraw: () -> Unit) {
                 detail,
                 style = MaterialTheme.typography.bodyMedium.numbers,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        IconButton(onClick = onWithdraw, modifier = Modifier.testTag("token-withdraw")) {
-            Icon(
-                painterResource(R.drawable.ic_delete),
-                contentDescription = TokenWords.withdraw(token),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

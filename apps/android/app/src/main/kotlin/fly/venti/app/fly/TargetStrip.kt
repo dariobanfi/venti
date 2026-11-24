@@ -224,8 +224,10 @@ fun TargetPicker(
     waypoints: WaypointsModel,
     /** Where the glider is, to list the nearest places first. */
     position: Coordinate?,
-    /** The place the cockpit is navigating to now; `null` for the take-off. */
+    /** The place the cockpit is navigating to now; `null` for the take-off, or along the task. */
     chosen: String?,
+    /** Whether a task is being flown: without a place chosen the cockpit then leads to its next turnpoint. */
+    fliesTask: Boolean = false,
     /** How each of some places lies within the glider's reach now, in their order. */
     reach: (List<WaypointView>) -> List<ReachView>,
     /** Called with the chosen place; `null` for the take-off. */
@@ -267,12 +269,16 @@ fun TargetPicker(
         }
         LazyColumn(contentPadding = PaddingValues(bottom = 32.dp)) {
             item {
-                TakeoffRow(isChosen = chosen == null) {
+                TakeoffRow(isChosen = chosen == null, fliesTask = fliesTask) {
                     onChoose(null)
                     onDismiss()
                 }
                 SectionFooter(
-                    "Without a place chosen, the cockpit shows the way back to where you took off.",
+                    if (fliesTask) {
+                        "Without a place chosen, the cockpit leads to the task's next turnpoint."
+                    } else {
+                        "Without a place chosen, the cockpit shows the way back to where you took off."
+                    },
                     Modifier.padding(horizontal = 16.dp),
                 )
                 SectionHeader("Waypoints", Modifier.padding(horizontal = 16.dp))
@@ -326,24 +332,25 @@ private fun Hint(text: String) {
     )
 }
 
-/** The first row of the list: back to where the flight began. */
+/** The first row of the list: back to where the flight began, or along the task while one is flown. */
 @Composable
-private fun TakeoffRow(isChosen: Boolean, onClick: () -> Unit) {
+private fun TakeoffRow(isChosen: Boolean, fliesTask: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(role = Role.Button, onClick = onClick)
+            .testTag("target-none")
             .heightIn(min = 60.dp)
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            painterResource(R.drawable.ic_home),
+            painterResource(if (fliesTask) R.drawable.ic_flag else R.drawable.ic_home),
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.width(20.dp))
-        Text("Take-off", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text(if (fliesTask) "Along the task" else "Take-off", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         if (isChosen) {
             Icon(
                 painterResource(R.drawable.ic_check),

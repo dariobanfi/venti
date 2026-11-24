@@ -91,7 +91,10 @@ fun CockpitDetailsSheet(view: CockpitView, onDismiss: () -> Unit) {
                     }
                 }
             }
-            item { SectionFooter(CockpitDetailsWords.core.note) }
+            // The note is of the estimated airspeed: shown only where it is.
+            if (rows.any { (name, _) -> name == CockpitDetailsWords.core.airspeed }) {
+                item { SectionFooter(CockpitDetailsWords.core.note, Modifier.testTag("cockpit-details-note")) }
+            }
         }
     }
 }

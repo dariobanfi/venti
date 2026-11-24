@@ -71,6 +71,8 @@ fun SettingsScreen(
     account: AccountModel,
     /** The maps kept for flying without a network, in a line. */
     offlineMaps: String,
+    /** What the cockpit warns from, in a line: whose airspace, and the files. */
+    airspace: String,
     /** Opens a screen on top of the settings. */
     onOpen: (SettingsRoute) -> Unit,
     bars: PaddingValues,
@@ -135,7 +137,12 @@ fun SettingsScreen(
                     LinkRow("Waypoints", R.drawable.ic_chevron_right) { onOpen(SettingsRoute.Waypoints) }
                 }
                 row {
-                    LinkRow("Airspace", R.drawable.ic_chevron_right) { onOpen(SettingsRoute.Airspace) }
+                    LinkRow(
+                        "Airspace",
+                        R.drawable.ic_chevron_right,
+                        Modifier.testTag("airspace-link"),
+                        value = airspace,
+                    ) { onOpen(SettingsRoute.Airspace) }
                 }
                 row {
                     // The glider, the FAI triangle areas and the cockpit's
@@ -156,7 +163,8 @@ fun SettingsScreen(
                         "Account",
                         R.drawable.ic_chevron_right,
                         Modifier.testTag("account-link"),
-                        value = account.account?.let { "@${it.handle}" } ?: "Not signed in",
+                        // A session the server ended says so, as on the iPhone and the web.
+                        value = account.account?.let { if (account.needsSignIn) "Signed out" else "@${it.handle}" } ?: "Not signed in",
                     ) {
                         onOpen(SettingsRoute.Account)
                     }

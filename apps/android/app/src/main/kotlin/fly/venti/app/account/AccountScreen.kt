@@ -198,7 +198,13 @@ fun AccountScreen(
                     nearby = nearby,
                 )
                 signUp != null -> ChooseHandle(account, signUp.second, wind.registration, scope)
-                else -> SignInForm(account, (wind.server as? WindServer.Usable)?.url, wind.googleSignIn, scope)
+                else -> SignInForm(
+                    account,
+                    (wind.server as? WindServer.Usable)?.url,
+                    wind.googleSignIn,
+                    scope,
+                    knowsWhatIsOffered = wind.hasAskedStatus,
+                )
             }
         }
     }
@@ -226,6 +232,8 @@ private fun SignInForm(
     /** Whether the server offers signing in with Google. */
     offersGoogle: Boolean,
     scope: CoroutineScope,
+    /** Whether the server's health was asked, which says whether it offers Google: a spinner until then. */
+    knowsWhatIsOffered: Boolean = true,
 ) {
     val context = LocalContext.current
     val google = remember { googleWords() }
@@ -253,6 +261,28 @@ private fun SignInForm(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
         )
+        return
+    }
+
+    // The server's name over the form, as on the iPhone and the web.
+    Text(
+        hostOf(server),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .padding(start = VentiSpace.s1, end = VentiSpace.s1, top = VentiSpace.s3, bottom = VentiSpace.s2)
+            .testTag("account-host")
+            .semantics { heading() },
+    )
+
+    if (!knowsWhatIsOffered) {
+        // Whether Google is offered decides the first way in: nothing to press until it is known.
+        Box(
+            Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("account-status-loading"),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator(Modifier.size(VentiSize.icon))
+        }
         return
     }
 
@@ -503,7 +533,8 @@ private fun SignedIn(
             }
         }
     }
-    if (account.isSignedIn && (signedIn.googleEmail != null || wind.googleSignIn)) {
+    // Shown, and not to be pressed, where the server ended the session: as on the iPhone.
+    if (signedIn.googleEmail != null || wind.googleSignIn) {
         Spacer(Modifier.height(VentiSpace.s3))
         Group {
             row {
@@ -512,7 +543,7 @@ private fun SignedIn(
                         google.linkGoogle,
                         MaterialTheme.colorScheme.primary,
                         Modifier.testTag("account-link-google"),
-                        enabled = !account.isWorking,
+                        enabled = !account.isWorking && !account.needsSignIn,
                     ) {
                         scope.launch { account.linkGoogle(account.googleIdTokens(context, signedIn.server)) }
                     }
@@ -521,7 +552,7 @@ private fun SignedIn(
                         google.unlinkGoogle,
                         MaterialTheme.colorScheme.primary,
                         Modifier.testTag("account-unlink-google"),
-                        enabled = !account.isWorking,
+                        enabled = !account.isWorking && !account.needsSignIn,
                     ) {
                         scope.launch { account.unlinkGoogle() }
                     }
@@ -589,31 +620,37 @@ private fun SignedIn(
         NearbySettings(nearby, scope)
     }
 
-    if (account.isSignedIn) {
-        // What other programs may do for the pilot: the core's name for it.
-        Spacer(Modifier.height(VentiSpace.s5))
-        Group {
+    // The account's other pages, not to be opened where the server ended the session.
+    Spacer(Modifier.height(VentiSpace.s5))
+    Group {
+        row {
+            LinkRow(
+                AlertWords.core.title,
+                R.drawable.ic_chevron_right,
+                Modifier.testTag("account-alerts"),
+                enabled = !account.needsSignIn,
+                onClick = onAlerts,
+            )
+        }
+        if (notifications != null) {
             row {
                 LinkRow(
-                    AlertWords.core.title,
+                    notifications,
                     R.drawable.ic_chevron_right,
-                    Modifier.testTag("account-alerts"),
-                    onClick = onAlerts,
+                    Modifier.testTag("account-notifications"),
+                    enabled = !account.needsSignIn,
+                    onClick = onNotifications,
                 )
             }
-            if (notifications != null) {
-                row {
-                    LinkRow(
-                        notifications,
-                        R.drawable.ic_chevron_right,
-                        Modifier.testTag("account-notifications"),
-                        onClick = onNotifications,
-                    )
-                }
-            }
-            row {
-                LinkRow(tokenForm().title, R.drawable.ic_chevron_right, Modifier.testTag("account-tokens"), onClick = onTokens)
-            }
+        }
+        row {
+            LinkRow(
+                tokenForm().title,
+                R.drawable.ic_chevron_right,
+                Modifier.testTag("account-tokens"),
+                enabled = !account.needsSignIn,
+                onClick = onTokens,
+            )
         }
     }
 
@@ -990,3 +1027,7 @@ private fun CountryRow(code: String?, name: String, isChosen: Boolean, onClick: 
         }
     }
 }
+
+/** A server's name as its address has it: the host alone, or the whole address where none can be read. */
+internal fun hostOf(address: String): String =
+    runCatching { java.net.URI(address).host }.getOrNull()?.takeIf { it.isNotEmpty() } ?: address

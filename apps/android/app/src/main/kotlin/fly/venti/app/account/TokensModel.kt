@@ -115,9 +115,6 @@ object TokenWords {
     const val NO_END = "No end"
     const val COPIED = "Copied"
 
-    /** What a screen reader says of the button that withdraws a token. */
-    fun withdraw(token: TokenView): String = "Withdraw the access of ${token.name}"
-
     /**
      * Under a token's name: what it may do, and when it was made, last used
      * and ends, each after the word the core names for it.

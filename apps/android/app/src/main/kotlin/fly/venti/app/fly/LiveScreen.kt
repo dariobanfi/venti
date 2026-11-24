@@ -215,6 +215,8 @@ private fun LiveTracking(fly: FlySession, account: AccountModel, preferences: Pr
                 row { ChoiceRow(each, isChosen = each == choice, enabled = isSignedIn) { choose(each) } }
             }
         }
+        // What the chosen one means, under them all, as on the iPhone.
+        SectionFooter(choice.explanation, Modifier.testTag("live-explanation"))
 
         fly.live?.let { live ->
             ThisFlight(
@@ -308,7 +310,7 @@ private fun ThisFlight(live: LiveShareView, onSend: () -> Unit, onDelete: () -> 
     }
 }
 
-/** One answer to "who can watch you fly", with what it means; the chosen one is ticked. */
+/** One answer to "who can watch you fly"; the chosen one is ticked. */
 @Composable
 private fun ChoiceRow(choice: LiveChoice, isChosen: Boolean, enabled: Boolean, onClick: () -> Unit) {
     // A choice that cannot be made is set in grey, as Material sets what is switched off.
@@ -318,22 +320,16 @@ private fun ChoiceRow(choice: LiveChoice, isChosen: Boolean, enabled: Boolean, o
             .fillMaxWidth()
             .testTag("live-${choice.name.lowercase()}")
             .selectable(selected = isChosen, enabled = enabled, role = Role.RadioButton, onClick = onClick)
-            .heightIn(min = 64.dp)
+            .heightIn(min = VentiSize.touch)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                choice.title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = faded),
-            )
-            Text(
-                choice.explanation,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = faded),
-            )
-        }
+        Text(
+            choice.title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = faded),
+            modifier = Modifier.weight(1f),
+        )
         Spacer(Modifier.width(12.dp))
         if (isChosen) {
             Icon(

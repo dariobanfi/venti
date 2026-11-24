@@ -6,6 +6,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,7 +17,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -27,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import fly.venti.app.design.Common
 import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
 import fly.venti.app.alerts.AlertNotifications
@@ -82,6 +87,39 @@ fun NearbySettings(model: NearbyModel, scope: CoroutineScope) {
     val change: (NearbyChoice) -> Unit = { choice -> scope.launch { model.change(choice) } }
 
     SectionHeader(NearbyWords.TITLE)
+    if (settings == null) {
+        // Not read yet: why it could not be, with the core's "Try again", or a spinner while it is read.
+        val problem = model.settingsProblem
+        Group(Modifier.testTag("nearby-settings")) {
+            row {
+                if (problem != null) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3),
+                        verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+                    ) {
+                        Text(
+                            problem,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.testTag("nearby-problem"),
+                        )
+                        OutlinedButton(
+                            onClick = { scope.launch { model.loadSettings() } },
+                            modifier = Modifier.heightIn(min = VentiSize.touch).testTag("nearby-try-again"),
+                        ) { Text(Common.words.tryAgain) }
+                    }
+                } else {
+                    Box(
+                        Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).padding(VentiSpace.s3).testTag("nearby-loading"),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(Modifier.size(VentiSize.icon))
+                    }
+                }
+            }
+        }
+        return
+    }
     Group(Modifier.testTag("nearby-settings")) {
         row {
             Column {

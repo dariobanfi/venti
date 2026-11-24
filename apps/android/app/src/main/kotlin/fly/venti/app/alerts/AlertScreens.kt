@@ -9,6 +9,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +27,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -44,6 +46,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.toggleable
+import fly.venti.app.design.ValueRow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -177,6 +182,10 @@ fun AlertsScreen(model: AlertsModel, scope: CoroutineScope, onSignIn: () -> Unit
                 }
                 return@Column
             }
+            // A fetch that did not come through, above the list the phone still shows.
+            model.problem?.let { words ->
+                FetchProblem(words, isTrying = model.isFetching) { scope.launch { model.fetch() } }
+            }
             SectionHeader(AlertWords.core.listTitle)
             if (model.held.isEmpty()) {
                 Quiet(AlertWords.core.listEmpty, "alerts-empty")
@@ -235,6 +244,34 @@ fun AlertsScreen(model: AlertsModel, scope: CoroutineScope, onSignIn: () -> Unit
             text = { Text(words) },
             confirmButton = { TextButton(onClick = { problem = null }) { Text(Common.words.ok) } },
         )
+    }
+}
+
+/** Why the alarms could not be fetched, with the core's "Try again". */
+@Composable
+private fun FetchProblem(words: String, isTrying: Boolean, onTryAgain: () -> Unit) {
+    Column(
+        Modifier.padding(top = VentiSpace.s2),
+        verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+    ) {
+        Row(
+            modifier = Modifier.testTag("alerts-problem").semantics(mergeDescendants = true) {},
+            horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painterResource(R.drawable.venti_caution),
+                contentDescription = null,
+                tint = Venti.colours.caution,
+                modifier = Modifier.size(VentiSize.icon),
+            )
+            Text(words, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        }
+        OutlinedButton(
+            onClick = onTryAgain,
+            enabled = !isTrying,
+            modifier = Modifier.heightIn(min = VentiSize.touch).testTag("alerts-try-again"),
+        ) { Text(Common.words.tryAgain) }
     }
 }
 
@@ -344,6 +381,35 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         modifier = Modifier.fillMaxWidth().testTag("alert-name"),
                     )
+                    // Where the alarm looks, and whether it is on: after the name, as on the iPhone and the web.
+                    Spacer(Modifier.height(VentiSpace.s2))
+                    Group {
+                        row {
+                            ValueRow(
+                                if (draft.kind == AlertKind.WIND) AlertWords.core.station else AlertWords.core.place,
+                                if (draft.kind == AlertKind.WIND) draft.stationName else draft.placeName,
+                                Modifier.testTag("alert-where"),
+                            )
+                        }
+                        row {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .toggleable(
+                                        value = draft.enabled,
+                                        role = Role.Switch,
+                                        onValueChange = { on -> draft = draft.copy(enabled = on) },
+                                    )
+                                    .testTag("alert-enabled")
+                                    .heightIn(min = VentiSize.touch)
+                                    .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(AlertWords.core.on, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                                Switch(checked = draft.enabled, onCheckedChange = null)
+                            }
+                        }
+                    }
                     // A new alarm for a place is one of two kinds: of the day
                     // the forecast makes there, or of the pilots in the air
                     // there. An alarm that stands keeps its kind.

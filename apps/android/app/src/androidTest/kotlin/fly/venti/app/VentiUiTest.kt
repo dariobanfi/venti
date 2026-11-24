@@ -677,7 +677,7 @@ class VentiUiTest {
             described("Thermal"),
             // Beside the map the thermal view, with the core's words about
             // the centre under it; the map keeps to the glide.
-            hasTestTag("thermal-view") and saying("The lift of the circles flown"),
+            hasTestTag("thermal-view") and saying("The last circles"),
             hasTestTag("thermal-words") and saying("Centred"),
             hasTestTag("thermal-wind") and saying("km/h from"),
             landing and saying("Sample landing field, arriving +"),
@@ -713,7 +713,7 @@ class VentiUiTest {
         // The thermal view stays on the glide (the owner, 2026-11-22): the
         // track behind the glider, and the wind the circles gave, large.
         waitForAll(
-            hasTestTag("thermal-view") and saying("The track behind the glider"),
+            hasTestTag("thermal-view") and saying("The track of the last minutes"),
             hasTestTag("thermal-wind") and saying("km/h from"),
         )
         letTheMapDraw(3)
@@ -1236,7 +1236,7 @@ class VentiUiTest {
         waitFor(hasText("Switched off: only your own files are used."))
         assertFalse(exists(hasTestTag("airspace-from-server")))
         // The airspace's own page says what that means; the Fly tab's row says "None".
-        assertTrue(exists(hasText("without airspace the cockpit warns of none", substring = true)))
+        assertTrue(exists(hasText("It knows the airspace listed here and no other. Where none of it reaches", substring = true)))
         tap(described("Back"))
         openCockpitSettings()
         waitFor(line and hasText("None"))
@@ -1476,6 +1476,8 @@ class VentiUiTest {
         assertTrue(exists(hasTestTag("account-link") and hasText("Not signed in")))
         tap(hasTestTag("account-link"))
         waitForThePasswordForm()
+        // The server's name stands over the form.
+        assertTrue(exists(hasTestTag("account-host")))
     }
 
     /**
@@ -1770,6 +1772,9 @@ class VentiUiTest {
         tap(hasTestTag("station-alert-me"))
         waitFor(hasTestTag("alert-form"))
         assertTrue(exists(hasTestTag("alert-name") and hasText("Zugspitze")))
+        // Under the name the station, and "On", as on the iPhone and the web.
+        assertTrue(exists(hasTestTag("alert-where")))
+        assertTrue(exists(hasTestTag("alert-enabled") and isOn()))
         // Nothing chosen: the core says what is missing, at the directions.
         screen.onNode(hasTestTag("alert-save")).performScrollTo().performClick()
         waitFor(hasTestTag("alert-fault") and hasText("The directions:", substring = true))
@@ -2480,6 +2485,14 @@ class VentiUiTest {
         assertTrue(TestDevice.lookAt(scenario, lat = 47.69, lon = 11.875, zoom = 11.0))
         waitForSites()
         seeInCredits(hasText("Sites: OpenStreetMap contributors"))
+        // The credits lead to "Data and licences", over the map, and back to it.
+        tap(hasTestTag("map-credits"))
+        waitFor(hasTestTag("map-credits-all"))
+        tap(hasTestTag("map-credits-all"))
+        waitFor(hasText("Base map"))
+        keepScreenshot("$prefix-sites-0-all-credits")
+        tap(described("Back"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("Base map")) }
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > 0
         }
@@ -7243,6 +7256,8 @@ class VentiUiTest {
             waitFor(hasTestTag("help-note"))
             screen.onNode(hasTestTag("help-note")).performTextInput("By the made-up river, anyone driving back? $run")
             waitFor(hasTestTag("help-ask") and isEnabled())
+            // Where the call goes from, as the iPhone says it.
+            assertTrue(exists(hasTestTag("help-place") and hasText("Where you are")))
             InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
             waitFor(hasTestTag("help-ask"))
             keepScreenshot("$prefix-help-2-ask")

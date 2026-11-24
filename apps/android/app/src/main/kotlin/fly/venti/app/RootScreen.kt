@@ -598,6 +598,7 @@ private fun Sections(
                             session.wind,
                             session.account,
                             offlineMaps = session.maps.inALine,
+                            airspace = session.airspace.inALine,
                             onOpen = { navigation.settingsRoute = it },
                             bars = bars,
                             onBack = { navigation.back() },

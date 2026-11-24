@@ -67,6 +67,7 @@ import fly.venti.app.community.Reported
 import fly.venti.app.design.Common
 import fly.venti.app.design.Format
 import fly.venti.app.design.Venti
+import fly.venti.app.design.numbers
 import fly.venti.app.today.PilotPosition
 import fly.venti.core.Coordinate
 import fly.venti.core.HelpView
@@ -96,6 +97,7 @@ object HelpWords {
     const val NO_POSITION = "Venti needs to know where you are to ask pilots nearby."
     const val USE_POSITION = "Use my position"
     const val WAITING_FOR_POSITION = "Finding where you are"
+    const val WHERE_YOU_ARE = "Where you are"
     const val SIGNED_OUT = "Sign in to ask pilots nearby for help, or to be asked."
     const val SIGN_IN = "Sign in"
     const val REPORT = "Report this request"
@@ -329,7 +331,21 @@ private fun AskForm(model: NearbyModel, requests: CoroutineScope, landedAt: Coor
             modifier = Modifier.fillMaxWidth().testTag("help-note"),
         )
         when {
-            at != null -> Unit
+            // Where the call goes from, in the numbers a phone's maps take.
+            at != null -> Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("help-place")
+                    .semantics(mergeDescendants = true) {},
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(HelpWords.WHERE_YOU_ARE, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Text(
+                    HelpWords.place(at),
+                    style = MaterialTheme.typography.bodyLarge.numbers,
+                    color = Venti.colours.textSecondary,
+                )
+            }
             isLooking -> Text(HelpWords.WAITING_FOR_POSITION, style = MaterialTheme.typography.bodyMedium, color = Venti.colours.textSecondary)
             else -> Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
                 Text(HelpWords.NO_POSITION, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("help-no-position"))

@@ -56,6 +56,8 @@ import fly.venti.core.AirspaceFile
 import fly.venti.core.KeptAirspace
 import kotlinx.coroutines.launch
 import fly.venti.app.design.Common
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 
 /**
  * The pilot's airspace: what the app keeps from the pilot's server, and the
@@ -183,7 +185,7 @@ fun AirspaceScreen(
                     "about to enter or are inside.",
             )
             SectionFooter(
-                "It knows the airspace listed here and no other: without airspace the cockpit warns of none. Where none of it reaches, the cockpit " +
+                "It knows the airspace listed here and no other. Where none of it reaches, the cockpit " +
                     "says that nothing is checked there; an old file it cannot tell from a new one. It " +
                     "does not know which areas are active today. For Germany and Austria it knows the " +
                     "rules a paraglider flies under; anywhere else it goes by an airspace's class and " +
@@ -247,11 +249,15 @@ private fun Note(text: String, icon: Int, colour: Color, inRow: Boolean = false)
     }
 }
 
-/** One file: its name, what it holds, and in red what of it could not be read. Press and hold to delete it. */
+/**
+ * One file: its name, what it holds, and in red what of it could not be
+ * read. Press and hold to remove it, which asks first, in the web's words.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FileRow(file: AirspaceFile, onDelete: () -> Unit) {
     var isShowingMenu by remember { mutableStateOf(false) }
+    var isAsking by remember { mutableStateOf(false) }
     Box {
         Column(
             Modifier
@@ -260,7 +266,7 @@ private fun FileRow(file: AirspaceFile, onDelete: () -> Unit) {
                 .combinedClickable(
                     onClick = {},
                     onLongClick = { isShowingMenu = true },
-                    onLongClickLabel = "Delete",
+                    onLongClickLabel = AirspaceFileWords.REMOVE,
                 )
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
@@ -285,12 +291,39 @@ private fun FileRow(file: AirspaceFile, onDelete: () -> Unit) {
         }
         DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
             DropdownMenuItem(
-                text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                text = { Text(AirspaceFileWords.REMOVE, color = MaterialTheme.colorScheme.error) },
                 onClick = {
                     isShowingMenu = false
-                    onDelete()
+                    isAsking = true
                 },
+                modifier = Modifier.testTag("airspace-file-remove"),
             )
         }
     }
+    if (isAsking) {
+        AlertDialog(
+            onDismissRequest = { isAsking = false },
+            title = { Text(AirspaceFileWords.QUESTION) },
+            text = { Text(AirspaceFileWords.WHAT_IT_DOES) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        isAsking = false
+                        onDelete()
+                    },
+                    modifier = Modifier.testTag("airspace-file-remove-confirm"),
+                ) { Text(AirspaceFileWords.CONFIRM, color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { isAsking = false }) { Text(Common.words.cancel) } },
+        )
+    }
+}
+
+/** What removing an airspace file says: the web's words, with what the cockpit does. */
+object AirspaceFileWords {
+    const val REMOVE = "Remove"
+    const val QUESTION = "Remove this file?"
+    const val WHAT_IT_DOES =
+        "Its airspace is no longer drawn, and the cockpit no longer warns of it. The file you brought in from is not touched."
+    const val CONFIRM = "Remove file"
 }

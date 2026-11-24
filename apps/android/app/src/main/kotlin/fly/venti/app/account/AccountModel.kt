@@ -555,11 +555,17 @@ class AccountModel(
      */
     suspend fun syncAlerts(): List<FiredLine> = if (isSignedIn) runAlertsSync() else emptyList()
 
+    /** Why the last fetch of the alarms did not come to its end, in words for the pilot; `null` when it did. */
+    var alertsProblem: String? by mutableStateOf(null)
+        private set
+
     private suspend fun runAlertsSync(): List<FiredLine> {
         val server = account?.server?.takeIf { isSignedIn } ?: return emptyList()
         val new = alertsRun.withLock {
             val run = core.alertsSync()
-            val end = toItsEnd(server, reportsProblems = false, { run.start() }, run::receive)
+            var fault: String? = null
+            val end = toItsEnd(server, reportsProblems = false, { run.start() }, run::receive, onProblem = { fault = it })
+            alertsProblem = fault
             if (end is SyncStep.Finished) {
                 withContext(background) { run.newLines(utcOffsetSeconds(clock())) }
             } else {
@@ -614,6 +620,8 @@ class AccountModel(
         reportsProblems: Boolean,
         start: () -> SyncStep,
         receive: (UShort, ByteArray, UInt?) -> SyncStep,
+        /** Told why the run did not come to its end, whether or not the problem is reported. */
+        onProblem: (String) -> Unit = {},
     ): SyncStep {
         var step = withContext(background) { start() }
         while (true) {
@@ -625,12 +633,15 @@ class AccountModel(
                 throw error
             } catch (error: Exception) {
                 // What was done so far is kept; the next sync goes on.
-                if (reportsProblems) problem = words(error)
+                val said = words(error)
+                onProblem(said)
+                if (reportsProblems) problem = said
                 break
             }
         }
         val end = step
         if (end is SyncStep.Failed) {
+            onProblem(end.message)
             if (end.needsSignIn) {
                 withContext(background) { session.remove() }
             }

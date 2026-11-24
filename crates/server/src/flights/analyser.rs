@@ -260,6 +260,8 @@ struct Wire {
     outline: Vec<[f64; 2]>,
     profile: Vec<[i32; 2]>,
     habits: Option<String>,
+    #[serde(default)]
+    takeoff_country: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -305,6 +307,7 @@ impl From<Derivation> for Wire {
             outline: derived.outline,
             profile: derived.profile,
             habits: derived.habits,
+            takeoff_country: derived.takeoff_country,
         }
     }
 }
@@ -345,6 +348,7 @@ impl TryFrom<Wire> for Derivation {
                 outline: wire.outline,
                 profile: wire.profile,
                 habits: wire.habits,
+                takeoff_country: wire.takeoff_country,
             },
         })
     }

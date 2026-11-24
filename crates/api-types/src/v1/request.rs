@@ -6,7 +6,7 @@
 use chrono::{DateTime, NaiveDate, SecondsFormat, Utc};
 use venti_domain::{BoundingBox, GeoError, GeoPoint, SiteId, StationId, Timestamp};
 
-use super::{FlightId, GroupId, Handle, LiveTrackId, PlanId, YearMonth};
+use super::{FlightFilters, FlightId, GroupId, Handle, LiveTrackId, PlanId, YearMonth};
 
 /// Path of the health endpoint.
 pub const HEALTH_PATH: &str = "/v1/health";
@@ -661,6 +661,9 @@ pub struct PublicFlightsRequest {
     /// flights `GET /v1/sites/{id}/flights` counts. A site that is no
     /// take-off has none.
     pub site: Option<SiteId>,
+    /// The circle, the area drawn on the map, the glider class, the kind
+    /// of route, the least distance and the take-off's country.
+    pub filters: FlightFilters,
     /// The order. `None` leaves it to the server, which lists the newest
     /// first.
     pub sort: Option<FlightSort>,
@@ -681,12 +684,19 @@ impl PublicFlightsRequest {
             Some(bbox) => format!("{PUBLIC_FLIGHTS_PATH}?bbox={}", format_bbox(bbox)),
             None => PUBLIC_FLIGHTS_PATH.to_owned(),
         };
-        with_query(
+        let path = with_query(
             path,
             [
                 ("from", self.from.map(format_time)),
                 ("to", self.to.map(format_time)),
                 ("site", self.site.as_ref().map(ToString::to_string)),
+            ],
+        );
+        let path = with_plain(path, self.filters.plain_parameters());
+        let path = with_query(path, self.filters.parameters());
+        with_query(
+            path,
+            [
                 ("sort", self.sort.map(|sort| sort.as_str().to_owned())),
                 ("after", self.after.clone()),
                 ("limit", self.limit.map(|limit| limit.to_string())),
@@ -760,6 +770,9 @@ pub struct RankingRequest {
     /// Only flights that started in this month by UTC count: a `from` and
     /// a `to` in one word, and not to be sent with either.
     pub month: Option<YearMonth>,
+    /// Only flights that took off or were flown so count: the filters of
+    /// the list of public flights.
+    pub filters: FlightFilters,
     /// How many pilots to return from the top, at most
     /// [`MAX_PAGE_SIZE`](super::MAX_PAGE_SIZE). The server's default is
     /// [`DEFAULT_PAGE_SIZE`](super::DEFAULT_PAGE_SIZE).
@@ -773,15 +786,17 @@ impl RankingRequest {
             Some(bbox) => format!("{RANKING_PATH}?bbox={}", format_bbox(bbox)),
             None => RANKING_PATH.to_owned(),
         };
-        with_query(
+        let path = with_query(
             path,
             [
                 ("from", self.from.map(format_time)),
                 ("to", self.to.map(format_time)),
                 ("month", self.month.map(|month| month.to_string())),
-                ("limit", self.limit.map(|limit| limit.to_string())),
             ],
-        )
+        );
+        let path = with_plain(path, self.filters.plain_parameters());
+        let path = with_query(path, self.filters.parameters());
+        with_query(path, [("limit", self.limit.map(|limit| limit.to_string()))])
     }
 }
 
@@ -799,6 +814,25 @@ pub(super) fn with_query<const N: usize>(
             path.push('=');
             path.push_str(&encode(&value));
             separator = '&';
+        }
+    }
+    path
+}
+
+/// Appends parameters whose values are numbers and commas, which need no
+/// escaping, as they are.
+fn with_plain<const N: usize>(mut path: String, parameters: [(&str, Option<String>); N]) -> String {
+    for (name, value) in parameters {
+        if let Some(value) = value {
+            debug_assert!(
+                value
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || b".,-e".contains(&b))
+            );
+            path.push(if path.contains('?') { '&' } else { '?' });
+            path.push_str(name);
+            path.push('=');
+            path.push_str(&value);
         }
     }
     path

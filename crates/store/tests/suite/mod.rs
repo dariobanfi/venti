@@ -184,6 +184,7 @@ macro_rules! store_suite {
             public_flights_are_listed_newest_first_whoever_flew_them,
             what_is_not_public_is_in_no_list_of_public_flights,
             public_flights_are_found_by_where_they_took_off,
+            public_flights_are_found_by_every_filter,
             public_flights_are_found_by_when_they_started,
             public_flights_are_listed_best_first_by_their_points,
             pilots_are_ranked_by_the_sum_of_their_best_public_flights,

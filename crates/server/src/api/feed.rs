@@ -25,11 +25,14 @@ use axum::response::Response;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use venti_api_types::v1::{
-    ErrorCode, FlightId, FlightSort, FlightTerms, FlightsResponse, PublicFlightChangesResponse,
-    WithdrawnFlight, parse_bbox, parse_time,
+    ErrorCode, FlightFilters, FlightId, FlightSort, FlightTerms, FlightsResponse,
+    PublicFlightChangesResponse, SearchError, SentFilters, WithdrawnFlight, glider_class_name,
+    parse_bbox, parse_time, route_kind_name,
 };
 use venti_domain::Timestamp;
-use venti_store::{PublicFlights, PublicOrder, ScoreKey, Store, Visibility};
+use venti_store::{
+    GliderClass, Near, PublicFlights, PublicOrder, ScoreKey, ScoreKind, Store, Visibility,
+};
 
 use super::budget::Reader;
 use super::cache::Keeper;
@@ -71,6 +74,64 @@ fn address_hash(id: &str) -> String {
 const BBOX_HELP: &str =
     "give bbox as west,south,east,north in degrees, for example bbox=11.6,47.55,12.0,47.85";
 
+/// The parameters of the filters beyond the box, the days and the site,
+/// which the list and the ranking take alike ([`FlightFilters`]).
+#[derive(Debug, Default, Deserialize)]
+pub(crate) struct FilterParams {
+    near: Option<String>,
+    radius_km: Option<String>,
+    area: Option<String>,
+    class: Option<String>,
+    kind: Option<String>,
+    min_km: Option<String>,
+    country: Option<String>,
+}
+
+impl FilterParams {
+    /// The filters, or why they were refused.
+    fn read(&self) -> Result<FlightFilters, ApiError> {
+        FlightFilters::parse(&SentFilters {
+            near: self.near.as_deref(),
+            radius_km: self.radius_km.as_deref(),
+            area: self.area.as_deref(),
+            class: self.class.as_deref(),
+            kind: self.kind.as_deref(),
+            min_km: self.min_km.as_deref(),
+            country: self.country.as_deref(),
+        })
+        .map_err(|error| {
+            let code = match error {
+                SearchError::Class
+                | SearchError::Kind
+                | SearchError::MinDistance
+                | SearchError::Country => ErrorCode::InvalidRequest,
+                _ => ErrorCode::InvalidPosition,
+            };
+            ApiError::bad_request(code, error.to_string())
+        })
+    }
+}
+
+/// What the store is asked for of the filters.
+pub(crate) fn narrowed(mut which: PublicFlights, filters: FlightFilters) -> PublicFlights {
+    which.near = filters.near.map(|circle| Near {
+        place: circle.centre,
+        within_m: circle.radius_m(),
+    });
+    which.drawn = filters.area;
+    which.class = filters
+        .class
+        .and_then(glider_class_name)
+        .and_then(GliderClass::from_name);
+    which.kind = filters
+        .kind
+        .and_then(route_kind_name)
+        .and_then(ScoreKind::from_name);
+    which.min_distance_m = filters.min_km.map(|km| km * 1000.0);
+    which.country = filters.country;
+    which
+}
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct Params {
     pilot: Option<String>,
@@ -78,6 +139,8 @@ pub(crate) struct Params {
     from: Option<String>,
     to: Option<String>,
     site: Option<String>,
+    #[serde(flatten)]
+    filters: FilterParams,
     sort: Option<String>,
     after: Option<String>,
     limit: Option<String>,
@@ -125,13 +188,15 @@ fn moment(name: &str, text: Option<&str>) -> Result<Option<Timestamp>, ApiError>
 }
 
 /// Which of everyone's public flights a request means, from its `bbox`,
-/// `from` and `to` as they were sent. The ranking is asked in the same
-/// words.
+/// `from`, `to` and filters as they were sent. The ranking is asked in the
+/// same words.
 pub(super) fn which(
     bbox: Option<&str>,
     from: Option<&str>,
     to: Option<&str>,
+    filters: &FilterParams,
 ) -> Result<PublicFlights, ApiError> {
+    let filters = filters.read()?;
     let area = bbox
         .map(|bbox| {
             parse_bbox(bbox).map_err(|error| {
@@ -148,13 +213,15 @@ pub(super) fn which(
              after from and before to",
         ));
     }
-    Ok(PublicFlights {
-        pilot: None,
-        area,
-        from,
-        before: to,
-        near: None,
-    })
+    Ok(narrowed(
+        PublicFlights {
+            area,
+            from,
+            before: to,
+            ..PublicFlights::default()
+        },
+        filters,
+    ))
 }
 
 /// `GET /v1/flights/public`: one page of everyone's public flights.
@@ -178,6 +245,7 @@ pub(crate) async fn list<S: Store>(
             params.bbox.as_deref(),
             params.from.as_deref(),
             params.to.as_deref(),
+            &params.filters,
         )?
     };
     let sort = match params.sort.as_deref() {
@@ -189,6 +257,13 @@ pub(crate) async fn list<S: Store>(
             })?,
     };
     if let Some(site) = params.site.as_deref() {
+        if which.near.is_some() {
+            return Err(ApiError::bad_request(
+                ErrorCode::InvalidRequest,
+                "site is a place and a distance of its own: send site, or near and radius_km, \
+                 and not both",
+            ));
+        }
         match api.began_at_site(site).await? {
             Some(near) => which.near = Some(near),
             // No flight begins at a site that is no take-off.

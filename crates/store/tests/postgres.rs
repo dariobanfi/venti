@@ -176,7 +176,7 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
         versions,
         [
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-            25, 26, 27, 28, 29, 30, 31, 32, 33
+            25, 26, 27, 28, 29, 30, 31, 32, 33, 34
         ]
     );
 }
@@ -200,6 +200,7 @@ async fn accounts_from_before_the_setting_make_their_new_flights_public() {
          ALTER TABLE accounts DROP COLUMN google_picture_tried;
          ALTER TABLE accounts DROP COLUMN shown_near_places;
          ALTER TABLE flights DROP COLUMN habits;
+         ALTER TABLE flights DROP COLUMN takeoff_country;
          DROP TABLE open_plan_pilots;
          DROP TABLE open_plans;
          DROP TABLE help_recipients;
@@ -804,18 +805,33 @@ async fn the_questions_about_public_flights_use_their_indexes() {
     };
 
     // The newest, the page after a flight, and the flights of a day.
-    in_order(&plan_of("", newest).await, "flights_public_newest_idx");
+    in_order(
+        &plan_of("", newest).await,
+        "flights_public_newest_cover_idx",
+    );
     let after = "AND (f.started_at, f.id) < ('2026-06-01 10:00+00', '00000000000000000000012345')";
-    in_order(&plan_of(after, newest).await, "flights_public_newest_idx");
+    in_order(
+        &plan_of(after, newest).await,
+        "flights_public_newest_cover_idx",
+    );
     let a_day =
         "AND f.started_at >= '2026-06-01 00:00+00' AND f.started_at < '2026-06-02 00:00+00'";
-    in_order(&plan_of(a_day, newest).await, "flights_public_newest_idx");
+    in_order(
+        &plan_of(a_day, newest).await,
+        "flights_public_newest_cover_idx",
+    );
 
     // The best, and the page after a flight.
     let scored = "AND f.score_points IS NOT NULL";
-    in_order(&plan_of(scored, best).await, "flights_public_score_idx");
+    in_order(
+        &plan_of(scored, best).await,
+        "flights_public_score_cover_idx",
+    );
     let after = "AND f.score_points IS NOT NULL AND (f.score_points, f.id) < (42.5, '00000000000000000000012345')";
-    in_order(&plan_of(after, best).await, "flights_public_score_idx");
+    in_order(
+        &plan_of(after, best).await,
+        "flights_public_score_cover_idx",
+    );
 
     // The best of one day: the day's few flights are found by their start
     // and then sorted, which is less work than walking every flight there
@@ -826,7 +842,7 @@ async fn the_questions_about_public_flights_use_their_indexes() {
         best,
     )
     .await;
-    assert!(plan.contains("flights_public_newest_idx"), "{plan}");
+    assert!(plan.contains("flights_public_newest_cover_idx"), "{plan}");
     assert!(!plan.contains("Seq Scan on flights"), "{plan}");
 
     // A box around one take-off holds a few flights: they are found by
@@ -846,7 +862,7 @@ async fn the_questions_about_public_flights_use_their_indexes() {
          AND f.takeoff_lon BETWEEN 5.0 AND 18.0 AND f.takeoff_lat BETWEEN 44.0 AND 50.0";
     in_order(
         &plan_of(everything, newest).await,
-        "flights_public_newest_idx",
+        "flights_public_newest_cover_idx",
     );
 }
 
@@ -1322,4 +1338,45 @@ async fn the_questions_about_groups_and_plans_use_their_indexes() {
     // The plans of days gone by:
     let plan = plan_of("EXPLAIN DELETE FROM group_plans WHERE day < '2026-11-16'").await;
     assert!(plan.contains("group_plans_day_idx"), "{plan}");
+}
+
+#[path = "scale/queries.rs"]
+mod queries;
+
+/// Every page of everyone's flights the API asks for is found along an
+/// index, whatever its filters: none reads the whole table of flights
+/// (docs/plan.md, the owner's queue, "Flight search that holds at scale").
+/// Over 100,000 made-up flights, which are enough for the planner to tell
+/// an index from a scan; `tests/scale.rs` measures the same questions over
+/// 3.6 million. The ranking adds up every flight of its span and is not
+/// held to it.
+#[tokio::test]
+async fn flight_searches_use_the_indexes() {
+    let Some(url) = fresh_schema("flight_searches_use_the_indexes").await else {
+        return;
+    };
+    let store = PgStore::connect(&url).await.unwrap();
+    let (client, connection) = tokio_postgres::connect(&url, NoTls).await.unwrap();
+    tokio::spawn(connection);
+    client
+        .batch_execute(include_str!("scale/seed.sql"))
+        .await
+        .unwrap();
+    client
+        .batch_execute("SELECT seed_flights(2000, 100000, 5000); ANALYZE flights; ANALYZE accounts")
+        .await
+        .unwrap();
+
+    let centre = queries::centre(&url).await;
+    let mut whole = Vec::new();
+    for (name, asked) in queries::questions(centre, "seedacc00000001") {
+        if matches!(asked, queries::Asked::Ranking(_)) {
+            continue;
+        }
+        let plan = queries::explain(&store, &asked).await.unwrap();
+        if queries::reads_all_flights(&plan) {
+            whole.push(format!("{name}:\n{plan}"));
+        }
+    }
+    assert!(whole.is_empty(), "read the whole table: {whole:#?}");
 }

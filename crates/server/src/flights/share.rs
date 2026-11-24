@@ -725,6 +725,7 @@ pub(crate) mod tests {
                 ],
                 profile: vec![[0, 1620], [1800, 2817], [6000, 1900], [8040, 742]],
                 habits: None,
+                takeoff_country: None,
             },
             change: 1,
         }

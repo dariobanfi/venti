@@ -25,7 +25,9 @@ use venti_store::{Derived, Place, Score, ScoreKind};
 ///
 /// Version 2 (2026-11-23) keeps how each flight was flown
 /// ([`venti_flight::habits`]), for the pilot's own "How you fly".
-pub const ANALYSIS_VERSION: u32 = 2;
+/// Version 3 (2026-11-23) keeps the country the glider took off in, so
+/// that flights can be searched by it.
+pub const ANALYSIS_VERSION: u32 = 3;
 
 /// The most fixes a file may hold: more than a day at one fix a second.
 /// A file within the size limit can hold only a few more, so this refuses
@@ -144,6 +146,11 @@ pub fn derive(file: &[u8]) -> Result<Derivation, Unusable> {
                 .collect(),
             // Counts and sums of finite numbers, which JSON always holds.
             habits: serde_json::to_string(&figures).ok(),
+            takeoff_country: analysis
+                .takeoff
+                .as_ref()
+                .and_then(|takeoff| super::country::country_at(takeoff.position))
+                .map(str::to_owned),
         },
     })
 }

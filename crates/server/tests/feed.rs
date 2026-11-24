@@ -8,8 +8,8 @@ use axum::Router;
 use axum::http::{Method, StatusCode, header};
 use chrono::{NaiveDate, TimeZone, Utc};
 use venti_api_types::v1::{
-    ErrorCode, Flight, FlightId, FlightSort, FlightsResponse, PUBLIC_FLIGHTS_PATH,
-    PublicFlightsRequest, Visibility, flight_path,
+    Circle, ErrorCode, Flight, FlightFilters, FlightId, FlightSort, FlightsResponse,
+    PUBLIC_FLIGHTS_PATH, PublicFlightsRequest, Visibility, flight_path, parse_area,
 };
 use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 use venti_flight::igc::{self, IgcFile};
@@ -258,6 +258,169 @@ async fn the_development_mode_lists_eleven_public_flights_of_six_pilots() {
         ..everything()
     };
     assert!(list(&router, &elsewhere).await.flights.is_empty());
+}
+
+#[tokio::test]
+async fn the_list_is_searched_as_xcontest_searches_it() {
+    let router = recorded().await;
+    let all = list(&router, &everything()).await.flights;
+    let found = |filters: FlightFilters, sort: Option<FlightSort>| {
+        let router = router.clone();
+        async move {
+            list(
+                &router,
+                &PublicFlightsRequest {
+                    filters,
+                    sort,
+                    ..everything()
+                },
+            )
+            .await
+        }
+    };
+    let such = |keep: &dyn Fn(&Flight) -> bool| -> Vec<FlightId> {
+        all.iter()
+            .filter(|flight| keep(flight))
+            .map(|flight| flight.id.clone())
+            .collect()
+    };
+    let took_off = |flight: &Flight| flight.takeoff.unwrap().position;
+
+    // Ten kilometres around the first flight's take-off hold the five
+    // from the Tegernsee and none of the six from the made-up sites.
+    let centre = took_off(&all[0]);
+    let circle = FlightFilters {
+        near: Some(Circle::new(centre, 10.0).unwrap()),
+        ..FlightFilters::default()
+    };
+    let near = found(circle.clone(), None).await;
+    assert_eq!(ids(&near.flights), ids(&all[..5]));
+    let best_near = found(circle, Some(FlightSort::Score)).await;
+    assert_eq!(best_near.flights.len(), 5);
+    assert_golden(
+        &golden("public_flights_search.json"),
+        &example(FlightsResponse {
+            flights: best_near.flights[..2].to_vec(),
+            ..best_near
+        }),
+    );
+
+    // An area drawn around the made-up sites holds their six.
+    let drawn = FlightFilters {
+        area: Some(parse_area("47.32,10.85,47.32,10.95,47.25,10.95,47.25,10.85").unwrap()),
+        ..FlightFilters::default()
+    };
+    assert_eq!(ids(&found(drawn, None).await.flights), ids(&all[5..]));
+
+    // The class, the kind of route, the least distance and the country
+    // find the flights that have them, whichever those are.
+    let class = all.iter().find_map(|flight| flight.glider_class);
+    if let Some(class) = class {
+        let with_class = FlightFilters {
+            class: Some(class),
+            ..FlightFilters::default()
+        };
+        assert_eq!(
+            found(with_class, None)
+                .await
+                .flights
+                .iter()
+                .map(|f| f.id.clone())
+                .collect::<Vec<_>>(),
+            such(&|flight| flight.glider_class == Some(class))
+        );
+    }
+    let kind = all[0].score.unwrap().kind;
+    let with_kind = FlightFilters {
+        kind: Some(kind),
+        ..FlightFilters::default()
+    };
+    assert_eq!(
+        found(with_kind, None)
+            .await
+            .flights
+            .iter()
+            .map(|f| f.id.clone())
+            .collect::<Vec<_>>(),
+        such(&|flight| flight.score.is_some_and(|score| score.kind == kind))
+    );
+    let least = all[0].score.unwrap().distance_m / 1000.0;
+    let long = FlightFilters {
+        min_km: Some(least),
+        ..FlightFilters::default()
+    };
+    assert_eq!(
+        found(long, None)
+            .await
+            .flights
+            .iter()
+            .map(|f| f.id.clone())
+            .collect::<Vec<_>>(),
+        such(&|flight| flight
+            .score
+            .is_some_and(|score| score.distance_m / 1000.0 >= least))
+    );
+    let country = all[0]
+        .takeoff_country
+        .clone()
+        .expect("the Tegernsee lies in a country the server has an outline of");
+    let in_country = FlightFilters {
+        country: Some(country.to_lowercase()),
+        ..FlightFilters::default()
+    };
+    assert_eq!(
+        found(in_country, None)
+            .await
+            .flights
+            .iter()
+            .map(|f| f.id.clone())
+            .collect::<Vec<_>>(),
+        such(&|flight| flight.takeoff_country.as_ref() == Some(&country))
+    );
+
+    // A pilot's flights and the ranking take the same filters.
+    let pilot = &all[0].pilot.handle;
+    let theirs: FlightsResponse = get(
+        &router,
+        &PublicFlightsRequest {
+            filters: FlightFilters {
+                near: Some(Circle::new(centre, 10.0).unwrap()),
+                ..FlightFilters::default()
+            },
+            ..everything()
+        }
+        .path_and_query_of(pilot),
+    )
+    .await
+    .ok(StatusCode::OK);
+    assert!(!theirs.flights.is_empty());
+    assert!(
+        theirs
+            .flights
+            .iter()
+            .all(|flight| &flight.pilot.handle == pilot)
+    );
+    let ranked: venti_api_types::v1::RankingResponse = get(
+        &router,
+        &venti_api_types::v1::RankingRequest {
+            filters: FlightFilters {
+                near: Some(Circle::new(centre, 10.0).unwrap()),
+                ..FlightFilters::default()
+            },
+            ..venti_api_types::v1::RankingRequest::default()
+        }
+        .path_and_query(),
+    )
+    .await
+    .ok(StatusCode::OK);
+    assert!(!ranked.pilots.is_empty());
+    assert!(
+        ranked
+            .pilots
+            .iter()
+            .flat_map(|pilot| &pilot.flights)
+            .all(|flight| ids(&all[..5]).contains(&&flight.id))
+    );
 }
 
 #[tokio::test]
@@ -685,6 +848,36 @@ async fn a_question_that_cannot_be_read_is_explained() {
         "after=0_0123456789abcdefghjkmnpqrs'%20OR%20'1'='1",
     ] {
         refused(cursor, ErrorCode::InvalidCursor).await;
+    }
+
+    // The filters of a search, each out of its bounds.
+    for position in [
+        "near=47.2,11.4",
+        "radius_km=10",
+        "near=47.2&radius_km=10",
+        "near=north,east&radius_km=10",
+        "near=91,11&radius_km=10",
+        "near=47.2,11.4&radius_km=0.5",
+        "near=47.2,11.4&radius_km=101",
+        "area=47.3,11.3,47.2,11.5",
+        "area=47.3,11.3,47.2,11.5,47.3,11.5,47.2,11.3",
+        "area=47.3,11.3,47.2",
+    ] {
+        refused(position, ErrorCode::InvalidPosition).await;
+    }
+    let long_area = format!("{PUBLIC_FLIGHTS_PATH}?area={}", "1".repeat(1200));
+    get(&router, &long_area)
+        .await
+        .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidPosition);
+    for other in [
+        "class=en-b",
+        "kind=triangle",
+        "min_km=-1",
+        "min_km=5000",
+        "country=AUT",
+        "site=x&near=47.2,11.4&radius_km=10",
+    ] {
+        refused(other, ErrorCode::InvalidRequest).await;
     }
 
     // The list is read and nothing else.

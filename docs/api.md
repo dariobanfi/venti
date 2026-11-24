@@ -6641,7 +6641,7 @@ The answer is `201` when the upload created the flight, and `200` when the accou
       ]
     ],
     "file_bytes": 64678,
-    "analysis_version": 2,
+    "analysis_version": 3,
     "published_at": "2026-11-18T19:05:00Z"
   },
   "created": true
@@ -6742,7 +6742,7 @@ Needs a token. What happened to the account's flights since the device last aske
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 2,
+      "analysis_version": 3,
       "published_at": "2026-11-18T19:05:00Z"
     },
     {
@@ -6786,7 +6786,7 @@ Needs a token. What happened to the account's flights since the device last aske
         ]
       ],
       "file_bytes": 64678,
-      "analysis_version": 2
+      "analysis_version": 3
     }
   ],
   "deleted": [],
@@ -6919,7 +6919,7 @@ curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg
       ]
     ],
     "file_bytes": 68008,
-    "analysis_version": 2,
+    "analysis_version": 3,
     "published_at": "2026-11-18T19:05:00Z"
   },
   "terms": {
@@ -8097,11 +8097,23 @@ Everyone's public flights in one list: what pilots flew, the newest first. Anyon
 | `from` | An RFC 3339 time: only flights that started at this moment or later | No bound |
 | `to` | An RFC 3339 time: only flights that started **before** this moment. It must be later than `from` | No bound |
 | `site` | A site's identifier, of any layer: only the flights that **began at** the site, those that took off within 500 m of it as it stands, the flights [what flights say about it](#what-public-flights-say-about-a-site) counts. A site that is no take-off (a landing field, a training slope) has none: an empty list. A site the server does not have is `404` with `site_not_found`, one that pilots removed `410` with `site_gone` | Flights from anywhere |
+| `near`, `radius_km` | `near` a place as `lat,lon` in degrees and `radius_km` 1 to 100 kilometres, the two together: only flights that **took off** within that distance of the place, edges included, on the FAI sphere. Not sent with `site`, which is a place and a distance of its own (`400` `invalid_request`). One without the other, a place that is none or a radius out of bounds is `400` `invalid_position` | Flights from anywhere |
+| `area` | An area drawn on the map: its corners in the order drawn, `lat,lon,lat,lon,…` in degrees, three to 50 of them, at most 1,100 characters, edges that do not cross, within 180 degrees of longitude. The first corner may be repeated at the end. Only flights that **took off** inside it, edges included, on the plane of longitude and latitude. Anything else is `400` `invalid_position` | Flights from anywhere |
+| `class` | `en_a`, `en_b`, `en_c`, `en_d` or `ccc`: only flights flown on a glider of that class, as `glider_class` says. A flight whose class is not known is in no class | Every class and none |
+| `kind` | `free_flight`, `free_triangle` or `fai_triangle`: only flights scored as that kind of route, `score.kind` | Every kind |
+| `min_km` | Kilometres, 0 to 1,000: only flights whose scoring distance, `score.distance_m`, is at least that. A flight too short to score is left out | No bound |
+| `country` | Two letters, an ISO 3166-1 alpha-2 code in either case: only flights that took off in that country, as `takeoff_country` says. A flight outside the outlines the server has (outside Europe today) is in no country. `class`, `kind`, `min_km` and `country` out of bounds are `400` `invalid_request` | Every country |
 | `sort` | `newest`: by the start of the flight, the latest first. `score`: by `score.points`, the most first; a flight too short to score is not in that list | `newest` |
 | `limit` | How many flights to return, 1 to 100 | 50 |
 | `after` | The `next` of the answer before, with every other parameter as it was | The top of the list |
 
-Every parameter narrows the list or orders it. They can all be used together: the best flights of a day in a part of the map are `bbox`, `from`, `to` and `sort=score`, and one pilot's flights from one valley in one season are `pilot`, `bbox`, `from` and `to`.
+Every parameter narrows the list or orders it. They can all be used together: the best flights of a day in a part of the map are `bbox`, `from`, `to` and `sort=score`, and one pilot's flights from one valley in one season are `pilot`, `bbox`, `from` and `to`. A search as XContest's "Worldwide flights search" makes it is `near` and `radius_km` (or `area`) with `from`, `to`, `class` and `kind`; the best FAI triangles of at least 50 km from within 10 km of Innsbruck:
+
+```bash
+curl 'http://127.0.0.1:8080/v1/flights/public?near=47.2654,11.3933&radius_km=10&kind=fai_triangle&min_km=50&sort=score'
+```
+
+**Every question is answered from an index**, and only page after page (`after`): there is no count and no page by number. Measured with 3.6 million public flights, a year of 10,000 a day, every page of the list, of a pilot's flights and of the filters alone and together took under 30 ms in the database (`crates/store/tests/scale.rs`, 2026-11-24). The database gives a read up after 2 seconds, which the server answers with `503` and `unavailable`.
 
 **The place of a flight** is where it took off, the one place the server keeps in a form it can search by. Where a flight landed is in its record and cannot be asked for; where it went is its [track](#get-v1flightsidtrack).
 
@@ -8171,7 +8183,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public?from=2026-08-15T00:00:00Z&to=2026-
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 2,
+      "analysis_version": 3,
       "published_at": "2026-11-18T19:05:00Z"
     },
     {
@@ -8216,7 +8228,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public?from=2026-08-15T00:00:00Z&to=2026-
         ]
       ],
       "file_bytes": 55650,
-      "analysis_version": 2,
+      "analysis_version": 3,
       "published_at": "2026-11-18T19:05:00Z"
     }
   ],
@@ -8287,7 +8299,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public?limit=2'
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 2,
+      "analysis_version": 3,
       "published_at": "2026-11-18T19:05:00Z"
     },
     {
@@ -8340,7 +8352,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public?limit=2'
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 2,
+      "analysis_version": 3,
       "published_at": "2026-11-18T19:05:00Z"
     }
   ],
@@ -8446,7 +8458,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public/changes?since=1795028700000003&lim
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 2,
+      "analysis_version": 3,
       "published_at": "2026-11-18T19:05:00Z"
     }
   ],
@@ -8538,6 +8550,7 @@ It is asked in the words of the [list of public flights](#public-flights), and m
 | `from` | An RFC 3339 time: only flights that started at this moment or later count | No bound |
 | `to` | An RFC 3339 time: only flights that started **before** this moment count. It must be later than `from` | No bound |
 | `month` | A calendar month by UTC, written `YYYY-MM`: only flights that started in it count. It is a `from` and a `to` in one word and is not sent with either (`400` `invalid_range`); a month that cannot be read is `400` `invalid_time` | No bound |
+| `near`, `radius_km`, `area`, `class`, `kind`, `min_km`, `country` | As for [the list](#get-v1flightspublicpilotbboxfromtosortafterlimit): only flights that took off or were flown so count. The ranking of a class is `class`, of a country `country` | No bound |
 | `limit` | How many pilots to return from the top, 1 to 100 | 50 |
 
 **A season** is a span of time the client names, as a day is for the list of flights: the server knows no time zone. The year 2026 by UTC is `from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z`. **A month** by UTC has a word of its own: `month=2026-08` means `from=2026-08-01T00:00:00Z&to=2026-09-01T00:00:00Z`. With `bbox` it is the ranking of the pilots who flew from one mountain, or in one region. The two pilots at the top of August 2026:
@@ -8609,7 +8622,7 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
             ]
           ],
           "file_bytes": 68008,
-          "analysis_version": 2,
+          "analysis_version": 3,
           "published_at": "2026-11-18T19:05:00Z"
         },
         {
@@ -8654,7 +8667,7 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
             ]
           ],
           "file_bytes": 55650,
-          "analysis_version": 2,
+          "analysis_version": 3,
           "published_at": "2026-11-18T19:05:00Z"
         }
       ]
@@ -8716,7 +8729,7 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
             ]
           ],
           "file_bytes": 68008,
-          "analysis_version": 2,
+          "analysis_version": 3,
           "published_at": "2026-11-18T19:05:00Z"
         }
       ]
@@ -10424,7 +10437,7 @@ This is the demo account's public flight after it was taken down, as its pilot r
       ]
     ],
     "file_bytes": 68008,
-    "analysis_version": 2,
+    "analysis_version": 3,
     "taken_down_at": "2026-11-18T19:05:00Z"
   }
 }

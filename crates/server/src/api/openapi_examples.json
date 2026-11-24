@@ -168,7 +168,7 @@
             "comments": 0,
             "flight": {
               "airtime_s": 1752,
-              "analysis_version": 2,
+              "analysis_version": 3,
               "file_bytes": 68008,
               "glider": "Sample Wing",
               "id": "nfmvgygyr34epnfbcekb04nwqc",
@@ -269,7 +269,7 @@
             "comments": 1,
             "flight": {
               "airtime_s": 1752,
-              "analysis_version": 2,
+              "analysis_version": 3,
               "file_bytes": 68008,
               "glider": "Sample Wing",
               "id": "fbyw03atd9qdt5bfe177ra1k94",
@@ -371,7 +371,7 @@
             "comments": 0,
             "flight": {
               "airtime_s": 1200,
-              "analysis_version": 2,
+              "analysis_version": 3,
               "file_bytes": 44550,
               "glider": "Sample Wing",
               "id": "7hn3e0ef6twjgq0g51ckxtxsx8",
@@ -1464,7 +1464,7 @@
         "flights": [
           {
             "airtime_s": 1752,
-            "analysis_version": 2,
+            "analysis_version": 3,
             "file_bytes": 68008,
             "glider": "Sample Wing",
             "id": "5t1eshypdtvrq7rxw39a18vsrg",
@@ -1560,7 +1560,7 @@
           },
           {
             "airtime_s": 1744,
-            "analysis_version": 2,
+            "analysis_version": 3,
             "file_bytes": 64678,
             "glider": "Sample Wing",
             "id": "7cf5ytrw45b0aeb5tcr8wet2km",
@@ -1651,7 +1651,7 @@
           },
           {
             "airtime_s": 707,
-            "analysis_version": 2,
+            "analysis_version": 3,
             "file_bytes": 29380,
             "glider": "Sample Wing",
             "id": "7fvpx515951prsvkemfbvgkd3w",
@@ -1728,7 +1728,7 @@
         "flights": [
           {
             "airtime_s": 1752,
-            "analysis_version": 2,
+            "analysis_version": 3,
             "file_bytes": 68008,
             "glider": "Sample Wing",
             "id": "5t1eshypdtvrq7rxw39a18vsrg",
@@ -1780,7 +1780,7 @@
           },
           {
             "airtime_s": 1744,
-            "analysis_version": 2,
+            "analysis_version": 3,
             "file_bytes": 64678,
             "glider": "Sample Wing",
             "id": "7cf5ytrw45b0aeb5tcr8wet2km",
@@ -1833,7 +1833,7 @@
         "flights": [
           {
             "airtime_s": 1752,
-            "analysis_version": 2,
+            "analysis_version": 3,
             "file_bytes": 68008,
             "glider": "Sample Wing",
             "id": "nfmvgygyr34epnfbcekb04nwqc",
@@ -1885,7 +1885,7 @@
           },
           {
             "airtime_s": 1752,
-            "analysis_version": 2,
+            "analysis_version": 3,
             "file_bytes": 68008,
             "glider": "Sample Wing",
             "id": "fbyw03atd9qdt5bfe177ra1k94",
@@ -1947,7 +1947,7 @@
         "flights": [
           {
             "airtime_s": 1506,
-            "analysis_version": 2,
+            "analysis_version": 3,
             "file_bytes": 58980,
             "glider": "Sample Wing",
             "id": "hwj4105bnzcgcavngacrzjt3s4",
@@ -2011,7 +2011,7 @@
         "flights": [
           {
             "airtime_s": 1752,
-            "analysis_version": 2,
+            "analysis_version": 3,
             "file_bytes": 68008,
             "glider": "Sample Wing",
             "id": "5t1eshypdtvrq7rxw39a18vsrg",
@@ -2063,7 +2063,7 @@
           },
           {
             "airtime_s": 1500,
-            "analysis_version": 2,
+            "analysis_version": 3,
             "file_bytes": 55650,
             "glider": "Sample Wing",
             "id": "rnwkdftnzbzv3jpcc5v1ajq97w",
@@ -2111,6 +2111,119 @@
           "decided": false,
           "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy."
         }
+      },
+      "public_flights_search": {
+        "flights": [
+          {
+            "airtime_s": 1752,
+            "analysis_version": 3,
+            "file_bytes": 68008,
+            "glider": "Sample Wing",
+            "id": "nfmvgygyr34epnfbcekb04nwqc",
+            "identity": "e721900dacb914a34358110db513e503",
+            "landing": {
+              "altitude_m": 786,
+              "position": {
+                "lat": 47.692167,
+                "lon": 11.767483
+              },
+              "time": "2026-09-06T13:29:12Z"
+            },
+            "max_altitude_m": 2117,
+            "max_climb_ms": 2.4,
+            "outline": [
+              [
+                47.6642,
+                11.7967
+              ],
+              [
+                47.6697,
+                11.78986
+              ]
+            ],
+            "pilot": {
+              "display_name": "Jonas Beispiel",
+              "handle": "jonas"
+            },
+            "published_at": "2026-11-18T19:05:00Z",
+            "score": {
+              "closed": false,
+              "distance_m": 11975.7,
+              "kind": "free_flight",
+              "points": 11.98
+            },
+            "start": "2026-09-06T13:00:00Z",
+            "takeoff": {
+              "altitude_m": 1620,
+              "position": {
+                "lat": 47.6642,
+                "lon": 11.7967
+              },
+              "time": "2026-09-06T13:00:00Z"
+            },
+            "takeoff_country": "DE",
+            "track_length_m": 18402.3,
+            "uploaded_at": "2026-11-18T19:05:00Z",
+            "visibility": "public"
+          },
+          {
+            "airtime_s": 1752,
+            "analysis_version": 3,
+            "file_bytes": 68008,
+            "glider": "Sample Wing",
+            "id": "fbyw03atd9qdt5bfe177ra1k94",
+            "identity": "5782b33df19716953603d69bacb63a14",
+            "landing": {
+              "altitude_m": 786,
+              "position": {
+                "lat": 47.692167,
+                "lon": 11.767483
+              },
+              "time": "2026-08-16T12:34:12Z"
+            },
+            "max_altitude_m": 2117,
+            "max_climb_ms": 2.4,
+            "outline": [
+              [
+                47.6642,
+                11.7967
+              ],
+              [
+                47.6697,
+                11.78986
+              ]
+            ],
+            "pilot": {
+              "display_name": "Mara Muster",
+              "handle": "mara",
+              "picture": "/v1/pictures/0000000000000000000000p001"
+            },
+            "published_at": "2026-11-18T19:05:00Z",
+            "score": {
+              "closed": false,
+              "distance_m": 11975.7,
+              "kind": "free_flight",
+              "points": 11.98
+            },
+            "start": "2026-08-16T12:05:00Z",
+            "takeoff": {
+              "altitude_m": 1620,
+              "position": {
+                "lat": 47.6642,
+                "lon": 11.7967
+              },
+              "time": "2026-08-16T12:05:00Z"
+            },
+            "takeoff_country": "DE",
+            "track_length_m": 18402.3,
+            "uploaded_at": "2026-11-18T19:05:00Z",
+            "visibility": "public"
+          }
+        ],
+        "terms": {
+          "decided": false,
+          "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy."
+        }
       }
     }
   },
@@ -2121,7 +2234,7 @@
         "flights": [
           {
             "airtime_s": 1752,
-            "analysis_version": 2,
+            "analysis_version": 3,
             "file_bytes": 68008,
             "glider": "Sample Wing",
             "id": "nfmvgygyr34epnfbcekb04nwqc",
@@ -2192,7 +2305,7 @@
       "flight": {
         "flight": {
           "airtime_s": 1752,
-          "analysis_version": 2,
+          "analysis_version": 3,
           "file_bytes": 68008,
           "glider": "Sample Wing",
           "id": "5t1eshypdtvrq7rxw39a18vsrg",
@@ -2294,7 +2407,7 @@
       "flight_taken_down": {
         "flight": {
           "airtime_s": 1752,
-          "analysis_version": 2,
+          "analysis_version": 3,
           "file_bytes": 68008,
           "glider": "Sample Wing",
           "id": "5t1eshypdtvrq7rxw39a18vsrg",
@@ -3924,7 +4037,7 @@
         "flights": [
           {
             "airtime_s": 1752,
-            "analysis_version": 2,
+            "analysis_version": 3,
             "file_bytes": 68008,
             "glider": "Sample Wing",
             "id": "5t1eshypdtvrq7rxw39a18vsrg",
@@ -4386,7 +4499,7 @@
             "flights": [
               {
                 "airtime_s": 1752,
-                "analysis_version": 2,
+                "analysis_version": 3,
                 "file_bytes": 68008,
                 "glider": "Sample Wing",
                 "id": "fbyw03atd9qdt5bfe177ra1k94",
@@ -4439,7 +4552,7 @@
               },
               {
                 "airtime_s": 1500,
-                "analysis_version": 2,
+                "analysis_version": 3,
                 "file_bytes": 55650,
                 "glider": "Sample Wing",
                 "id": "rnwkdftnzbzv3jpcc5v1ajq97w",
@@ -4495,7 +4608,7 @@
             "flights": [
               {
                 "airtime_s": 1752,
-                "analysis_version": 2,
+                "analysis_version": 3,
                 "file_bytes": 68008,
                 "glider": "Sample Wing",
                 "id": "5t1eshypdtvrq7rxw39a18vsrg",
@@ -7492,7 +7605,7 @@
         "created": true,
         "flight": {
           "airtime_s": 1744,
-          "analysis_version": 2,
+          "analysis_version": 3,
           "file_bytes": 64678,
           "glider": "Sample Wing",
           "id": "wkvydb8am8wmdcxzds9vkrw5kr",

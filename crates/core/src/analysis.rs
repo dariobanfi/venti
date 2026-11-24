@@ -57,7 +57,10 @@ pub struct GlideSummary {
 
 /// What a flight is scored as under cross-country league rules.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum RouteKind {
     /// The longest distance through up to three turnpoints.

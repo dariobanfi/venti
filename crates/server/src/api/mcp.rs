@@ -68,8 +68,8 @@ use venti_api_types::v1::{FlightSort, Scope};
 use venti_domain::SiteId;
 use venti_mcp::{Answer, HttpRequest, Implementation, Origins, Read, Server, ToolCall, ToolResult};
 use venti_sources::Kind;
-use venti_store::PublicFlights;
 use venti_store::Store;
+use venti_store::{Near, PublicFlights};
 use venti_tools::airspace::{AIRSPACE_TOOLS, AirspaceCall, airspace_at};
 use venti_tools::community::{
     COMMUNITY_TOOLS, CandidatesCall, FlightCall, FlightsCall, HistoryCall as SiteHistoryCall,
@@ -695,7 +695,11 @@ impl<S: Store> Api<S> {
                     area: call.bbox,
                     from: call.from,
                     before: call.to,
-                    near: None,
+                    near: call.near.map(|circle| Near {
+                        place: circle.centre,
+                        within_m: circle.radius_m(),
+                    }),
+                    ..PublicFlights::default()
                 };
                 let sort = if call.best {
                     FlightSort::Score

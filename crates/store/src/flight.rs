@@ -1,7 +1,7 @@
 //! Pilots' flights: the file as it was uploaded and what was worked out
 //! from it.
 
-use venti_domain::{BoundingBox, GeoPoint, Timestamp};
+use venti_domain::{Area, BoundingBox, GeoPoint, Timestamp};
 
 /// Who may see a flight.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -123,6 +123,11 @@ pub struct Derived {
     /// crate but `venti-domain`). `None` for a flight worked out before
     /// the server kept them, until its analysis is run again.
     pub habits: Option<String>,
+    /// The country the glider took off in, an ISO 3166-1 alpha-2 code in
+    /// upper case, by the outlines the server has; `None` without a
+    /// take-off or outside them. Kept so that flights can be asked for by
+    /// it.
+    pub takeoff_country: Option<String>,
 }
 
 /// The most one account may keep.
@@ -501,6 +506,19 @@ pub struct PublicFlights {
     /// far included: the flights that began at a site, as
     /// [`crate::Store::flights_from`] counts them.
     pub near: Option<Near>,
+    /// Only flights that took off inside this area drawn on a map, its
+    /// edges included.
+    pub drawn: Option<Area>,
+    /// Only flights flown on a glider of this class.
+    pub class: Option<GliderClass>,
+    /// Only flights scored as this kind of route.
+    pub kind: Option<ScoreKind>,
+    /// Only flights whose scoring distance is at least this many metres.
+    /// A flight too short to score is not among them.
+    pub min_distance_m: Option<f64>,
+    /// Only flights that took off in this country, as
+    /// [`Derived::takeoff_country`] has it.
+    pub country: Option<String>,
 }
 
 /// A place and how far from it a flight may have taken off.
@@ -529,8 +547,30 @@ impl PublicFlights {
                 .takeoff
                 .is_some_and(|takeoff| takeoff.position.distance_m(near.place) <= near.within_m)
         });
+        let drawn = self.drawn.as_ref().is_none_or(|drawn| {
+            flight
+                .derived
+                .takeoff
+                .is_some_and(|takeoff| drawn.holds(takeoff.position))
+        });
+        let score = flight.derived.score;
+        let how = self
+            .class
+            .is_none_or(|class| flight.glider_class == Some(class))
+            && self
+                .kind
+                .is_none_or(|kind| score.is_some_and(|score| score.kind == kind))
+            && self
+                .min_distance_m
+                .is_none_or(|least| score.is_some_and(|score| score.distance_m >= least))
+            && self
+                .country
+                .as_ref()
+                .is_none_or(|country| flight.derived.takeoff_country.as_ref() == Some(country));
         in_area
             && near
+            && drawn
+            && how
             && self
                 .pilot
                 .as_ref()

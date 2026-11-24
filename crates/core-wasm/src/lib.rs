@@ -46,19 +46,19 @@ use venti_core::FoehnView;
 use venti_core::{
     AccountView, AirspaceFetch, AirspaceFile, AirspaceHeightFilter, AirspaceImport,
     AirspaceOverPlace, AirspaceShape, Bounds, CableSet, CablesMap, Coordinate, CoreError, Credit,
-    FlightAirspace, FlightAnalysis, FlightComparison, FlightFile, FlightSharing, FlightView,
-    FlightVisibility, ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade,
-    ImportedFlight, KeptAirspace, KeptSites, LeagueHandover, LiveFollowView, LiveLayer, LiveMap,
-    LiveOthers, LogbookStatistics, LogbookView, OpenPlanDraft, OpenPlanView, OpenPlans, PilotPage,
-    PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights, PublicFlightsOrder, RadarView,
-    Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject, RouteAlong, RoutePlace,
-    RouteSetting, ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SiteDraftFault,
-    SiteDraftView, SiteForm, SiteHistory, SiteInTheWay, SiteOutlook, SitePage, SiteStatistics,
-    SiteView, SiteWritten, SitesFilter, SitesFilterChoices, SitesFiltered, SitesMap, StagedStorage,
-    StationAir, StationDay, StationDays, StationHistory, Storage, SyncStep, SyncSummary,
-    Tendencies, TerrainTile, ThermalHoursLayer, ThermalMap, ThermalMapHourSquare,
-    ThermalMapHoursView, ThermalMapShapes, ThermalStripDay, TodayOrder, TodayStanding,
-    TodayTakeoffs, TrackPoint, WindMap, WindSpan, WindStation,
+    FlightAirspace, FlightAnalysis, FlightComparison, FlightFile, FlightSearch, FlightSearchBounds,
+    FlightSharing, FlightView, FlightVisibility, ForecastView, GroundUnderFlight, GroupDetail,
+    GroupJoined, GroupMade, ImportedFlight, KeptAirspace, KeptSites, LeagueHandover,
+    LiveFollowView, LiveLayer, LiveMap, LiveOthers, LogbookStatistics, LogbookView, OpenPlanDraft,
+    OpenPlanView, OpenPlans, PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight,
+    PublicFlights, PublicFlightsOrder, RadarView, Ranking, RankingSeason, ReportForm, ReportReason,
+    ReportSubject, RouteAlong, RoutePlace, RouteSetting, ServerRequest, ServerStatus, SignedIn,
+    SiteAtPlace, SiteDraftFault, SiteDraftView, SiteForm, SiteHistory, SiteInTheWay, SiteOutlook,
+    SitePage, SiteStatistics, SiteView, SiteWritten, SitesFilter, SitesFilterChoices,
+    SitesFiltered, SitesMap, StagedStorage, StationAir, StationDay, StationDays, StationHistory,
+    Storage, SyncStep, SyncSummary, Tendencies, TerrainTile, ThermalHoursLayer, ThermalMap,
+    ThermalMapHourSquare, ThermalMapHoursView, ThermalMapShapes, ThermalStripDay, TodayOrder,
+    TodayStanding, TodayTakeoffs, TrackPoint, WindMap, WindSpan, WindStation,
 };
 use venti_core::{AgreementOutcome, AgreementPage, AgreementWords};
 use venti_core::{
@@ -3240,6 +3240,91 @@ pub fn public_flights_path(
         after,
     )
     .map_err(thrown)
+}
+
+/// The path and query to `GET` for one page of everyone's public flights
+/// that a search finds: as `publicFlightsPath`, narrowed by `search` (a
+/// circle or a drawn area the take-off lies in, the glider class, the kind
+/// of route, the least distance, the take-off's country). The answer is
+/// read by `publicFlights`.
+#[wasm_bindgen(js_name = publicFlightsSearchPath)]
+pub fn public_flights_search_path(
+    order: Ts<PublicFlightsOrder>,
+    area: Option<Ts<Bounds>>,
+    from_unix_s: Option<f64>,
+    to_unix_s: Option<f64>,
+    search: Ts<FlightSearch>,
+    after: Option<String>,
+) -> Result<String, JsValue> {
+    venti_core::public_flights_search_path(
+        from_js(&order)?,
+        area.as_ref().map(from_js).transpose()?,
+        from_unix_s.map(whole_seconds),
+        to_unix_s.map(whole_seconds),
+        from_js(&search)?,
+        after,
+    )
+    .map_err(thrown)
+}
+
+/// The same for one pilot's public flights.
+#[wasm_bindgen(js_name = pilotFlightsSearchPath)]
+pub fn pilot_flights_search_path(
+    handle: String,
+    order: Ts<PublicFlightsOrder>,
+    from_unix_s: Option<f64>,
+    to_unix_s: Option<f64>,
+    search: Ts<FlightSearch>,
+    after: Option<String>,
+) -> Result<String, JsValue> {
+    venti_core::pilot_flights_search_path(
+        handle,
+        from_js(&order)?,
+        from_unix_s.map(whole_seconds),
+        to_unix_s.map(whole_seconds),
+        from_js(&search)?,
+        after,
+    )
+    .map_err(thrown)
+}
+
+/// The path and query to `GET` for the ranking of the flights a search
+/// finds: as `rankingPath`, narrowed by `search`.
+#[wasm_bindgen(js_name = rankingSearchPath)]
+pub fn ranking_search_path(
+    area: Option<Ts<Bounds>>,
+    from_unix_s: Option<f64>,
+    to_unix_s: Option<f64>,
+    search: Ts<FlightSearch>,
+) -> Result<String, JsValue> {
+    venti_core::ranking_search_path(
+        area.as_ref().map(from_js).transpose()?,
+        from_unix_s.map(whole_seconds),
+        to_unix_s.map(whole_seconds),
+        from_js(&search)?,
+    )
+    .map_err(thrown)
+}
+
+/// The words of the chips that show a search: "Within 10 km",
+/// "Drawn area", "EN C", "FAI triangle", "50 km or more", "AT".
+#[wasm_bindgen(js_name = flightSearchWords)]
+pub fn flight_search_words(search: Ts<FlightSearch>) -> Result<Vec<String>, JsValue> {
+    Ok(venti_core::flight_search_words(from_js(&search)?))
+}
+
+/// The bounds a search is held to: the radius, the corners of an area,
+/// the least distance.
+#[wasm_bindgen(js_name = flightSearchBounds)]
+pub fn flight_search_bounds() -> Result<Ts<FlightSearchBounds>, JsValue> {
+    to_js(&venti_core::flight_search_bounds())
+}
+
+/// The name of a kind of route in a choice of them: "Free flight",
+/// "Flat triangle", "FAI triangle".
+#[wasm_bindgen(js_name = routeKindWords)]
+pub fn route_kind_words(kind: Ts<venti_core::RouteKind>) -> Result<String, JsValue> {
+    Ok(venti_core::route_kind_words(from_js(&kind)?))
 }
 
 /// The path and query to `GET` for one page of the public flights that

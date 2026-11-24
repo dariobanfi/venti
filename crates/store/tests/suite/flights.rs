@@ -1,10 +1,10 @@
 //! What every store must do with pilots' flights.
 
 use chrono::Duration;
-use venti_domain::{BoundingBox, GeoPoint, Timestamp};
+use venti_domain::{Area, BoundingBox, GeoPoint, Timestamp};
 use venti_store::{
     Account, AccountSettings, AllFlightsSet, AllVisibilityChange, Derived, Flight, Flown,
-    GliderClass, Kept, Listing, Month, NewFlight, Place, PublicFlightChanges, PublicFlights,
+    GliderClass, Kept, Listing, Month, Near, NewFlight, Place, PublicFlightChanges, PublicFlights,
     PublicOrder, Room, Saved, Score, ScoreKind, Store, StoreError, Visibility, VisibilityChange,
 };
 
@@ -42,6 +42,7 @@ fn derived(start: Timestamp) -> Derived {
         outline: vec![[47.6642, 11.7967], [47.7, 11.75], [47.683_33, 11.76]],
         profile: vec![[0, 1620], [342, 2117], [1744, 786]],
         habits: Some(habits()),
+        takeoff_country: None,
     }
 }
 
@@ -1074,6 +1075,94 @@ pub(crate) async fn public_flights_are_found_by_where_they_took_off(store: &impl
     assert_eq!(short(&first), ["dario3"]);
     let after = PublicOrder::Newest(Some(first[0].key()));
     assert_eq!(public(store, &east, &after).await, ["dario1"]);
+}
+
+pub(crate) async fn public_flights_are_found_by_every_filter(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let mut one = flown(&dario, 1, at(9, 0), WALLBERG, Some(10.0));
+    one.glider_class = Some(GliderClass::EnB);
+    one.derived.takeoff_country = Some("DE".to_owned());
+    let mut two = flown(&dario, 2, at(10, 0), BRAUNECK, Some(60.0));
+    two.glider_class = Some(GliderClass::Ccc);
+    two.derived.takeoff_country = Some("DE".to_owned());
+    if let Some(score) = &mut two.derived.score {
+        score.kind = ScoreKind::FaiTriangle;
+    }
+    let mut three = flown(&dario, 3, at(11, 0), KOESSEN, Some(20.0));
+    three.derived.takeoff_country = Some("AT".to_owned());
+    for new in [&one, &two, &three] {
+        publish(store, new).await;
+    }
+    // The same from the Wallberg, not public.
+    let mut hidden = flown(&dario, 4, at(12, 0), WALLBERG, Some(99.0));
+    hidden.glider_class = Some(GliderClass::EnB);
+    save(store, &hidden).await;
+
+    let with = |change: fn(&mut PublicFlights)| {
+        let mut which = everywhere();
+        change(&mut which);
+        which
+    };
+    // Within 5 km of the Wallberg, and within 100 km of it.
+    let (lat, lon) = WALLBERG;
+    let wallberg = GeoPoint::new(lat, lon).unwrap();
+    let near = |km: f64| PublicFlights {
+        near: Some(Near {
+            place: wallberg,
+            within_m: km * 1000.0,
+        }),
+        ..everywhere()
+    };
+    assert_eq!(public(store, &near(5.0), &NEWEST).await, ["dario1"]);
+    assert_eq!(
+        public(store, &near(100.0), &BEST).await,
+        ["dario2", "dario3", "dario1"]
+    );
+    // An area drawn around the Wallberg and the Brauneck, which leaves out
+    // Kössen to the east; its edge holds a take-off on it.
+    let corner = |lat: f64, lon: f64| GeoPoint::new(lat, lon).unwrap();
+    let drawn = |corners: Vec<GeoPoint>| PublicFlights {
+        drawn: Some(Area::new(corners).unwrap()),
+        ..everywhere()
+    };
+    let west = drawn(vec![
+        corner(47.8, 11.4),
+        corner(47.8, 11.9),
+        corner(47.5, 11.9),
+        corner(47.5, 11.4),
+    ]);
+    assert_eq!(public(store, &west, &NEWEST).await, ["dario2", "dario1"]);
+    let edge = drawn(vec![
+        corner(lat, lon),
+        corner(lat + 0.1, lon + 0.1),
+        corner(lat + 0.1, lon - 0.1),
+    ]);
+    assert_eq!(public(store, &edge, &NEWEST).await, ["dario1"]);
+
+    let class = with(|which| which.class = Some(GliderClass::EnB));
+    assert_eq!(public(store, &class, &NEWEST).await, ["dario1"]);
+    let fai = with(|which| which.kind = Some(ScoreKind::FaiTriangle));
+    assert_eq!(public(store, &fai, &BEST).await, ["dario2"]);
+    let long = with(|which| which.min_distance_m = Some(20_000.0));
+    assert_eq!(public(store, &long, &NEWEST).await, ["dario3", "dario2"]);
+    let austria = with(|which| which.country = Some("AT".to_owned()));
+    assert_eq!(public(store, &austria, &NEWEST).await, ["dario3"]);
+    // Together, as every filter narrows.
+    let together = PublicFlights {
+        country: Some("DE".to_owned()),
+        min_distance_m: Some(5_000.0),
+        class: Some(GliderClass::Ccc),
+        ..west.clone()
+    };
+    assert_eq!(public(store, &together, &BEST).await, ["dario2"]);
+    let nothing = PublicFlights {
+        country: Some("AT".to_owned()),
+        ..west
+    };
+    assert!(public(store, &nothing, &NEWEST).await.is_empty());
+    // The country is kept with the flight.
+    let read = store.flight(&three.id).await.unwrap().unwrap();
+    assert_eq!(read.derived.takeoff_country.as_deref(), Some("AT"));
 }
 
 pub(crate) async fn public_flights_are_found_by_when_they_started(store: &impl Store) {

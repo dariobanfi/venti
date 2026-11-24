@@ -7969,7 +7969,7 @@
                           "comments": 0,
                           "flight": {
                             "airtime_s": 1752,
-                            "analysis_version": 2,
+                            "analysis_version": 3,
                             "file_bytes": 68008,
                             "glider": "Sample Wing",
                             "id": "nfmvgygyr34epnfbcekb04nwqc",
@@ -8070,7 +8070,7 @@
                           "comments": 1,
                           "flight": {
                             "airtime_s": 1752,
-                            "analysis_version": 2,
+                            "analysis_version": 3,
                             "file_bytes": 68008,
                             "glider": "Sample Wing",
                             "id": "fbyw03atd9qdt5bfe177ra1k94",
@@ -8172,7 +8172,7 @@
                           "comments": 0,
                           "flight": {
                             "airtime_s": 1200,
-                            "analysis_version": 2,
+                            "analysis_version": 3,
                             "file_bytes": 44550,
                             "glider": "Sample Wing",
                             "id": "7hn3e0ef6twjgq0g51ckxtxsx8",
@@ -11008,7 +11008,7 @@
                       "flights": [
                         {
                           "airtime_s": 1752,
-                          "analysis_version": 2,
+                          "analysis_version": 3,
                           "file_bytes": 68008,
                           "glider": "Sample Wing",
                           "id": "5t1eshypdtvrq7rxw39a18vsrg",
@@ -11104,7 +11104,7 @@
                         },
                         {
                           "airtime_s": 1744,
-                          "analysis_version": 2,
+                          "analysis_version": 3,
                           "file_bytes": 64678,
                           "glider": "Sample Wing",
                           "id": "7cf5ytrw45b0aeb5tcr8wet2km",
@@ -11195,7 +11195,7 @@
                         },
                         {
                           "airtime_s": 707,
-                          "analysis_version": 2,
+                          "analysis_version": 3,
                           "file_bytes": 29380,
                           "glider": "Sample Wing",
                           "id": "7fvpx515951prsvkemfbvgkd3w",
@@ -11399,7 +11399,7 @@
                       "created": true,
                       "flight": {
                         "airtime_s": 1744,
-                        "analysis_version": 2,
+                        "analysis_version": 3,
                         "file_bytes": 64678,
                         "glider": "Sample Wing",
                         "id": "wkvydb8am8wmdcxzds9vkrw5kr",
@@ -11516,7 +11516,7 @@
                       "flights": [
                         {
                           "airtime_s": 1752,
-                          "analysis_version": 2,
+                          "analysis_version": 3,
                           "file_bytes": 68008,
                           "glider": "Sample Wing",
                           "id": "5t1eshypdtvrq7rxw39a18vsrg",
@@ -11568,7 +11568,7 @@
                         },
                         {
                           "airtime_s": 1744,
-                          "analysis_version": 2,
+                          "analysis_version": 3,
                           "file_bytes": 64678,
                           "glider": "Sample Wing",
                           "id": "7cf5ytrw45b0aeb5tcr8wet2km",
@@ -11702,6 +11702,91 @@
             }
           },
           {
+            "description": "The centre of a circle the take-off lies in, lat,lon in WGS84 degrees, for example 47.2654,11.3933. With radius_km; not with site.",
+            "in": "query",
+            "name": "near",
+            "required": false,
+            "schema": {
+              "maxLength": 40,
+              "pattern": "^-?[0-9.]+,-?[0-9.]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The radius of the circle of near, in kilometres, 1 to 100, edge included.",
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "An area drawn on the map the take-off lies in, edges included: its corners in the order drawn, lat,lon,lat,lon,… in WGS84 degrees, three to 50 corners, edges that do not cross, within 180 degrees of longitude.",
+            "in": "query",
+            "name": "area",
+            "required": false,
+            "schema": {
+              "maxLength": 1100,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only flights flown on a glider of this class.",
+            "in": "query",
+            "name": "class",
+            "required": false,
+            "schema": {
+              "enum": [
+                "en_a",
+                "en_b",
+                "en_c",
+                "en_d",
+                "ccc"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only flights scored as this kind of route.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "enum": [
+                "free_flight",
+                "free_triangle",
+                "fai_triangle"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only flights whose scoring distance is at least this many kilometres, 0 to 1000. A flight too short to score has none.",
+            "in": "query",
+            "name": "min_km",
+            "required": false,
+            "schema": {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Only flights that took off in this country, an ISO 3166-1 alpha-2 code, in either case.",
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "maxLength": 2,
+              "minLength": 2,
+              "pattern": "^[A-Za-z]{2}$",
+              "type": "string"
+            }
+          },
+          {
             "description": "The order of the list.",
             "in": "query",
             "name": "sort",
@@ -11745,7 +11830,7 @@
                       "flights": [
                         {
                           "airtime_s": 1752,
-                          "analysis_version": 2,
+                          "analysis_version": 3,
                           "file_bytes": 68008,
                           "glider": "Sample Wing",
                           "id": "nfmvgygyr34epnfbcekb04nwqc",
@@ -11797,7 +11882,7 @@
                         },
                         {
                           "airtime_s": 1752,
-                          "analysis_version": 2,
+                          "analysis_version": 3,
                           "file_bytes": 68008,
                           "glider": "Sample Wing",
                           "id": "fbyw03atd9qdt5bfe177ra1k94",
@@ -11861,7 +11946,7 @@
                       "flights": [
                         {
                           "airtime_s": 1506,
-                          "analysis_version": 2,
+                          "analysis_version": 3,
                           "file_bytes": 58980,
                           "glider": "Sample Wing",
                           "id": "hwj4105bnzcgcavngacrzjt3s4",
@@ -11927,7 +12012,7 @@
                       "flights": [
                         {
                           "airtime_s": 1752,
-                          "analysis_version": 2,
+                          "analysis_version": 3,
                           "file_bytes": 68008,
                           "glider": "Sample Wing",
                           "id": "5t1eshypdtvrq7rxw39a18vsrg",
@@ -11979,7 +12064,7 @@
                         },
                         {
                           "airtime_s": 1500,
-                          "analysis_version": 2,
+                          "analysis_version": 3,
                           "file_bytes": 55650,
                           "glider": "Sample Wing",
                           "id": "rnwkdftnzbzv3jpcc5v1ajq97w",
@@ -12019,6 +12104,121 @@
                           },
                           "takeoff_country": "DE",
                           "track_length_m": 15877.9,
+                          "uploaded_at": "2026-11-18T19:05:00Z",
+                          "visibility": "public"
+                        }
+                      ],
+                      "terms": {
+                        "decided": false,
+                        "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy."
+                      }
+                    }
+                  },
+                  "public_flights_search": {
+                    "value": {
+                      "flights": [
+                        {
+                          "airtime_s": 1752,
+                          "analysis_version": 3,
+                          "file_bytes": 68008,
+                          "glider": "Sample Wing",
+                          "id": "nfmvgygyr34epnfbcekb04nwqc",
+                          "identity": "e721900dacb914a34358110db513e503",
+                          "landing": {
+                            "altitude_m": 786,
+                            "position": {
+                              "lat": 47.692167,
+                              "lon": 11.767483
+                            },
+                            "time": "2026-09-06T13:29:12Z"
+                          },
+                          "max_altitude_m": 2117,
+                          "max_climb_ms": 2.4,
+                          "outline": [
+                            [
+                              47.6642,
+                              11.7967
+                            ],
+                            [
+                              47.6697,
+                              11.78986
+                            ]
+                          ],
+                          "pilot": {
+                            "display_name": "Jonas Beispiel",
+                            "handle": "jonas"
+                          },
+                          "published_at": "2026-11-18T19:05:00Z",
+                          "score": {
+                            "closed": false,
+                            "distance_m": 11975.7,
+                            "kind": "free_flight",
+                            "points": 11.98
+                          },
+                          "start": "2026-09-06T13:00:00Z",
+                          "takeoff": {
+                            "altitude_m": 1620,
+                            "position": {
+                              "lat": 47.6642,
+                              "lon": 11.7967
+                            },
+                            "time": "2026-09-06T13:00:00Z"
+                          },
+                          "takeoff_country": "DE",
+                          "track_length_m": 18402.3,
+                          "uploaded_at": "2026-11-18T19:05:00Z",
+                          "visibility": "public"
+                        },
+                        {
+                          "airtime_s": 1752,
+                          "analysis_version": 3,
+                          "file_bytes": 68008,
+                          "glider": "Sample Wing",
+                          "id": "fbyw03atd9qdt5bfe177ra1k94",
+                          "identity": "5782b33df19716953603d69bacb63a14",
+                          "landing": {
+                            "altitude_m": 786,
+                            "position": {
+                              "lat": 47.692167,
+                              "lon": 11.767483
+                            },
+                            "time": "2026-08-16T12:34:12Z"
+                          },
+                          "max_altitude_m": 2117,
+                          "max_climb_ms": 2.4,
+                          "outline": [
+                            [
+                              47.6642,
+                              11.7967
+                            ],
+                            [
+                              47.6697,
+                              11.78986
+                            ]
+                          ],
+                          "pilot": {
+                            "display_name": "Mara Muster",
+                            "handle": "mara",
+                            "picture": "/v1/pictures/0000000000000000000000p001"
+                          },
+                          "published_at": "2026-11-18T19:05:00Z",
+                          "score": {
+                            "closed": false,
+                            "distance_m": 11975.7,
+                            "kind": "free_flight",
+                            "points": 11.98
+                          },
+                          "start": "2026-08-16T12:05:00Z",
+                          "takeoff": {
+                            "altitude_m": 1620,
+                            "position": {
+                              "lat": 47.6642,
+                              "lon": 11.7967
+                            },
+                            "time": "2026-08-16T12:05:00Z"
+                          },
+                          "takeoff_country": "DE",
+                          "track_length_m": 18402.3,
                           "uploaded_at": "2026-11-18T19:05:00Z",
                           "visibility": "public"
                         }
@@ -12095,7 +12295,7 @@
                       "flights": [
                         {
                           "airtime_s": 1752,
-                          "analysis_version": 2,
+                          "analysis_version": 3,
                           "file_bytes": 68008,
                           "glider": "Sample Wing",
                           "id": "nfmvgygyr34epnfbcekb04nwqc",
@@ -12248,7 +12448,7 @@
                     "value": {
                       "flight": {
                         "airtime_s": 1752,
-                        "analysis_version": 2,
+                        "analysis_version": 3,
                         "file_bytes": 68008,
                         "glider": "Sample Wing",
                         "id": "5t1eshypdtvrq7rxw39a18vsrg",
@@ -12352,7 +12552,7 @@
                     "value": {
                       "flight": {
                         "airtime_s": 1752,
-                        "analysis_version": 2,
+                        "analysis_version": 3,
                         "file_bytes": 68008,
                         "glider": "Sample Wing",
                         "id": "5t1eshypdtvrq7rxw39a18vsrg",
@@ -17345,7 +17545,7 @@
                       "flights": [
                         {
                           "airtime_s": 1752,
-                          "analysis_version": 2,
+                          "analysis_version": 3,
                           "file_bytes": 68008,
                           "glider": "Sample Wing",
                           "id": "5t1eshypdtvrq7rxw39a18vsrg",
@@ -18188,6 +18388,91 @@
             }
           },
           {
+            "description": "The centre of a circle the take-off lies in, lat,lon in WGS84 degrees, for example 47.2654,11.3933. With radius_km; not with site.",
+            "in": "query",
+            "name": "near",
+            "required": false,
+            "schema": {
+              "maxLength": 40,
+              "pattern": "^-?[0-9.]+,-?[0-9.]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The radius of the circle of near, in kilometres, 1 to 100, edge included.",
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "An area drawn on the map the take-off lies in, edges included: its corners in the order drawn, lat,lon,lat,lon,… in WGS84 degrees, three to 50 corners, edges that do not cross, within 180 degrees of longitude.",
+            "in": "query",
+            "name": "area",
+            "required": false,
+            "schema": {
+              "maxLength": 1100,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only flights flown on a glider of this class.",
+            "in": "query",
+            "name": "class",
+            "required": false,
+            "schema": {
+              "enum": [
+                "en_a",
+                "en_b",
+                "en_c",
+                "en_d",
+                "ccc"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only flights scored as this kind of route.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "enum": [
+                "free_flight",
+                "free_triangle",
+                "fai_triangle"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only flights whose scoring distance is at least this many kilometres, 0 to 1000. A flight too short to score has none.",
+            "in": "query",
+            "name": "min_km",
+            "required": false,
+            "schema": {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Only flights that took off in this country, an ISO 3166-1 alpha-2 code, in either case.",
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "maxLength": 2,
+              "minLength": 2,
+              "pattern": "^[A-Za-z]{2}$",
+              "type": "string"
+            }
+          },
+          {
             "description": "The most entries one answer carries, 1 to 100.",
             "in": "query",
             "name": "limit",
@@ -18256,7 +18541,7 @@
                           "flights": [
                             {
                               "airtime_s": 1752,
-                              "analysis_version": 2,
+                              "analysis_version": 3,
                               "file_bytes": 68008,
                               "glider": "Sample Wing",
                               "id": "fbyw03atd9qdt5bfe177ra1k94",
@@ -18309,7 +18594,7 @@
                             },
                             {
                               "airtime_s": 1500,
-                              "analysis_version": 2,
+                              "analysis_version": 3,
                               "file_bytes": 55650,
                               "glider": "Sample Wing",
                               "id": "rnwkdftnzbzv3jpcc5v1ajq97w",
@@ -18365,7 +18650,7 @@
                           "flights": [
                             {
                               "airtime_s": 1752,
-                              "analysis_version": 2,
+                              "analysis_version": 3,
                               "file_bytes": 68008,
                               "glider": "Sample Wing",
                               "id": "5t1eshypdtvrq7rxw39a18vsrg",

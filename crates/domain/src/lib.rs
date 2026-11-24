@@ -22,6 +22,7 @@
 //! air pressure. Each field says which it is.
 
 mod airspace;
+mod area;
 mod cable;
 mod forecast;
 mod geo;
@@ -36,6 +37,7 @@ pub use airspace::{
     HeightUnit, MAX_HOLES, MAX_RING_POINTS, MAX_SPAN_DEG, METRES_PER_FOOT, OperatingHours, Polygon,
     Validity, VerticalLimit, VerticalReference,
 };
+pub use area::{Area, AreaError};
 pub use cable::{Cable, CableKind};
 pub use forecast::{ForecastHour, ForecastSeries, WindAloft};
 pub use geo::{BoundingBox, GeoError, GeoPoint};

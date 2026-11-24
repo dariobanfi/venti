@@ -10,7 +10,9 @@
 
 use chrono::{DateTime, Days, NaiveDate, Utc};
 use serde_json::{Map, Value, json};
-use venti_api_types::v1::{Flight, FlightSort, FlightsResponse, PublicFlightsRequest, RouteKind};
+use venti_api_types::v1::{
+    Flight, FlightFilters, FlightSort, FlightsResponse, PublicFlightsRequest, RouteKind,
+};
 use venti_domain::GeoPoint;
 
 use crate::wind::{
@@ -155,6 +157,7 @@ impl Asked {
                 .and_then(|day| day.checked_add_days(Days::new(1)))
                 .and_then(midnight),
             site: None,
+            filters: FlightFilters::default(),
             sort: self.best.then_some(FlightSort::Score),
             after: None,
             // The server's box has corners the circle has not: ask for more

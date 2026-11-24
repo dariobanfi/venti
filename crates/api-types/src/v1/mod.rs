@@ -137,6 +137,7 @@ mod radar;
 mod report;
 mod request;
 mod route;
+mod search;
 mod sites;
 mod social;
 mod stations;
@@ -302,6 +303,12 @@ pub use route::{
     ROUTE_POINTS_AT_MOST, ROUTE_WEATHER_PATH, RoutePointsError, RouteWeatherHour,
     RouteWeatherPoint, RouteWeatherRequest, RouteWeatherResponse, RouteWindAloft,
     parse_route_points,
+};
+pub use search::{
+    Area, Circle, FlightFilters, MAX_AREA_LENGTH, MAX_AREA_POINTS, MAX_MIN_DISTANCE_KM,
+    MAX_RADIUS_KM, MIN_RADIUS_KM, SearchError, SentFilters, format_area, format_near,
+    glider_class_name, parse_area, parse_circle, parse_country, parse_glider_class,
+    parse_min_distance, parse_route_kind, route_kind_name,
 };
 pub use sites::{
     AddSiteRequest, CONFIRMATION_DAYS_BACK, CONFIRMATION_FLIGHT_WITHIN_M, ChangeSiteRequest,

@@ -1037,6 +1037,13 @@ fn operations() -> Vec<Op> {
                 "from:time",
                 "to:time",
                 "site",
+                "near",
+                "radius_km:search",
+                "area",
+                "class",
+                "kind",
+                "min_km",
+                "country",
                 "sort",
                 "after:cursor",
                 "limit",
@@ -1054,7 +1061,20 @@ fn operations() -> Vec<Op> {
             "Pilots by the sum of their best public flights",
         )
         .docs("GET /v1/ranking?bbox=&from=&to=&month=&limit=")
-        .query(&["bbox", "from:time", "to:time", "month", "limit"])
+        .query(&[
+            "bbox",
+            "from:time",
+            "to:time",
+            "month",
+            "near",
+            "radius_km:search",
+            "area",
+            "class",
+            "kind",
+            "min_km",
+            "country",
+            "limit",
+        ])
         .json("RankingResponse"),
         // Live tracks.
         post(
@@ -1314,6 +1334,34 @@ fn query_parameter(spec: &str) -> Value {
         "radius_km" => (
             "How far around the place, in whole kilometres: 1 to 100, 25 if left out.",
             json!({"type": "integer"}),
+        ),
+        "near" => (
+            "The centre of a circle the take-off lies in, lat,lon in WGS84 degrees, for example 47.2654,11.3933. With radius_km; not with site.",
+            json!({"type": "string", "maxLength": 40, "pattern": "^-?[0-9.]+,-?[0-9.]+$"}),
+        ),
+        "radius_km:search" => (
+            "The radius of the circle of near, in kilometres, 1 to 100, edge included.",
+            json!({"type": "number", "minimum": 1, "maximum": 100}),
+        ),
+        "area" => (
+            "An area drawn on the map the take-off lies in, edges included: its corners in the order drawn, lat,lon,lat,lon,… in WGS84 degrees, three to 50 corners, edges that do not cross, within 180 degrees of longitude.",
+            json!({"type": "string", "maxLength": 1100}),
+        ),
+        "class" => (
+            "Only flights flown on a glider of this class.",
+            json!({"type": "string", "enum": ["en_a", "en_b", "en_c", "en_d", "ccc"]}),
+        ),
+        "kind" => (
+            "Only flights scored as this kind of route.",
+            json!({"type": "string", "enum": ["free_flight", "free_triangle", "fai_triangle"]}),
+        ),
+        "min_km" => (
+            "Only flights whose scoring distance is at least this many kilometres, 0 to 1000. A flight too short to score has none.",
+            json!({"type": "number", "minimum": 0, "maximum": 1000}),
+        ),
+        "country" => (
+            "Only flights that took off in this country, an ISO 3166-1 alpha-2 code, in either case.",
+            json!({"type": "string", "minLength": 2, "maxLength": 2, "pattern": "^[A-Za-z]{2}$"}),
         ),
         "q" => (
             "A part of a pilot's handle or display name, 2 to 60 characters, in any case.",

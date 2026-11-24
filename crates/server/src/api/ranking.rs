@@ -34,6 +34,8 @@ pub(crate) struct Params {
     to: Option<String>,
     month: Option<String>,
     limit: Option<String>,
+    #[serde(flatten)]
+    filters: feed::FilterParams,
 }
 
 /// A sum of points as it is handed out: rounded to hundredths, as the
@@ -111,6 +113,7 @@ pub(crate) async fn list<S: Store>(
         params.bbox.as_deref(),
         params.from.as_deref(),
         params.to.as_deref(),
+        &params.filters,
     )?;
     let mut asked_month = None;
     if let Some(month) = params.month.as_deref() {

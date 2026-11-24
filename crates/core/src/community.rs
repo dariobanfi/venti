@@ -16,8 +16,8 @@
 
 use chrono::{DateTime, Datelike, TimeZone, Utc};
 use venti_api_types::v1::{
-    self as api, Flight, FlightResponse, FlightSort, FlightsResponse, PilotRequest, PilotResponse,
-    PublicFlightsRequest, RankingRequest, RankingResponse, RankingYear,
+    self as api, Flight, FlightFilters, FlightResponse, FlightSort, FlightsResponse, PilotRequest,
+    PilotResponse, PublicFlightsRequest, RankingRequest, RankingResponse, RankingYear,
 };
 use venti_domain::{BoundingBox, Timestamp};
 
@@ -146,6 +146,7 @@ pub fn public_flights_path(
         from,
         to,
         site: None,
+        filters: FlightFilters::default(),
         sort: match order {
             // The server's own order: nothing to say.
             PublicFlightsOrder::Newest => None,
@@ -685,6 +686,7 @@ pub fn ranking_month_path(area: Option<Bounds>, month: String) -> Result<String,
         from: None,
         to: None,
         month: Some(month),
+        filters: FlightFilters::default(),
         limit: None,
     }
     .path_and_query())
@@ -713,6 +715,7 @@ pub fn ranking_path(
         bbox,
         from,
         to,
+        filters: FlightFilters::default(),
         limit: None,
     }
     .path_and_query())

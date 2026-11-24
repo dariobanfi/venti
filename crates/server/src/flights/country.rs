@@ -1,8 +1,10 @@
 //! The country a flight took off in, for the flag beside it.
 //!
 //! Worked out with every answer, as the take-off's site is, so that a
-//! better outline changes every flight at once and nothing is stored that
-//! could go stale. The outlines are [`adapters::country_outlines`]: the
+//! better outline changes every flight at once. It is also kept with the
+//! flight's analysis ([`super::derive`]) so that flights can be searched by
+//! it; a better outline then needs the analysis version raised, so that the
+//! refresh writes it anew. The outlines are [`adapters::country_outlines`]: the
 //! finer ones first, Austria's (BEV, CC BY 4.0) and France's (IGN, Licence
 //! Ouverte 2.0), which the server has for cutting aerial photographs at a
 //! border, then Natural Earth's of every other country of Europe (public

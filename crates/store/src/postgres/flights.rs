@@ -36,7 +36,7 @@ pub(super) const FLIGHT_COLUMNS: &str = "
     f.track_length_m, f.max_altitude_m, f.max_climb_ms,
     f.score_kind, f.score_closed, f.score_distance_m, f.score_points,
     f.glider, f.outline, f.profile, f.taken_down_at, f.published_at, f.public_change,
-    a.country AS pilot_country, f.glider_class, f.habits";
+    a.country AS pilot_country, f.glider_class, f.habits, f.takeoff_country";
 
 pub(super) const FLIGHT_FROM: &str = "FROM flights f JOIN accounts a ON a.id = f.account_id";
 
@@ -125,6 +125,7 @@ pub(super) fn flight_from(row: &Row) -> Result<Flight, StoreError> {
             outline: pairs(&outline, "flight outline")?,
             profile: pairs(&profile, "flight profile")?,
             habits: habits_from(row)?,
+            takeoff_country: row.get("takeoff_country"),
         },
         change: row.get("change"),
         taken_down_at: row.get("taken_down_at"),
@@ -154,7 +155,7 @@ struct DerivedValues<'a> {
 }
 
 /// The columns that hold what is worked out from the file.
-const DERIVED_COLUMNS: [&str; 21] = [
+const DERIVED_COLUMNS: [&str; 22] = [
     "analysis_version",
     "started_at",
     "airtime_s",
@@ -176,6 +177,7 @@ const DERIVED_COLUMNS: [&str; 21] = [
     "glider",
     "outline",
     "habits",
+    "takeoff_country",
 ];
 
 impl<'a> DerivedValues<'a> {
@@ -429,9 +431,9 @@ pub(super) async fn save(
         "INSERT INTO flights
              (id, account_id, identity, visibility, uploaded_at, change, file, file_bytes,
               {}, profile, taken_down_at, published_at, public_change, glider_class)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, {}, $30, $31, $32, $33, $34)",
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, {}, $31, $32, $33, $34, $35)",
         DERIVED_COLUMNS.join(", "),
-        (9..30)
+        (9..31)
             .map(|n| format!("${n}"))
             .collect::<Vec<_>>()
             .join(", "),
@@ -469,6 +471,7 @@ pub(super) async fn save(
             &derived.glider,
             &values.outline,
             &values.habits,
+            &derived.takeoff_country,
             &values.profile,
             &taken_down_at,
             &published_at,
@@ -555,52 +558,27 @@ pub(super) async fn of_account(
 /// every call, and not kept prepared like the others: a kept plan is made
 /// for values nobody has named yet.
 pub(super) async fn public(
-    client: &Client,
+    client: &mut Client,
     which: &PublicFlights,
     order: &PublicOrder,
     limit: usize,
 ) -> Result<Vec<Flight>, StoreError> {
     let edges = edges_of(which);
     let limit = i64::try_from(limit).unwrap_or(i64::MAX);
-    let mut parameters: Vec<&(dyn ToSql + Sync)> = Vec::new();
-    let mut conditions = public_conditions(which, &edges, &mut parameters);
-    let sorted = match order {
-        PublicOrder::Newest(after) => {
-            if let Some((start, id)) = after {
-                parameters.extend([start as &(dyn ToSql + Sync), id]);
-                let last = parameters.len();
-                conditions.push(format!("(f.started_at, f.id) < (${}, ${last})", last - 1));
-            }
-            "f.started_at DESC, f.id DESC"
-        }
-        PublicOrder::Best(after) => {
-            conditions.push("f.score_points IS NOT NULL".to_owned());
-            if let Some((points, id)) = after {
-                parameters.extend([points as &(dyn ToSql + Sync), id]);
-                let last = parameters.len();
-                conditions.push(format!("(f.score_points, f.id) < (${}, ${last})", last - 1));
-            }
-            "f.score_points DESC, f.id DESC"
-        }
-    };
-    parameters.push(&limit);
-    let query = format!(
-        "SELECT {FLIGHT_COLUMNS} {FLIGHT_FROM}
-         WHERE {}
-         ORDER BY {sorted}
-         LIMIT ${}",
-        conditions.join(" AND "),
-        parameters.len()
-    );
-    let rows = client
-        .query(query.as_str(), &parameters)
-        .await
-        .map_err(db_error)?;
+    let (query, parameters) = public_query(which, &edges, order, &limit);
+    let rows = bounded_query(client, &query, &parameters, Shape::Page).await?;
     rows.iter().map(flight_from).collect()
 }
 
-/// The numbers of the places a list of public flights is asked for.
+/// The numbers of the places a list of public flights is asked for, and
+/// the other values of its filters as the database takes them.
 struct Edges {
+    /// The area drawn on a map, as well-known text, and the box around it.
+    drawn: Option<(String, [f64; 4])>,
+    /// The glider class by its name.
+    class: Option<&'static str>,
+    /// The kind of route by its name.
+    kind: Option<&'static str>,
     /// The box: west, south, east, north.
     area: Option<[f64; 4]>,
     /// The box around the place near which flights took off, the place's
@@ -610,6 +588,12 @@ struct Edges {
 
 fn edges_of(which: &PublicFlights) -> Edges {
     Edges {
+        drawn: which
+            .drawn
+            .as_ref()
+            .map(|drawn| (drawn.wkt(), drawn.bounds())),
+        class: which.class.map(GliderClass::as_str),
+        kind: which.kind.map(ScoreKind::as_str),
         area: which
             .area
             .map(|area| [area.west(), area.south(), area.east(), area.north()]),
@@ -676,7 +660,182 @@ fn public_conditions<'a>(
             distance(&format!("${la}"), &format!("${lo}"))
         ));
     }
+    if let Some((wkt, [west, south, east, north])) = &edges.drawn {
+        let w = parameters.len() + 1;
+        let (s, e, n, a) = (w + 1, w + 2, w + 3, w + 4);
+        parameters.extend([west as &(dyn ToSql + Sync), south, east, north, wkt]);
+        // The box lets the index find the candidates, as for a box; the
+        // area decides, its edges included.
+        conditions.push(format!(
+            "f.takeoff && ST_MakeEnvelope(${w}, ${s}, ${e}, ${n}, 4326)
+             AND ST_Intersects(f.takeoff, ST_GeomFromText(${a}::text, 4326))"
+        ));
+    }
+    if let Some(class) = &edges.class {
+        parameters.push(class);
+        conditions.push(format!("f.glider_class = ${}", parameters.len()));
+    }
+    if let Some(kind) = &edges.kind {
+        parameters.push(kind);
+        conditions.push(format!("f.score_kind = ${}", parameters.len()));
+    }
+    if let Some(least) = &which.min_distance_m {
+        parameters.push(least);
+        conditions.push(format!(
+            "f.score_distance_m >= ${}::float8",
+            parameters.len()
+        ));
+    }
+    if let Some(country) = &which.country {
+        parameters.push(country);
+        conditions.push(format!("f.takeoff_country = ${}", parameters.len()));
+    }
     conditions
+}
+
+/// The most a read of everyone's flights may take before the database
+/// gives it up: whatever a request asks, it holds no connection and no
+/// core longer. The indexes answer every page the API asks for in a few
+/// milliseconds over millions of flights (`tests/scale.rs`); one that
+/// takes this long is a mistake, and is told as the database being busy.
+pub(super) const READ_TIMEOUT: &str = "2s";
+
+/// What a read of everyone's flights does.
+#[derive(Clone, Copy)]
+enum Shape {
+    /// Finds a page along an index.
+    Page,
+    /// Adds up many flights.
+    Sum,
+}
+
+/// Runs one read of everyone's flights under [`READ_TIMEOUT`].
+async fn bounded_query(
+    client: &mut Client,
+    query: &str,
+    parameters: &[&(dyn ToSql + Sync)],
+    shape: Shape,
+) -> Result<Vec<Row>, StoreError> {
+    let tx = client
+        .build_transaction()
+        .read_only(true)
+        .start()
+        .await
+        .map_err(db_error)?;
+    // Compiling a plan to machine code costs a quarter of a second, more
+    // than any of these queries takes.
+    let parallel = match shape {
+        // Starting helpers costs more than a page of fifty takes, which
+        // walks an index until it has them (measured: 40 ms of 45).
+        Shape::Page => "SET LOCAL max_parallel_workers_per_gather = 0;",
+        Shape::Sum => "",
+    };
+    tx.batch_execute(&format!(
+        "SET LOCAL statement_timeout = '{READ_TIMEOUT}'; SET LOCAL jit = off; {parallel}"
+    ))
+    .await
+    .map_err(db_error)?;
+    let rows = tx.query(query, parameters).await.map_err(db_error)?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(rows)
+}
+
+/// The text of one page of everyone's public flights and its values, as
+/// [`public`] asks the database: for [`explain_public`] too.
+fn public_query<'a>(
+    which: &'a PublicFlights,
+    edges: &'a Edges,
+    order: &'a PublicOrder,
+    limit: &'a i64,
+) -> (String, Vec<&'a (dyn ToSql + Sync)>) {
+    let mut parameters: Vec<&(dyn ToSql + Sync)> = Vec::new();
+    let mut conditions = public_conditions(which, edges, &mut parameters);
+    let sorted = match order {
+        PublicOrder::Newest(after) => {
+            if let Some((start, id)) = after {
+                parameters.extend([start as &(dyn ToSql + Sync), id]);
+                let last = parameters.len();
+                conditions.push(format!("(f.started_at, f.id) < (${}, ${last})", last - 1));
+            }
+            "f.started_at DESC, f.id DESC"
+        }
+        PublicOrder::Best(after) => {
+            conditions.push("f.score_points IS NOT NULL".to_owned());
+            if let Some((points, id)) = after {
+                parameters.extend([points as &(dyn ToSql + Sync), id]);
+                let last = parameters.len();
+                conditions.push(format!("(f.score_points, f.id) < (${}, ${last})", last - 1));
+            }
+            "f.score_points DESC, f.id DESC"
+        }
+    };
+    parameters.push(limit);
+    // The page's addresses first, from an index alone: every column a
+    // condition reads is in the two indexes that order the list (0034).
+    // Then the rows of those flights only.
+    let query = format!(
+        "SELECT {FLIGHT_COLUMNS}
+         FROM (SELECT f.id FROM flights f
+               WHERE {}
+               ORDER BY {sorted}
+               LIMIT ${}) page
+         JOIN flights f ON f.id = page.id
+         JOIN accounts a ON a.id = f.account_id
+         ORDER BY {sorted}",
+        conditions.join(" AND "),
+        parameters.len()
+    );
+    (query, parameters)
+}
+
+/// What the database does for a page of everyone's public flights:
+/// `EXPLAIN (ANALYZE, BUFFERS)` of the very query [`public`] sends, as
+/// text. For the tests that hold the plans to the indexes and for
+/// measuring them.
+pub(super) async fn explain_public(
+    client: &mut Client,
+    which: &PublicFlights,
+    order: &PublicOrder,
+    limit: usize,
+) -> Result<String, StoreError> {
+    let edges = edges_of(which);
+    let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+    let (query, parameters) = public_query(which, &edges, order, &limit);
+    explain(client, &query, &parameters, Shape::Page).await
+}
+
+/// The same for the ranking.
+pub(super) async fn explain_ranking(
+    client: &mut Client,
+    which: &PublicFlights,
+    counted: usize,
+    limit: usize,
+) -> Result<String, StoreError> {
+    let edges = edges_of(which);
+    let counted = i64::try_from(counted).unwrap_or(i64::MAX);
+    let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+    let (query, parameters) = ranking_query(which, &edges, &counted, &limit);
+    explain(client, &query, &parameters, Shape::Sum).await
+}
+
+async fn explain(
+    client: &mut Client,
+    query: &str,
+    parameters: &[&(dyn ToSql + Sync)],
+    shape: Shape,
+) -> Result<String, StoreError> {
+    let rows = bounded_query(
+        client,
+        &format!("EXPLAIN (ANALYZE, BUFFERS) {query}"),
+        parameters,
+        shape,
+    )
+    .await?;
+    Ok(rows
+        .iter()
+        .map(|row| row.get::<_, String>(0))
+        .collect::<Vec<_>>()
+        .join("\n"))
 }
 
 /// The pilots of everyone's public flights by the sum of their best.
@@ -690,7 +849,7 @@ fn public_conditions<'a>(
 /// flights that count come back one a row, and the sum that is handed out
 /// is made from them here, as the in-memory store makes it.
 pub(super) async fn ranking(
-    client: &Client,
+    client: &mut Client,
     which: &PublicFlights,
     counted: usize,
     limit: usize,
@@ -698,12 +857,49 @@ pub(super) async fn ranking(
     let edges = edges_of(which);
     let counted = i64::try_from(counted).unwrap_or(i64::MAX);
     let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+    let (query, parameters) = ranking_query(which, &edges, &counted, &limit);
+    let rows = bounded_query(client, &query, &parameters, Shape::Sum).await?;
+
+    // The rows of a pilot follow each other, the best flight first.
+    let mut pilots: Vec<(u32, Vec<Flight>)> = Vec::new();
+    for row in &rows {
+        let flight = flight_from(row)?;
+        match pilots.last_mut() {
+            Some((_, flights))
+                if flights
+                    .last()
+                    .is_some_and(|last| last.account_id == flight.account_id) =>
+            {
+                flights.push(flight);
+            }
+            _ => {
+                let scored: i64 = row.get("ranked_scored");
+                pilots.push((u32::try_from(scored).unwrap_or(u32::MAX), vec![flight]));
+            }
+        }
+    }
+    let mut ranked: Vec<Ranked> = pilots
+        .into_iter()
+        .filter_map(|(scored, flights)| Ranked::of(flights, scored))
+        .collect();
+    ranked.sort_by(ranked_order);
+    Ok(ranked)
+}
+
+/// The text of the ranking and its values, as [`ranking`] asks the
+/// database.
+fn ranking_query<'a>(
+    which: &'a PublicFlights,
+    edges: &'a Edges,
+    counted: &'a i64,
+    limit: &'a i64,
+) -> (String, Vec<&'a (dyn ToSql + Sync)>) {
     let mut parameters: Vec<&(dyn ToSql + Sync)> = Vec::new();
-    let mut conditions = public_conditions(which, &edges, &mut parameters);
+    let mut conditions = public_conditions(which, edges, &mut parameters);
     conditions.push("f.score_points IS NOT NULL".to_owned());
-    parameters.push(&counted);
+    parameters.push(counted);
     let c = parameters.len();
-    parameters.push(&limit);
+    parameters.push(limit);
     let l = parameters.len();
     // Handles are compared byte by byte, as the in-memory store compares
     // them: the database's own order of text depends on how it was set up.
@@ -733,42 +929,14 @@ pub(super) async fn ranking(
          ORDER BY top.points DESC, top.handle COLLATE \"C\", s.place",
         conditions.join(" AND ")
     );
-    let rows = client
-        .query(query.as_str(), &parameters)
-        .await
-        .map_err(db_error)?;
-
-    // The rows of a pilot follow each other, the best flight first.
-    let mut pilots: Vec<(u32, Vec<Flight>)> = Vec::new();
-    for row in &rows {
-        let flight = flight_from(row)?;
-        match pilots.last_mut() {
-            Some((_, flights))
-                if flights
-                    .last()
-                    .is_some_and(|last| last.account_id == flight.account_id) =>
-            {
-                flights.push(flight);
-            }
-            _ => {
-                let scored: i64 = row.get("ranked_scored");
-                pilots.push((u32::try_from(scored).unwrap_or(u32::MAX), vec![flight]));
-            }
-        }
-    }
-    let mut ranked: Vec<Ranked> = pilots
-        .into_iter()
-        .filter_map(|(scored, flights)| Ranked::of(flights, scored))
-        .collect();
-    ranked.sort_by(ranked_order);
-    Ok(ranked)
+    (query, parameters)
 }
 
 /// The months that have a scored public flight among those asked for.
 ///
 /// As in [`public`], the condition on visibility is in the query as text.
 pub(super) async fn scored_months(
-    client: &Client,
+    client: &mut Client,
     which: &PublicFlights,
 ) -> Result<Vec<(Month, u32)>, StoreError> {
     let edges = edges_of(which);
@@ -785,10 +953,7 @@ pub(super) async fn scored_months(
          ORDER BY 1, 2",
         conditions.join(" AND ")
     );
-    let rows = client
-        .query(query.as_str(), &parameters)
-        .await
-        .map_err(db_error)?;
+    let rows = bounded_query(client, &query, &parameters, Shape::Sum).await?;
     rows.iter()
         .map(|row| {
             let (year, month): (i32, i32) = (row.get("year"), row.get("month"));
@@ -1522,6 +1687,7 @@ pub(super) async fn set_derived(
                 &derived.glider,
                 &values.outline,
                 &values.habits,
+                &derived.takeoff_country,
             ],
         )
         .await

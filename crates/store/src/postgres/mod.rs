@@ -128,6 +128,30 @@ impl PgStore {
         Ok(store)
     }
 
+    /// `EXPLAIN (ANALYZE, BUFFERS)` of the query a page of everyone's
+    /// public flights sends, as the database's text: for the tests that
+    /// hold the plans to the indexes, and for measuring them.
+    #[doc(hidden)]
+    pub async fn explain_public_flights(
+        &self,
+        which: &PublicFlights,
+        order: &PublicOrder,
+        limit: usize,
+    ) -> Result<String, StoreError> {
+        flights::explain_public(&mut self.client().await?, which, order, limit).await
+    }
+
+    /// The same for the ranking.
+    #[doc(hidden)]
+    pub async fn explain_ranking(
+        &self,
+        which: &PublicFlights,
+        counted: usize,
+        limit: usize,
+    ) -> Result<String, StoreError> {
+        flights::explain_ranking(&mut self.client().await?, which, counted, limit).await
+    }
+
     async fn client(&self) -> Result<Client, StoreError> {
         self.pool.get().await.map_err(|error| match error {
             PoolError::Backend(error) => db_error(error),
@@ -1437,7 +1461,7 @@ impl Store for PgStore {
         order: &PublicOrder,
         limit: usize,
     ) -> Result<Vec<Flight>, StoreError> {
-        flights::public(&self.client().await?, which, order, limit).await
+        flights::public(&mut self.client().await?, which, order, limit).await
     }
 
     async fn flights_from(
@@ -1474,11 +1498,11 @@ impl Store for PgStore {
         counted: usize,
         limit: usize,
     ) -> Result<Vec<Ranked>, StoreError> {
-        flights::ranking(&self.client().await?, which, counted, limit).await
+        flights::ranking(&mut self.client().await?, which, counted, limit).await
     }
 
     async fn scored_months(&self, which: &PublicFlights) -> Result<Vec<(Month, u32)>, StoreError> {
-        flights::scored_months(&self.client().await?, which).await
+        flights::scored_months(&mut self.client().await?, which).await
     }
 
     async fn pilots_named(&self, text: &str, limit: usize) -> Result<Vec<FoundPilot>, StoreError> {

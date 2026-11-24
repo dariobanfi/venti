@@ -4195,14 +4195,18 @@ class VentiUiTest {
     }
 
     /**
-     * The Community tab's badge is the server's marker (plan item 5): the
-     * demo pilot has what an alarm fired unseen, and the badge goes down
-     * once the alerts were shown. Skipped without a server.
+     * The Community tab's badge is the server's marker (plan item 5): a
+     * new pilot follows the demo pilot, and the badge goes down once the
+     * notifications were shown. The follow comes first because the mark
+     * never moves back, and a test before this one on the same server
+     * (the alarms', the feed's) has seen what the demo pilot was told.
+     * Skipped without a server.
      */
     @Test
     fun theCommunityTabCarriesTheServersUnreadMarker() {
         val server = InstrumentationRegistry.getArguments().getString("ventiServer")
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        followAsANewPilot(checkNotNull(server), "demo")
         launch { putExtra(LaunchOptions.SERVER, server) }
         // The count as TalkBack has it from the tab: the core's "5 new".
         fun count(): Int? = screen.onAllNodes(tab("Community")).fetchSemanticsNodes().firstOrNull()
@@ -4218,20 +4222,57 @@ class VentiUiTest {
         assertTrue(exists(tab("Community") and sayingLike("^\\d+\\+? new$")))
         keepScreenshotInBoth("light-unread-1-badge")
 
-        // The alerts shown: what fired is seen, on every device.
+        // The notifications shown: what the pilot was told is seen, on every device.
         openFromToday("Settings")
         waitFor(hasTestTag("account-link"))
         screen.onNode(hasTestTag("account-link")).performScrollTo()
         tap(hasTestTag("account-link"))
-        screen.onNode(hasTestTag("account-alerts")).performScrollTo()
-        tap(hasTestTag("account-alerts"))
-        waitFor(hasTestTag("alerts-page"))
-        waitFor(hasTestTag("alert-fired"))
+        screen.onNode(hasTestTag("account-notifications")).performScrollTo()
+        tap(hasTestTag("account-notifications"))
+        waitFor(hasTestTag("notification"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (count() ?: 0) < before }
         tap(described("Back"))
-        waitFor(hasTestTag("account-alerts"))
+        waitFor(hasTestTag("account-notifications"))
         TestDevice.letTheAppRun(screen, 1)
-        keepScreenshot("light-unread-2-after-alerts")
+        keepScreenshot("light-unread-2-after-notifications")
+    }
+
+    /**
+     * A pilot made for the moment on the development server follows
+     * `handle`, who is told: straight through Venti's API, as no screen of
+     * this phone could do it without signing the test's own pilot out.
+     */
+    private fun followAsANewPilot(server: String, handle: String) {
+        fun send(method: String, path: String, token: String?, body: String?): String {
+            val connection = java.net.URL(server.trimEnd('/') + path).openConnection() as java.net.HttpURLConnection
+            try {
+                connection.requestMethod = method
+                token?.let { connection.setRequestProperty("Authorization", "Bearer $it") }
+                if (body != null) {
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    connection.outputStream.use { it.write(body.toByteArray()) }
+                }
+                val status = connection.responseCode
+                check(status in 200..299) { "$method $path answered $status" }
+                return connection.inputStream.bufferedReader().use { it.readText() }
+            } finally {
+                connection.disconnect()
+            }
+        }
+        val follower = "f${System.currentTimeMillis() % 1_000_000_000}"
+        val made = send(
+            "POST",
+            "/v1/accounts",
+            null,
+            org.json.JSONObject()
+                .put("handle", follower)
+                .put("display_name", "Follower $follower")
+                .put("password", "a-follower-of-the-tests")
+                .toString(),
+        )
+        val token = org.json.JSONObject(made).getString("token")
+        send("PUT", "/v1/pilots/$handle/follow", token, null)
     }
 
     /** A flight's date as day, month and year, without its weekday (plan item 11). */
@@ -5795,7 +5836,7 @@ class VentiUiTest {
         val dayWords = when (back) {
             0L -> "Today"
             1L -> "Yesterday"
-            else -> "Tue 17 Nov"
+            else -> "17 Nov 2026"
         }
         launch { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
@@ -5842,9 +5883,9 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("site-confirm-form")) }
         waitFor(page)
         screen.onNode(page).performScrollToNode(hasTestTag("site-said"))
-        waitFor(hasTestTag("site-said") and hasText("You confirmed this site for Tue 17 Nov."))
+        waitFor(hasTestTag("site-said") and hasText("You confirmed this site for 17 Nov 2026."))
         screen.onNode(page).performScrollToNode(hasTestTag("site-confirmed"))
-        waitFor(hasTestTag("site-confirmed-words") and hasText("You confirmed this site for Tue 17 Nov 2026."))
+        waitFor(hasTestTag("site-confirmed-words") and hasText("You confirmed this site for 17 Nov 2026."))
         waitFor(hasTestTag("site-confirmations-open") and hasText("2 pilots took off here, last on 17 November 2026"))
         assertTrue(exists(hasTestTag("site-confirm-again") and hasText("Change the day")))
         assertTrue(exists(hasTestTag("site-withdraw") and hasText("Take my confirmation back")))
@@ -5857,7 +5898,7 @@ class VentiUiTest {
         assertTrue(exists(hasText("Pilots who took off here")))
         waitFor(
             hasTestTag("site-confirmation") and
-                hasText("(@$handle) on Tue 17 Nov 2026", substring = true) and
+                hasText("(@$handle) on 17 Nov 2026", substring = true) and
                 hasText("West wind, easy launch (a test).", substring = true),
         )
         assertEquals(2, screen.onAllNodes(hasTestTag("site-confirmation")).fetchSemanticsNodes().size)

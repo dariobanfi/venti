@@ -429,17 +429,23 @@ impl UnreadResponse {
     }
 }
 
-/// The body of `PUT /v1/account/unread`, which may be left out: up to
-/// where the pilot saw each list. A list left out is seen up to its
-/// newest line. The mark only moves forward.
+/// What a field of [`SeenRequest`] says to mean "up to the newest line
+/// of the list".
+pub const SEEN_NEWEST: &str = "newest";
+
+/// The body of `PUT /v1/account/unread`: up to where the pilot saw each
+/// list. A field is the `cursor` of the last answer of that list the
+/// pilot was shown, or [`SEEN_NEWEST`] for up to its newest line; a list
+/// left out keeps its mark where it is. A body left out altogether sees
+/// both lists up to the newest. A mark only moves forward.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SeenRequest {
     /// The `cursor` of the last answer of `GET /v1/account/notifications`
-    /// that the pilot was shown.
+    /// that the pilot was shown, or [`SEEN_NEWEST`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notifications_cursor: Option<String>,
     /// The `cursor` of the last answer of `GET /v1/account/alerts/fired`
-    /// that the pilot was shown.
+    /// that the pilot was shown, or [`SEEN_NEWEST`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alarms_cursor: Option<String>,
 }

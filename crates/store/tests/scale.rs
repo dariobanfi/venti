@@ -6,12 +6,14 @@
 //! it fills once and keeps: filling takes minutes. With it, every question
 //! of `scale/queries.rs` is asked with `EXPLAIN (ANALYZE, BUFFERS)` and its
 //! time printed, and the test fails if one reads the whole table of
-//! flights or takes longer than `VENTI_SCALE_MAX_MS` (50 by default):
+//! flights or takes longer than `VENTI_SCALE_MAX_MS` (50 by default; the
+//! few that sum many rows, `queries::SUMMED`, `VENTI_SCALE_MAX_SUM_MS`,
+//! 500):
 //!
 //! ```text
 //! docker run -d --name venti-scale -p 127.0.0.1:55434:5432 \
 //!     -e POSTGRES_USER=venti -e POSTGRES_PASSWORD=venti -e POSTGRES_DB=venti \
-//!     postgis/postgis:16-3.4 -c shared_buffers=1GB
+//!     postgis/postgis:16-3.4 -c shared_buffers=1GB -c max_locks_per_transaction=256
 //! VENTI_SCALE_DATABASE_URL=postgres://venti:venti@127.0.0.1:55434/venti \
 //!     cargo test -p venti-store --test scale -- --nocapture
 //! docker rm -f venti-scale
@@ -23,7 +25,7 @@
 #[path = "scale/queries.rs"]
 mod queries;
 
-use queries::{centre, execution_ms, explain, questions, reads_all_flights};
+use queries::{SUMMED, centre, execution_ms, explain, questions, reads_all_flights};
 use tokio_postgres::NoTls;
 use venti_store::PgStore;
 
@@ -66,6 +68,7 @@ async fn everyone_s_flights_are_found_quickly_among_millions() {
     }
 
     let most = number("VENTI_SCALE_MAX_MS", 50.0);
+    let most_summed = number("VENTI_SCALE_MAX_SUM_MS", 500.0);
     let centre = centre(&url).await;
     let mut slow = Vec::new();
     println!("| Question | ms | Whole table |");
@@ -89,7 +92,12 @@ async fn everyone_s_flights_are_found_quickly_among_millions() {
         if std::env::var_os("VENTI_SCALE_PLANS").is_some() {
             println!("{plan}\n");
         }
-        if whole || ms > most {
+        let bound = if SUMMED.contains(&name) {
+            most_summed
+        } else {
+            most
+        };
+        if whole || ms > bound {
             slow.push(format!(
                 "{name}: {ms:.1} ms{}",
                 if whole { ", whole table" } else { "" }

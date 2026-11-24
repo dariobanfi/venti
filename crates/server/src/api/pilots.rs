@@ -12,7 +12,7 @@ use std::sync::Arc;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
-use chrono::Datelike;
+use chrono::{Datelike, NaiveDateTime};
 use serde::Deserialize;
 use venti_api_types::v1::{
     ErrorCode, FlightHabits, FlightSite, FlightTerms, FlownSite, FoundPilot, HabitsResponse,
@@ -169,6 +169,23 @@ fn tenths(distance_m: f64) -> f64 {
     (distance_m * 10.0).round() / 10.0
 }
 
+/// When a flight began by the clock of where it took off: the zone of the
+/// take-off (`venti-sources-timezones`), else UTC for a flight that never
+/// took off. A pilot's years and months are those of each flight's own
+/// clock, as the apps date the flight; the zone a file declares, which
+/// the apps prefer, is in the file only and changes the day of a flight
+/// at midnight, not its month.
+pub(super) fn local_start(flown: &Flown) -> NaiveDateTime {
+    flown
+        .takeoff
+        .and_then(|takeoff| venti_sources_timezones::zone_at(takeoff.lon(), takeoff.lat()))
+        .and_then(|zone| zone.parse::<chrono_tz::Tz>().ok())
+        .map_or_else(
+            || flown.start.naive_utc(),
+            |zone| flown.start.with_timezone(&zone).naive_local(),
+        )
+}
+
 /// A site a flight took off from, with where the site stands.
 pub(super) type Placed = (FlightSite, GeoPoint);
 
@@ -185,7 +202,7 @@ pub(super) fn totals(flights: &[(&Flown, Option<&Placed>)]) -> Result<PilotTotal
     let mut highest: Option<&Flown> = None;
     let mut sites: BTreeMap<&SiteId, (&Placed, u32)> = BTreeMap::new();
     for &(flown, site) in flights {
-        by_month[flown.start.month0() as usize] += 1;
+        by_month[local_start(flown).month0() as usize] += 1;
         airtime_s = airtime_s.saturating_add(flown.airtime_s);
         if let Some((distance, points)) = flown.score {
             distance_m += distance;
@@ -320,7 +337,10 @@ impl<S: Store> Api<S> {
             .collect();
         let mut years: BTreeMap<i32, Vec<(&Flown, Option<&Placed>)>> = BTreeMap::new();
         for &flight in &all {
-            years.entry(flight.0.start.year()).or_default().push(flight);
+            years
+                .entry(local_start(flight.0).year())
+                .or_default()
+                .push(flight);
         }
         Ok(PilotStatisticsResponse {
             pilot: wire::shown(
@@ -454,6 +474,27 @@ mod tests {
             habits: None,
             ended_from_start_m: None,
         }
+    }
+
+    #[test]
+    fn a_flight_counts_in_the_year_and_month_of_its_own_clock() {
+        // Half past eleven on New Year's Eve by UTC is half past midnight
+        // at the Wallberg: January of the next year there.
+        let late = Flown {
+            start: Utc.with_ymd_and_hms(2026, 12, 31, 23, 30, 0).unwrap(),
+            takeoff: Some(GeoPoint::new(47.6642, 11.7967).unwrap()),
+            ..flown("a", 7, None, 1000)
+        };
+        let local = local_start(&late);
+        assert_eq!((local.year(), local.month()), (2027, 1));
+        let totals = totals(&[(&late, None)]).unwrap();
+        assert_eq!(totals.by_month[0], 1);
+        // A flight that never took off is counted by UTC.
+        let nowhere = Flown {
+            takeoff: None,
+            ..late.clone()
+        };
+        assert_eq!(local_start(&nowhere).year(), 2026);
     }
 
     #[test]

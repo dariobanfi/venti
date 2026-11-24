@@ -371,7 +371,9 @@ pub(crate) fn totals(
     }
     let flights = count(totals.flights, "flight", "flights");
     let in_the_air = airtime(totals.airtime_s);
-    // A season is a calendar year by UTC, as the server counts it.
+    // The span a season's flights are listed by: the calendar year by
+    // UTC. The server counts a flight in the year of the clock where it
+    // took off, which differs only near midnight on New Year's Eve.
     let first_second = |year: i32| first_second_of(year).map(|start| start.timestamp());
     let (from_unix_s, to_unix_s) = if year == 0 {
         (None, None)
@@ -430,7 +432,7 @@ pub fn pilot_statistics(status: u16, body: Vec<u8>) -> Result<PilotStatistics, C
     let response: PilotStatisticsResponse = answer(status, &body)?;
     Ok(statistics(
         &response,
-        "Of the flights this pilot shared with everyone. Years and months are those of UTC.",
+        "Of the flights this pilot shared with everyone.",
     ))
 }
 
@@ -442,7 +444,7 @@ pub fn own_statistics(status: u16, body: Vec<u8>) -> Result<PilotStatistics, Cor
     let response: PilotStatisticsResponse = answer(status, &body)?;
     Ok(statistics(
         &response,
-        "Of all your flights on the server, the private ones too. Years and months are those of UTC.",
+        "Of all your flights on the server, the private ones too.",
     ))
 }
 

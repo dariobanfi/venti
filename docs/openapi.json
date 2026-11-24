@@ -4655,7 +4655,7 @@
         "type": "object"
       },
       "PilotSeason": {
-        "description": "A year by UTC of a pilot's public flights.",
+        "description": "A year of a pilot's public flights, by the clock where each flight took off.",
         "properties": {
           "totals": {
             "$ref": "#/components/schemas/PilotTotals"
@@ -6080,14 +6080,14 @@
         ]
       },
       "SeenRequest": {
-        "description": "The body of `PUT /v1/account/unread`, which may be left out: up to where the pilot saw each list. A list left out is seen up to its newest line. The mark only moves forward.",
+        "description": "The body of `PUT /v1/account/unread`: up to where the pilot saw each list, the `cursor` of the last answer of it the pilot was shown or `\"newest\"` for up to its newest line. A list left out keeps its mark; a body left out altogether sees both lists up to the newest. A mark only moves forward.",
         "properties": {
           "alarms_cursor": {
-            "description": "The `cursor` of the last answer of `GET /v1/account/alerts/fired` the pilot was shown.",
+            "description": "The `cursor` of the last answer of `GET /v1/account/alerts/fired` the pilot was shown, or `\"newest\"`.",
             "type": "string"
           },
           "notifications_cursor": {
-            "description": "The `cursor` of the last answer of `GET /v1/account/notifications` the pilot was shown.",
+            "description": "The `cursor` of the last answer of `GET /v1/account/notifications` the pilot was shown, or `\"newest\"`.",
             "type": "string"
           }
         },
@@ -20791,6 +20791,18 @@
             "description": "Only flights that took off in this country, an ISO 3166-1 alpha-2 code, in either case.",
             "in": "query",
             "name": "country",
+            "required": false,
+            "schema": {
+              "maxLength": 2,
+              "minLength": 2,
+              "pattern": "^[A-Za-z]{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only pilots whose account names this country, an ISO 3166-1 alpha-2 code, in either case: a national ranking.",
+            "in": "query",
+            "name": "pilot_country",
             "required": false,
             "schema": {
               "maxLength": 2,

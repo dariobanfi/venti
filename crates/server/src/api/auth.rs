@@ -252,6 +252,19 @@ pub(crate) async fn program<S: Store>(
     }
 }
 
+/// The account a request's session token signs in, when it carries one
+/// that is good: `None` without one, with a token for a program, and with
+/// a session that is no longer valid, which a public read does not refuse.
+pub(crate) async fn session_account<S: Store>(headers: &HeaderMap, api: &Api<S>) -> Option<String> {
+    match bearer(headers) {
+        Ok(Some(bearer @ Bearer::Session(_))) => signed_by(api, bearer)
+            .await
+            .ok()
+            .map(|signed| signed.account.id),
+        _ => None,
+    }
+}
+
 /// Whoever a token acts for, or why it acts for nobody.
 async fn signed_by<S: Store>(api: &Api<S>, bearer: Bearer) -> Result<Signed, ApiError> {
     let now = api.clock.now();

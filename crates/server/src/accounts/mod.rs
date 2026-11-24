@@ -175,7 +175,15 @@ pub struct Limits {
     pub public_flight_reads_per_address: u32,
     /// The same, from one IPv6 /48 network.
     pub public_flight_reads_per_network: u32,
-    /// The window for both.
+    /// The same reads by a signed-in pilot of Venti's own apps, in the
+    /// same window: counted against the account, not the address, so that
+    /// a household or an office behind one address, or a pilot with a
+    /// browser and two phones, does not run out of the address's budget
+    /// (docs/plan.md, the owner's queue, 11b). A session that is not good
+    /// any longer reads by the address. Three thousand six hundred an hour
+    /// is a token's budget; an estimate, and the owner's to set.
+    pub public_flight_reads_per_account: u32,
+    /// The window for all three.
     pub public_flight_window: Duration,
     /// Requests one token for a program may make within
     /// [`token_window`](Self::token_window), of any kind, whatever their
@@ -271,6 +279,7 @@ impl Default for Limits {
             forecast_window: Duration::hours(1),
             public_flight_reads_per_address: 600,
             public_flight_reads_per_network: 2400,
+            public_flight_reads_per_account: 3600,
             public_flight_window: Duration::hours(1),
             token_requests_per_window: 3600,
             token_window: Duration::hours(1),
@@ -316,6 +325,7 @@ impl Limits {
             forecast_fetches_per_network: u32::MAX,
             public_flight_reads_per_address: u32::MAX,
             public_flight_reads_per_network: u32::MAX,
+            public_flight_reads_per_account: u32::MAX,
             token_requests_per_window: u32::MAX,
             client_registrations_per_address: u32::MAX,
             client_registrations_per_network: u32::MAX,

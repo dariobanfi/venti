@@ -328,9 +328,14 @@ RateLimit-Policy: "address";q=600;w=3600
 RateLimit: "address";a=599;w=3600
 ```
 
-The same reads with a token for a program are counted against the token's budget and not the address's, so that a program of a club with many pilots behind one address is not held up by the address. With a session's token they are counted for the address, as without one.
+The same reads with a token for a program are counted against the token's budget and not the address's, so that a program of a club with many pilots behind one address is not held up by the address. With a good session's token they are counted for the signed-in account, 3,600 an hour, named `"account"`:
 
-**A session of Venti's own apps** spends no such budget, and its answers carry neither field. What every account may write is counted per account, whatever it writes with: [sites](#sites-that-ventis-partners-and-pilots-add), [flights](#post-v1flights), [reports](#reports), [groups](#groups), [an archive](#get-v1accountarchive).
+```
+RateLimit-Policy: "account";q=3600;w=3600
+RateLimit: "account";a=3599;w=3600
+```
+
+**A session of Venti's own apps** spends no other such budget, and its other answers carry neither field. What every account may write is counted per account, whatever it writes with: [sites](#sites-that-ventis-partners-and-pilots-add), [flights](#post-v1flights), [reports](#reports), [groups](#groups), [an archive](#get-v1accountarchive).
 
 The two fields are those of the IETF's draft "RateLimit header fields for HTTP", [draft-ietf-httpapi-ratelimit-headers-12](https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/) as it stood on 2026-11-21. It is a draft and not a standard: earlier versions named the fields `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`, and a later one may rename them again, which this API would follow. A client reads `Retry-After` first. The numbers are estimates, counted in the server's memory as its other limits are; [the development mode](#try-it) has none of them.
 
@@ -8266,7 +8271,7 @@ curl http://127.0.0.1:8080/v1/pilots/lena/statistics
 | `sites` | The take-off sites flown from most: each `site` (`id` and `name`, as a flight's [`takeoff_site`](#get-v1flightsid)) with its `position` (`lat` and `lon`, where the site's record has it, for a map or a link) and its `flights`, the most first and by identifier among sites with as many, at most five. A flight that took off where no site with a name stands is in none |
 | `by_month` | How many of the flights began in each month of the year, January first, all years together: twelve numbers that add up to `flights` |
 
-**A season is a year by UTC**, and the months are those of UTC, as the ranking's `month` and its periods are. (What flights say about [a site](#what-public-flights-say-about-a-site) counts its months by the day at the site; in the Alps the two never differ.)
+**A season is a year by the clock where each flight took off**, and the months are those of that clock too, as the apps date a flight: the zone of the take-off, from the time-zone outlines every app has (`venti-sources-timezones`), and UTC for a flight that never took off. A ranking's `month` and its periods are those of UTC, so a flight near midnight on New Year's Eve may count in another year there. (What flights say about [a site](#what-public-flights-say-about-a-site) counts its months by the day at the site too.)
 
 **The site of a take-off** is looked up as for a flight, within 500 m, with the take-off taken to the nearest 0.0001° (11 m): a pilot's hundred starts from one meadow are a handful of places to look up. At the very edge of the 500 m a flight may therefore name a site here and none on its own page, or the other way round.
 
@@ -8780,8 +8785,10 @@ Each count stops at 100, and 100 means 100 or more; an app shows "99+" beyond 99
 
 | Field | Meaning |
 |---|---|
-| `notifications_cursor` | The `cursor` of the last answer of `GET /v1/account/notifications` the pilot was shown. Left out: up to the newest |
-| `alarms_cursor` | The `cursor` of the last answer of `GET /v1/account/alerts/fired` the pilot was shown. Left out: up to the newest |
+| `notifications_cursor` | The `cursor` of the last answer of `GET /v1/account/notifications` the pilot was shown, or `"newest"` for up to its newest line. Left out: the mark of the notifications stays where it is |
+| `alarms_cursor` | The `cursor` of the last answer of `GET /v1/account/alerts/fired` the pilot was shown, or `"newest"`. Left out: the alarms' mark stays where it is |
+
+So a device that showed the notifications and not the alarms sends `notifications_cursor` alone, and the alarms stay new. (Until 2026-11-24 a field left out meant up to the newest; `"0"` left a mark where it was, and still does, since a mark never moves back.)
 
 Sending the cursors of what was shown keeps a line that came in between the list's answer and the `PUT` new. The mark only moves forward: a cursor before it changes nothing, and one beyond the newest line is taken as the newest. A cursor that is not one of those answers' gives `400` with `invalid_cursor`. A token needs `social:write`; without `alerts:read` it leaves the alarms' mark where it is. Neither request is counted against a bound of its own: the count reads at most 100 lines of each list.
 
@@ -8824,7 +8831,7 @@ The answer carries [`terms`](#flights), under what its flights are given.
 
 #### How often an address may read
 
-Seven requests are open to anyone and counted together for the address that asks: a page of this list, a page of [what changed](#get-v1flightspublicchangessincepilotlimit), [a flight's track](#get-v1flightsidtrack), [what flights say about a site](#what-public-flights-say-about-a-site), of one site and of the candidates in a box, [the search for pilots](#get-v1pilotsqlimit) and [a pilot's totals](#get-v1pilotshandlestatistics). An address may make **600 of them in an hour**; for an IPv6 client the address is its /64 network, and one /48 network together gets 2,400. Beyond that the answer is `429` with `rate_limited`, and `Retry-After` says when the hour is over. Every such answer says what the address has left in `RateLimit` ([Limits](#limits)). A session's token does not change the count: it is the address's. A token for a program does: the read is counted against the token's own budget instead. A page holds at most 100 flights or changes ([`limit`](#rules-that-hold-for-every-endpoint)), and a track at most 50,000 positions. One flight by its address, its file and a pilot's page are not counted. The numbers are estimates, counted in the server's memory as its other limits are.
+Seven requests are open to anyone and counted together for the address that asks: a page of this list, a page of [what changed](#get-v1flightspublicchangessincepilotlimit), [a flight's track](#get-v1flightsidtrack), [what flights say about a site](#what-public-flights-say-about-a-site), of one site and of the candidates in a box, [the search for pilots](#get-v1pilotsqlimit), [a pilot's totals](#get-v1pilotshandlestatistics) and [the ranking](#get-v1rankingbboxfromtomonthlimit). An address may make **600 of them in an hour**; for an IPv6 client the address is its /64 network, and one /48 network together gets 2,400. Beyond that the answer is `429` with `rate_limited`, and `Retry-After` says when the hour is over. Every such answer says what the address has left in `RateLimit` ([Limits](#limits)). A signed-in pilot's session counts them for the account instead, **3,600 an hour** whatever address the pilot reads from, with the name `"account"` in `RateLimit`: everyone behind one address shares the address's budget, a pilot does not. A session that is no longer good reads by the address. A token for a program counts them against the token's own budget. A page holds at most 100 flights or changes ([`limit`](#rules-that-hold-for-every-endpoint)), and a track at most 50,000 positions. One flight by its address, its file and a pilot's page are not counted. The numbers are estimates, counted in the server's memory as its other limits are.
 
 **A day** is asked for with its first moment as `from` and the first moment of the next day as `to`. The server knows no time zone: a client that means the pilots' own day writes its offset into both times (`2026-08-15T00:00:00+02:00`, with the `+` written as `%2B` in a URL). The best flights of 15 August 2026, by UTC:
 
@@ -9251,7 +9258,8 @@ It is asked in the words of the [list of public flights](#public-flights), and m
 | `from` | An RFC 3339 time: only flights that started at this moment or later count | No bound |
 | `to` | An RFC 3339 time: only flights that started **before** this moment count. It must be later than `from` | No bound |
 | `month` | A calendar month by UTC, written `YYYY-MM`: only flights that started in it count. It is a `from` and a `to` in one word and is not sent with either (`400` `invalid_range`); a month that cannot be read is `400` `invalid_time` | No bound |
-| `near`, `radius_km`, `area`, `class`, `kind`, `min_km`, `country` | As for [the list](#get-v1flightspublicpilotbboxfromtosortafterlimit): only flights that took off or were flown so count. The ranking of a class is `class`, of a country `country` | No bound |
+| `near`, `radius_km`, `area`, `class`, `kind`, `min_km`, `country` | As for [the list](#get-v1flightspublicpilotbboxfromtosortafterlimit): only flights that took off or were flown so count. The ranking of a class is `class`, of the flights from a country `country` | No bound |
+| `pilot_country` | An ISO 3166-1 alpha-2 code, in either case: only pilots whose account names this country are ranked, a national ranking (the pilot's country, not the take-off's). One that is not two letters is `400` `invalid_request` | Pilots of every country |
 | `limit` | How many pilots to return from the top, 1 to 100 | 50 |
 
 **A season** is a span of time the client names, as a day is for the list of flights: the server knows no time zone. The year 2026 by UTC is `from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z`. **A month** by UTC has a word of its own: `month=2026-08` means `from=2026-08-01T00:00:00Z&to=2026-09-01T00:00:00Z`. With `bbox` it is the ranking of the pilots who flew from one mountain, or in one region. The two pilots at the top of August 2026:
@@ -9492,7 +9500,7 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
 |---|---|
 | `counted` | How many of a pilot's flights count at most: 3. It is in the answer so that a client words the rule from what the server did |
 | `pilots[]` | The pilots, the one with the most points first. Pilots with the same points follow each other by `handle`, compared byte by byte |
-| `pilots[].pilot` | The pilot, as in a [flight](#get-v1flightsid) |
+| `pilots[].pilot` | The pilot, as in a [flight](#get-v1flightsid), with `country` where the pilot set one |
 | `pilots[].points` | The sum of the points of the flights that count, rounded to hundredths as a flight's points are |
 | `pilots[].scored` | How many of the pilot's public flights among those asked for scored at all, the ones that count among them. A client can say "best 3 of 14" |
 | `pilots[].flights[]` | The flights that count, the best first, each as the list of public flights shows it. Flights with the same points follow each other by `id`, the larger first |
@@ -9506,6 +9514,8 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
 **The rule is the server's.** Three flights count, of any kind of route, and nothing weighs a flight by its glider's class, the pilot's country or the day. *The owner has not decided the rule; it is built this way so that there is a ranking to look at.*
 
 **The top only.** The answer holds up to `limit` pilots from the top and has no `next`: a ranking is not read page by page. A server with more than a hundred ranked pilots shows the first hundred.
+
+**How it holds at scale.** The server keeps each pilot's best three and the count of their scored public flights for every calendar month by UTC, every year and all time, of every flight, of each glider class and of each take-off country, written by the database in the same transaction as any change of a flight (`crates/store/migrations/0036_ranking_cells.sql`). A ranking of whole months (`month`, a year, a span of months, all time), alone or with `class` or `country` and with `pilot_country`, is read from those: the best three of a span always lie among the best three of its parts. Over 3.6 million public flights a month's ranking and a year's take a few milliseconds (`crates/store/tests/scale.rs`). A box, a circle, an area, a kind of route, a least distance, `class` and `country` together, or a span that does not begin and end with a month are summed from the flights and given up, as the list's reads are, after 2 seconds. Like the list, the ranking spends the [budget of public reads](#how-often-an-address-may-read).
 
 **Who may keep an answer.** `Cache-Control: public, no-cache` and an `ETag`, as for the list of public flights: a flight that is made private counts no longer with the next question, also for whoever kept the ranking.
 

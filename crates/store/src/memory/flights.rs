@@ -315,10 +315,14 @@ impl Flights {
         // Each pilot's scored public flights among those asked for.
         let mut by_pilot: BTreeMap<String, Vec<(ScoreKey, Flight)>> = BTreeMap::new();
         for entry in self.flights.values() {
-            if entry.flight.visibility != Visibility::Public || !which.holds(&entry.flight) {
+            if entry.flight.visibility != Visibility::Public {
                 continue;
             }
+            // The pilot as the account is now: their country decides.
             let flight = Self::read(entry, accounts);
+            if !which.holds(&flight) {
+                continue;
+            }
             if let Some(key) = flight.score_key() {
                 by_pilot
                     .entry(flight.account_id.clone())

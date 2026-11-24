@@ -223,26 +223,31 @@ pub fn pilot_flights_search_path(
 }
 
 /// The path and query to `GET` for the ranking of the flights a search
-/// finds: as [`crate::ranking_path`], narrowed by `search`. The answer is
-/// read by [`crate::ranking`].
-#[uniffi::export]
+/// finds: as [`crate::ranking_path`], narrowed by `search`. With
+/// `pilot_country`, an ISO 3166-1 alpha-2 code, only the pilots of that
+/// country are ranked (a national ranking; the take-off's country is
+/// `search.country`). The answer is read by [`crate::ranking`].
+#[uniffi::export(default(pilot_country = None))]
 pub fn ranking_search_path(
     area: Option<Bounds>,
     from_unix_s: Option<i64>,
     to_unix_s: Option<i64>,
     search: FlightSearch,
+    pilot_country: Option<String>,
 ) -> Result<String, CoreError> {
-    let Which { bbox, from, to } = which(
-        area,
-        from_unix_s,
-        to_unix_s,
-        "The app could not ask the server for this ranking.",
-    )?;
+    let asked = "The app could not ask the server for this ranking.";
+    let Which { bbox, from, to } = which(area, from_unix_s, to_unix_s, asked)?;
+    let pilot_country = pilot_country
+        .filter(|country| !country.is_empty())
+        .map(|country| api::parse_country(&country))
+        .transpose()
+        .map_err(|_| refused("This is not the code of a country."))?;
     Ok(RankingRequest {
         bbox,
         from,
         to,
         filters: filters(&search)?,
+        pilot_country,
         ..RankingRequest::default()
     }
     .path_and_query())
@@ -375,9 +380,30 @@ mod tests {
             "/v1/flights/public?near=47.2654,11.3933&radius_km=10&sort=score&pilot=anna"
         );
         assert_eq!(
-            ranking_search_path(None, None, None, everything.clone()).unwrap(),
+            ranking_search_path(None, None, None, everything.clone(), None).unwrap(),
             "/v1/ranking?area=47.3,11.3,47.3,11.5,47.2,11.5&class=en_c&kind=fai_triangle\
              &min_km=50&country=AT"
+        );
+        assert_eq!(
+            ranking_search_path(
+                None,
+                None,
+                None,
+                FlightSearch::default(),
+                Some("it".to_owned())
+            )
+            .unwrap(),
+            "/v1/ranking?pilot_country=IT"
+        );
+        assert!(
+            ranking_search_path(
+                None,
+                None,
+                None,
+                FlightSearch::default(),
+                Some("ITA".to_owned())
+            )
+            .is_err()
         );
         assert_eq!(
             flight_search_words(everything),

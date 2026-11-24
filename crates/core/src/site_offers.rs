@@ -117,7 +117,7 @@ pub struct SiteOffers {
     /// handed in. `false` when none were handed in, and when the list
     /// holds the newest hundred and this pilot's is older.
     pub has_confirmed: bool,
-    /// The same in words: "You confirmed this site for Mon 16 Nov 2026."
+    /// The same in words: "You confirmed this site for 16 Nov 2026."
     /// Empty when `has_confirmed` is not.
     pub confirmed_words: String,
     /// Why something a pilot might look for is not offered, in a line to
@@ -761,14 +761,11 @@ fn first_day(today: NaiveDate) -> NaiveDate {
         .unwrap_or(today)
 }
 
-/// "Sat 14 Nov": a day of the last weeks, where the year is plain.
-fn near_day(day: NaiveDate) -> String {
-    day.format("%a %-d %b").to_string()
-}
-
-/// "Sat 14 Nov 2026": a day that may be long ago.
+/// "14 Nov 2026": a day as Venti writes one, with the month a word so
+/// that 9/10 is never read both ways, and no weekday (the owner's queue
+/// of 2026-11-23, item 11).
 fn any_day(day: NaiveDate) -> String {
-    day.format("%a %-d %b %Y").to_string()
+    day.format("%-d %b %Y").to_string()
 }
 
 /// A day a confirmation can speak of.
@@ -779,7 +776,7 @@ pub struct SiteConfirmDay {
     /// The day as `YYYY-MM-DD`, to hand to [`Core::site_confirm_request`]
     /// and [`Core::site_confirm_flights`].
     pub day: String,
-    /// The day in words: "Today", "Yesterday", "Sat 14 Nov".
+    /// The day in words: "Today", "Yesterday", "14 Nov 2026".
     pub words: String,
 }
 
@@ -846,7 +843,7 @@ pub fn site_confirm_form(today: String) -> Result<SiteConfirmForm, CoreError> {
             words: match back {
                 0 => "Today".to_owned(),
                 1 => "Yesterday".to_owned(),
-                _ => near_day(day),
+                _ => any_day(day),
             },
         })
         .collect();
@@ -915,7 +912,7 @@ fn confirm_refusal(status: u16, body: &[u8]) -> CoreError {
 /// Reads the server's answer to [`Core::site_confirm_request`]: the site
 /// as it stands with the confirmation counted, and what to say after.
 /// `day` is the day that was sent, for the words: "You confirmed this
-/// site for Sat 14 Nov."
+/// site for 14 Nov 2026."
 ///
 /// # Errors
 ///
@@ -933,7 +930,7 @@ pub fn site_confirmed(status: u16, body: Vec<u8>, day: String) -> Result<SiteWri
     let site = site_view(&response.site, response.standing.as_ref());
     let words = day.parse::<NaiveDate>().map_or_else(
         |_| "You confirmed this site.".to_owned(),
-        |day| format!("You confirmed this site for {}.", near_day(day)),
+        |day| format!("You confirmed this site for {}.", any_day(day)),
     );
     Ok(SiteWritten { site, words })
 }
@@ -966,15 +963,15 @@ pub struct SiteConfirmationLine {
     pub by: SiteAuthor,
     /// The day they speak of, as `YYYY-MM-DD`.
     pub day: String,
-    /// The day in words: "Mon 16 Nov 2026".
+    /// The day in words: "16 Nov 2026".
     pub day_in_words: String,
     /// What they add, if anything. A pilot's text: shown as written.
     pub note: Option<String>,
     /// Whether the server found a flight of theirs that took off at the
     /// site.
     pub with_flight: bool,
-    /// The confirmation in a line: "Mara Muster (@mara) on Mon 16 Nov
-    /// 2026, with a flight: “North-west at noon, smooth.”"
+    /// The confirmation in a line: "Mara Muster (@mara) on 16 Nov 2026,
+    /// with a flight: “North-west at noon, smooth.”"
     pub words: String,
 }
 
@@ -1514,7 +1511,7 @@ mod tests {
         assert!(mine.has_confirmed);
         assert_eq!(
             mine.confirmed_words,
-            "You confirmed this site for Mon 9 Nov 2026."
+            "You confirmed this site for 9 Nov 2026."
         );
         assert_eq!(mine.confirm.words, "Change the day");
         assert_eq!(mine.withdraw.words, "Take my confirmation back");
@@ -1956,10 +1953,10 @@ mod tests {
             [
                 ("2026-11-21", "Today"),
                 ("2026-11-20", "Yesterday"),
-                ("2026-11-19", "Thu 19 Nov")
+                ("2026-11-19", "19 Nov 2026")
             ]
         );
-        assert_eq!(form.days[7].words, "Sat 14 Nov");
+        assert_eq!(form.days[7].words, "14 Nov 2026");
         assert_eq!(form.days[89].day, "2026-08-24");
         assert_eq!(form.note_at_most, 200);
         assert!(site_confirm_form("today".to_owned()).is_err());
@@ -1968,7 +1965,7 @@ mod tests {
     #[test]
     fn the_answers_to_a_confirmation_are_said_in_words() {
         let done = site_confirmed(200, golden("site.json"), "2026-11-14".to_owned()).unwrap();
-        assert_eq!(done.words, "You confirmed this site for Sat 14 Nov.");
+        assert_eq!(done.words, "You confirmed this site for 14 Nov 2026.");
         assert_eq!(done.site.by_pilots.unwrap().confirmed_pilots, 2);
         assert_eq!(
             site_withdrawn(204, Vec::new()).unwrap(),
@@ -2013,8 +2010,8 @@ mod tests {
         assert_eq!(
             lines,
             [
-                "Mara Muster (@mara) on Mon 16 Nov 2026: \u{201c}North-west at noon, smooth.\u{201d}",
-                "Jonas Beispiel (@jonas) on Mon 9 Nov 2026"
+                "Mara Muster (@mara) on 16 Nov 2026: \u{201c}North-west at noon, smooth.\u{201d}",
+                "Jonas Beispiel (@jonas) on 9 Nov 2026"
             ]
         );
         assert_eq!(list.lines[0].day, "2026-11-16");
@@ -2027,7 +2024,7 @@ mod tests {
         let list = site_confirmations(200, with_flight.to_vec()).unwrap();
         assert_eq!(
             list.lines[0].words,
-            "@mara on Sat 14 Nov 2026, with a flight: \u{201c}light north wind,easy\u{201d}"
+            "@mara on 14 Nov 2026, with a flight: \u{201c}light north wind,easy\u{201d}"
         );
         // More confirmed than the answer lists: a line says so.
         assert!(!list.is_whole);

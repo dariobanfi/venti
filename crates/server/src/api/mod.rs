@@ -321,6 +321,8 @@ pub struct Api<S> {
     forecast_fetches: Throttle,
     /// Reads of public flights as data, by client address.
     public_flight_reads: Throttle,
+    /// The same reads by a signed-in pilot, by account.
+    account_public_reads: Throttle,
     /// Requests made with a token for a program, by token.
     token_requests: Throttle,
     /// Programs registered with the authorization server, by client
@@ -476,6 +478,11 @@ impl<S: Store> Api<S> {
             ),
             public_flight_reads: Throttle::new(
                 "addresses that read public flights as data",
+                limits.public_flight_window,
+                limits.watched_keys,
+            ),
+            account_public_reads: Throttle::new(
+                "signed-in accounts that read public flights as data",
                 limits.public_flight_window,
                 limits.watched_keys,
             ),

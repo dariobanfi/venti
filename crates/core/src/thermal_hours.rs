@@ -504,6 +504,24 @@ pub struct ThermalMapHourSquare {
     pub ground_m: Option<f64>,
 }
 
+/// The forecast wind at a place in an hour of the thermal map
+/// ([`ThermalMapHours::wind_at`]): what a take-off's fan is coloured by.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct ThermalMapWind {
+    /// The mean speed, whole km/h.
+    pub kmh: u16,
+    /// Where it comes from, degrees clockwise from north, to the nearest
+    /// ten. None where the model gives no direction.
+    pub from_deg: Option<u16>,
+    /// The hour's strongest gust, whole km/h: at the ground only.
+    pub gust_kmh: Option<u16>,
+    /// The band of the mean speed, the step of the wind scale it is drawn
+    /// in.
+    pub band: WindBand,
+}
+
 /// One layer of the hours of a day of the thermal map: the server's
 /// answer, read once and asked hour by hour. It holds the answer, some
 /// hundreds of kilobytes for a region; a shell keeps one for what it
@@ -681,6 +699,24 @@ impl ThermalMapHours {
     /// map.
     pub fn cell_at(&self, lat: f64, lon: f64) -> Option<u32> {
         cell_at(&self.response.grid, lat, lon).and_then(|cell| u32::try_from(cell).ok())
+    }
+
+    /// The forecast wind at a place in one hour, by the hour's number: the
+    /// mean wind of the square the place lies in, where it comes from and
+    /// the gust, as the layers of the wind and of the gusts have them
+    /// (read the wind at the ground for a take-off). None outside the map,
+    /// for an hour there is none of, where the model has no wind, and on
+    /// the other layers, which carry none.
+    pub fn wind_at(&self, lat: f64, lon: f64, hour: u32) -> Option<ThermalMapWind> {
+        let cell = cell_at(&self.response.grid, lat, lon)?;
+        let at = self.response.hours.get(hour as usize)?;
+        let kmh = at.wind_kmh.get(cell).copied().flatten()?;
+        Some(ThermalMapWind {
+            kmh,
+            from_deg: at.wind_from_deg.get(cell).copied().flatten(),
+            gust_kmh: at.gust_kmh.get(cell).copied().flatten(),
+            band: band_of_kmh(f64::from(kmh)),
+        })
     }
 
     /// A square in one hour, in words: `cell` is the square's number
@@ -1082,6 +1118,31 @@ mod tests {
                  "wind_kmh": [34, null, null], "wind_from_deg": [320, null, null]}
             ]),
         )
+    }
+
+    #[test]
+    fn the_wind_at_a_place_is_that_of_its_square_in_the_hour() {
+        let hours = read(ThermalHoursLayer::Wind, ground_wind());
+        // The second square, at eleven: 22 km/h without a direction, gusts
+        // of 41.
+        assert_eq!(
+            hours.wind_at(47.01, 11.1, 1),
+            Some(ThermalMapWind {
+                kmh: 22,
+                from_deg: None,
+                gust_kmh: Some(41),
+                band: band_of_kmh(22.0),
+            })
+        );
+        let west = hours.wind_at(47.01, 11.0, 1).unwrap();
+        assert_eq!((west.kmh, west.from_deg), (12, Some(270)));
+        // No wind over the lake at eleven, nothing outside the map or the
+        // day, and none on the layer of the thermals.
+        assert_eq!(hours.wind_at(47.01, 11.2, 1), None);
+        assert_eq!(hours.wind_at(48.0, 11.0, 1), None);
+        assert_eq!(hours.wind_at(47.01, 11.0, 9), None);
+        let thermals = read(ThermalHoursLayer::Thermals, thermals());
+        assert_eq!(thermals.wind_at(47.01, 11.0, 1), None);
     }
 
     fn features(text: &str) -> Vec<Value> {

@@ -14,7 +14,10 @@
 //! **A read without a token is bounded by its address** where it is
 //! bounded at all, as before: the public flights as data
 //! ([`Api::count_public_read`]). A read of them with a token for a program
-//! is counted against the token's budget only.
+//! is counted against the token's budget only, and one with a good session
+//! of Venti's own apps against the signed-in account's
+//! ([`Limits::public_flight_reads_per_account`]): everyone behind one
+//! address shares the address's budget, a pilot does not.
 //!
 //! **Every answer that a budget was spent for says what is left of it**,
 //! in the two fields of the IETF's draft "RateLimit header fields for
@@ -43,7 +46,7 @@ use chrono::Duration;
 use venti_store::Store;
 
 use super::Api;
-use super::auth::{By, Checked, Client, program};
+use super::auth::{By, Checked, Client, program, session_account};
 use super::error::ApiError;
 use crate::accounts::Limits;
 use crate::accounts::client::counting_keys;
@@ -60,6 +63,9 @@ const TOKEN_POLICY: &str = "token";
 
 /// The name of an address's budget for reading public flights.
 const ADDRESS_POLICY: &str = "address";
+
+/// The name of a signed-in account's budget for reading them.
+const ACCOUNT_POLICY: &str = "account";
 
 /// A budget a request spent from, and what is left of it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -159,13 +165,15 @@ pub(crate) async fn count<S: Store>(
 }
 
 /// Who reads what is bounded by the address without a token: the address,
-/// and whether the request came with a token for a program, whose own
-/// budget it spent instead.
+/// whether the request came with a token for a program, whose own budget
+/// it spent instead, and the account a good session signs in, whose
+/// budget it spends.
 #[derive(Debug, Clone)]
 pub(crate) struct Reader {
     client: IpAddr,
     said: Option<Said>,
     by_token: bool,
+    account: Option<String>,
 }
 
 impl Reader {
@@ -176,6 +184,7 @@ impl Reader {
             client,
             said: None,
             by_token: false,
+            account: None,
         }
     }
 }
@@ -188,10 +197,17 @@ impl<S: Store> FromRequestParts<Arc<Api<S>>> for Reader {
         api: &Arc<Api<S>>,
     ) -> Result<Self, Self::Rejection> {
         let Client(client) = Client::from_request_parts(parts, api).await?;
+        let by_token = parts.extensions.get::<Checked>().is_some();
+        let account = if by_token {
+            None
+        } else {
+            session_account(&parts.headers, api).await
+        };
         Ok(Self {
             client,
             said: parts.extensions.get::<Said>().cloned(),
-            by_token: parts.extensions.get::<Checked>().is_some(),
+            by_token,
+            account,
         })
     }
 }
@@ -207,10 +223,34 @@ impl<S: Store> Api<S> {
     /// address and by network for IPv6, as the forecasts an address makes
     /// the server fetch are, and the answer says what the address has
     /// left. A read with a token for a program has spent from the token's
-    /// own budget already ([`count`]) and is not counted again.
+    /// own budget already ([`count`]) and is not counted again. A read
+    /// with a good session is counted for the signed-in account, and the
+    /// answer says what the account has left.
     pub(crate) fn count_public_read(&self, reader: &Reader) -> Result<(), ApiError> {
         if reader.by_token {
             return Ok(());
+        }
+        if let Some(account) = &reader.account {
+            let by_account = [Counted::new(
+                account,
+                self.limits.public_flight_reads_per_account,
+            )];
+            let (outcome, left) = self
+                .account_public_reads
+                .attempt_left(&by_account, self.clock.now());
+            if let Some(said) = &reader.said {
+                said.note(Budget {
+                    policy: ACCOUNT_POLICY,
+                    window: self.limits.public_flight_window,
+                    left,
+                });
+            }
+            return outcome.map_err(|refused| {
+                ApiError::rate_limited(
+                    refused,
+                    "this account has read public flights as often as one account may in an hour",
+                )
+            });
         }
         let address = counting_keys(reader.client);
         let by_address = address.counted(

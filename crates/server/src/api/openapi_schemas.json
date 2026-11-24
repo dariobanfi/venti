@@ -4821,15 +4821,15 @@
   },
   "SeenRequest": {
     "type": "object",
-    "description": "The body of `PUT /v1/account/unread`, which may be left out: up to where the pilot saw each list. A list left out is seen up to its newest line. The mark only moves forward.",
+    "description": "The body of `PUT /v1/account/unread`: up to where the pilot saw each list, the `cursor` of the last answer of it the pilot was shown or `\"newest\"` for up to its newest line. A list left out keeps its mark; a body left out altogether sees both lists up to the newest. A mark only moves forward.",
     "properties": {
       "notifications_cursor": {
         "type": "string",
-        "description": "The `cursor` of the last answer of `GET /v1/account/notifications` the pilot was shown."
+        "description": "The `cursor` of the last answer of `GET /v1/account/notifications` the pilot was shown, or `\"newest\"`."
       },
       "alarms_cursor": {
         "type": "string",
-        "description": "The `cursor` of the last answer of `GET /v1/account/alerts/fired` the pilot was shown."
+        "description": "The `cursor` of the last answer of `GET /v1/account/alerts/fired` the pilot was shown, or `\"newest\"`."
       }
     }
   },
@@ -6819,7 +6819,7 @@
     ]
   },
   "PilotSeason": {
-    "description": "A year by UTC of a pilot's public flights.",
+    "description": "A year of a pilot's public flights, by the clock where each flight took off.",
     "type": "object",
     "properties": {
       "year": {

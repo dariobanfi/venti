@@ -57,8 +57,8 @@ use venti_core::{
     SitePage, SiteStatistics, SiteView, SiteWritten, SitesFilter, SitesFilterChoices,
     SitesFiltered, SitesMap, StagedStorage, StationAir, StationDay, StationDays, StationHistory,
     Storage, SyncStep, SyncSummary, Tendencies, TerrainTile, ThermalHoursLayer, ThermalMap,
-    ThermalMapHourSquare, ThermalMapHoursView, ThermalMapShapes, ThermalStripDay, TodayOrder,
-    TodayStanding, TodayTakeoffs, TrackPoint, WindMap, WindSpan, WindStation,
+    ThermalMapHourSquare, ThermalMapHoursView, ThermalMapShapes, ThermalMapWind, ThermalStripDay,
+    TodayOrder, TodayStanding, TodayTakeoffs, TrackPoint, WindMap, WindSpan, WindStation,
 };
 use venti_core::{AgreementOutcome, AgreementPage, AgreementWords};
 use venti_core::{
@@ -1036,6 +1036,16 @@ impl Core {
             .iter()
             .map(to_js)
             .collect()
+    }
+
+    /// The cursor of the last answer of what the alarms fired that the
+    /// browser fetched, for `unreadSeenRequest`'s `alarmsCursor`;
+    /// `undefined` signed out and before the first fetch.
+    #[wasm_bindgen(js_name = alertsFiredCursor)]
+    pub fn alerts_fired_cursor(&self) -> Result<Option<String>, JsValue> {
+        self.session
+            .call(|core| core.alerts_fired_cursor())
+            .map_err(thrown)
     }
 
     /// Marks a site as one of the pilot's own and keeps its record in the
@@ -3155,6 +3165,23 @@ impl ThermalMapHours {
         self.hours.cell_at(lat, lon)
     }
 
+    /// The forecast wind at a place in one hour, by the hour's number:
+    /// speed, direction it comes from, gust and band, for a take-off's
+    /// fan. Nothing outside the map, where there is no wind, and on the
+    /// layers without one.
+    #[wasm_bindgen(js_name = windAt)]
+    pub fn wind_at(
+        &self,
+        lat: f64,
+        lon: f64,
+        hour: u32,
+    ) -> Result<Option<Ts<ThermalMapWind>>, JsValue> {
+        self.hours
+            .wind_at(lat, lon, hour)
+            .map(|wind| to_js(&wind))
+            .transpose()
+    }
+
     /// A square in one hour, in words. Nothing for a square or an hour
     /// there is none of.
     pub fn square(
@@ -3743,19 +3770,22 @@ pub fn pilot_flights_search_path(
 }
 
 /// The path and query to `GET` for the ranking of the flights a search
-/// finds: as `rankingPath`, narrowed by `search`.
+/// finds: as `rankingPath`, narrowed by `search`, and of the pilots of
+/// `pilotCountry` only where it is given.
 #[wasm_bindgen(js_name = rankingSearchPath)]
 pub fn ranking_search_path(
     area: Option<Ts<Bounds>>,
     from_unix_s: Option<f64>,
     to_unix_s: Option<f64>,
     search: Ts<FlightSearch>,
+    pilot_country: Option<String>,
 ) -> Result<String, JsValue> {
     venti_core::ranking_search_path(
         area.as_ref().map(from_js).transpose()?,
         from_unix_s.map(whole_seconds),
         to_unix_s.map(whole_seconds),
         from_js(&search)?,
+        pilot_country,
     )
     .map_err(thrown)
 }
@@ -4378,9 +4408,10 @@ pub fn unread_request() -> Result<Ts<ServerRequest>, JsValue> {
     to_js(&venti_core::unread_request())
 }
 
-/// The request that the pilot saw the notifications and the alarms, up to
-/// the cursors of the answers they were shown, each left out for up to the
-/// newest. The answer is read by `unread`.
+/// The request that the pilot saw the notifications and the alarms: each
+/// up to the cursor of the answer shown (the alarms' from
+/// `alertsFiredCursor`), an empty text for up to the newest, left out to
+/// keep that list's mark. The answer is read by `unread`.
 #[wasm_bindgen(js_name = unreadSeenRequest)]
 pub fn unread_seen_request(
     notifications_cursor: Option<String>,

@@ -6,6 +6,7 @@
 //! the order in which they become visible, which is what lets a device ask
 //! for "everything after number n" without ever missing a change.
 
+use chrono::{Datelike, NaiveDate};
 use deadpool_postgres::{Client, GenericClient, Transaction};
 use tokio_postgres::types::ToSql;
 use tokio_postgres::{IsolationLevel, Row};
@@ -584,6 +585,11 @@ struct Edges {
     /// The box around the place near which flights took off, the place's
     /// latitude and longitude, and how far from it.
     near: Option<[f64; 7]>,
+    /// The glider class as the ranking's cells name it: '' for every
+    /// class.
+    class_or_every: &'static str,
+    /// The take-off country as the cells name it: '' for every country.
+    country_or_every: String,
 }
 
 fn edges_of(which: &PublicFlights) -> Edges {
@@ -602,6 +608,8 @@ fn edges_of(which: &PublicFlights) -> Edges {
             let [west, south, east, north] = around(lat, lon, near.within_m);
             [west, south, east, north, lat, lon, near.within_m]
         }),
+        class_or_every: which.class.map_or("", GliderClass::as_str),
+        country_or_every: which.country.clone().unwrap_or_default(),
     }
 }
 
@@ -689,6 +697,14 @@ fn public_conditions<'a>(
     if let Some(country) = &which.country {
         parameters.push(country);
         conditions.push(format!("f.takeoff_country = ${}", parameters.len()));
+    }
+    if let Some(country) = &which.pilot_country {
+        parameters.push(country);
+        conditions.push(format!(
+            "EXISTS (SELECT 1 FROM accounts pilot WHERE pilot.id = f.account_id \
+             AND pilot.country = ${})",
+            parameters.len()
+        ));
     }
     conditions
 }
@@ -812,9 +828,24 @@ pub(super) async fn explain_ranking(
     limit: usize,
 ) -> Result<String, StoreError> {
     let edges = edges_of(which);
+    let cells = cells_of(which, counted);
     let counted = i64::try_from(counted).unwrap_or(i64::MAX);
     let limit = i64::try_from(limit).unwrap_or(i64::MAX);
-    let (query, parameters) = ranking_query(which, &edges, &counted, &limit);
+    let (query, parameters) = match &cells {
+        Some(cells) => kept_ranking_query(cells, &counted, &limit),
+        None => ranking_query(which, &edges, &counted, &limit),
+    };
+    explain(client, &query, &parameters, Shape::Sum).await
+}
+
+/// The same for the months that have a ranking.
+pub(super) async fn explain_scored_months(
+    client: &mut Client,
+    which: &PublicFlights,
+) -> Result<String, StoreError> {
+    let edges = edges_of(which);
+    let mut parameters: Vec<&(dyn ToSql + Sync)> = Vec::new();
+    let query = scored_months_query(which, &edges, &mut parameters);
     explain(client, &query, &parameters, Shape::Sum).await
 }
 
@@ -840,6 +871,11 @@ async fn explain(
 
 /// The pilots of everyone's public flights by the sum of their best.
 ///
+/// Where the kept cells hold the ranking asked for (0036,
+/// [`cells_of`]), it is read from them: the best three of each pilot of a
+/// period, kept as flights change. Otherwise the database sums the
+/// flights themselves.
+///
 /// As in [`public`], the condition on visibility is in the query as text,
 /// and the query is planned anew for every call: how many flights a span
 /// and a box hold decides how they are best found.
@@ -855,9 +891,13 @@ pub(super) async fn ranking(
     limit: usize,
 ) -> Result<Vec<Ranked>, StoreError> {
     let edges = edges_of(which);
+    let cells = cells_of(which, counted);
     let counted = i64::try_from(counted).unwrap_or(i64::MAX);
     let limit = i64::try_from(limit).unwrap_or(i64::MAX);
-    let (query, parameters) = ranking_query(which, &edges, &counted, &limit);
+    let (query, parameters) = match &cells {
+        Some(cells) => kept_ranking_query(cells, &counted, &limit),
+        None => ranking_query(which, &edges, &counted, &limit),
+    };
     let rows = bounded_query(client, &query, &parameters, Shape::Sum).await?;
 
     // The rows of a pilot follow each other, the best flight first.
@@ -884,6 +924,241 @@ pub(super) async fn ranking(
         .collect();
     ranked.sort_by(ranked_order);
     Ok(ranked)
+}
+
+/// How many of a pilot's best flights a cell of the ranking keeps (0036).
+const KEPT_BEST: usize = 3;
+
+/// The first day of the cells' all time, and the day after the last month
+/// they can hold: a span open at one end reaches it.
+const CELLS_BEGIN: (i32, u32) = (1970, 1);
+const CELLS_END: (i32, u32) = (9999, 1);
+
+/// The kept cells a ranking is read from: of a glider class or of every
+/// class (''), of a take-off country or of every country (''), and of a
+/// span of whole months.
+struct Cells {
+    class: &'static str,
+    country: String,
+    pilot_country: Option<String>,
+    span: CellSpan,
+}
+
+enum CellSpan {
+    /// One period, `m`, `y` or `a`, and its first day: read from the top
+    /// along an index.
+    One(&'static str, NaiveDate),
+    /// The whole years from `years_from` to `years_before`, and the months
+    /// from `from` to `years_from` and from `years_before` to `before`.
+    Many {
+        from: NaiveDate,
+        years_from: NaiveDate,
+        years_before: NaiveDate,
+        before: NaiveDate,
+    },
+}
+
+fn first_of(year: i32, month: u32) -> Option<NaiveDate> {
+    NaiveDate::from_ymd_opt(year, month, 1)
+}
+
+/// The first day of a month that a moment is the very first instant of,
+/// by UTC; `None` for any other moment.
+fn month_start(time: Timestamp) -> Option<NaiveDate> {
+    let month = Month::of(time);
+    (month.start() == time)
+        .then(|| first_of(month.year(), month.month()))
+        .flatten()
+}
+
+/// The cells that hold the ranking `which` asks for, if they hold it: the
+/// best three of each pilot, of whole months by UTC, of every flight or
+/// of those of one glider class or of one take-off country, and of pilots
+/// of any country or of one. An area, a kind of route, a least distance,
+/// one pilot, a class and a country together, or a span that does not
+/// begin and end with a month are summed from the flights.
+fn cells_of(which: &PublicFlights, counted: usize) -> Option<Cells> {
+    let summed = which.pilot.is_some()
+        || which.area.is_some()
+        || which.near.is_some()
+        || which.drawn.is_some()
+        || which.kind.is_some()
+        || which.min_distance_m.is_some()
+        || (which.class.is_some() && which.country.is_some());
+    if summed || counted != KEPT_BEST {
+        return None;
+    }
+    let from = match which.from {
+        Some(from) => Some(month_start(from)?),
+        None => None,
+    };
+    let before = match which.before {
+        Some(before) => Some(month_start(before)?),
+        None => None,
+    };
+    let next = |day: NaiveDate, months: u32| day.checked_add_months(chrono::Months::new(months));
+    let span = match (from, before) {
+        (None, None) => CellSpan::One("a", first_of(CELLS_BEGIN.0, CELLS_BEGIN.1)?),
+        (Some(from), Some(before)) if next(from, 1) == Some(before) => CellSpan::One("m", from),
+        (Some(from), Some(before)) if from.month() == 1 && next(from, 12) == Some(before) => {
+            CellSpan::One("y", from)
+        }
+        (from, before) => {
+            let from = from.or_else(|| first_of(CELLS_BEGIN.0, CELLS_BEGIN.1))?;
+            let before = before.or_else(|| first_of(CELLS_END.0, CELLS_END.1))?;
+            let years_from = if from.month() == 1 {
+                from
+            } else {
+                first_of(from.year() + 1, 1)?
+            };
+            let years_before = first_of(before.year(), 1)?;
+            if years_from < years_before {
+                CellSpan::Many {
+                    from,
+                    years_from,
+                    years_before,
+                    before,
+                }
+            } else {
+                // No whole year: months only.
+                CellSpan::Many {
+                    from,
+                    years_from: before,
+                    years_before: before,
+                    before,
+                }
+            }
+        }
+    };
+    Some(Cells {
+        class: which.class.map_or("", GliderClass::as_str),
+        country: which.country.clone().unwrap_or_default(),
+        pilot_country: which.pilot_country.clone(),
+        span,
+    })
+}
+
+/// The text of a ranking read from the kept cells and its values, as
+/// [`ranking`] asks the database. The order of pilots and of their
+/// flights is that of [`ranking_query`].
+fn kept_ranking_query<'a>(
+    cells: &'a Cells,
+    counted: &'a i64,
+    limit: &'a i64,
+) -> (String, Vec<&'a (dyn ToSql + Sync)>) {
+    let mut parameters: Vec<&(dyn ToSql + Sync)> = vec![&cells.class, &cells.country];
+    let mut of_country = String::new();
+    if let Some(country) = &cells.pilot_country {
+        parameters.push(country);
+        of_country = format!("AND owner.country = ${}", parameters.len());
+    }
+    let query = match &cells.span {
+        CellSpan::One(period, starts) => {
+            parameters.extend([period as &(dyn ToSql + Sync), starts, limit]);
+            let p = parameters.len() - 2;
+            let (s, l) = (p + 1, p + 2);
+            format!(
+                "WITH top AS (
+                     SELECT r.account_id, r.points, r.scored::int8 AS scored, r.best_ids, owner.handle
+                     FROM ranking_cells r JOIN accounts owner ON owner.id = r.account_id
+                     WHERE r.period = ${p} AND r.glider_class = $1 AND r.takeoff_country = $2
+                       AND r.starts = ${s} {of_country}
+                     ORDER BY r.points DESC, owner.handle COLLATE \"C\"
+                     LIMIT ${l}
+                 )
+                 SELECT top.scored AS ranked_scored, {FLIGHT_COLUMNS}
+                 FROM top
+                 CROSS JOIN LATERAL unnest(top.best_ids) WITH ORDINALITY AS best (id, place)
+                 JOIN flights f ON f.id = best.id AND f.visibility = 'public'
+                 JOIN accounts a ON a.id = f.account_id
+                 ORDER BY top.points DESC, top.handle COLLATE \"C\", best.place"
+            )
+        }
+        CellSpan::Many {
+            from,
+            years_from,
+            years_before,
+            before,
+        } => {
+            parameters.extend([
+                from as &(dyn ToSql + Sync),
+                years_from,
+                years_before,
+                before,
+                counted,
+                limit,
+            ]);
+            let f = parameters.len() - 5;
+            let (yf, yb, b, c, l) = (f + 1, f + 2, f + 3, f + 4, f + 5);
+            // The span's cells, by three ranges of the index that orders
+            // them: the whole years, and the months before and after them.
+            let span = |columns: &str| {
+                format!(
+                    "SELECT {columns} FROM ranking_cells r
+                     WHERE r.period = 'y' AND r.glider_class = $1 AND r.takeoff_country = $2
+                       AND r.starts >= ${yf} AND r.starts < ${yb} AND r.account_id <> ''
+                     UNION ALL
+                     SELECT {columns} FROM ranking_cells r
+                     WHERE r.period = 'm' AND r.glider_class = $1 AND r.takeoff_country = $2
+                       AND r.starts >= ${f} AND r.starts < ${yf} AND r.account_id <> ''
+                     UNION ALL
+                     SELECT {columns} FROM ranking_cells r
+                     WHERE r.period = 'm' AND r.glider_class = $1 AND r.takeoff_country = $2
+                       AND r.starts >= ${yb} AND r.starts < ${b} AND r.account_id <> ''"
+                )
+            };
+            // Only pilots who can be among the first `limit` are summed,
+            // of the country asked for.
+            // Each pilot's sum of the span is at least that of their best
+            // cell and at most that of all their cells. So the `limit`-th
+            // largest best cell of a pilot is a bar no pilot of the top
+            // lies below, and a pilot whose cells add up to less cannot
+            // reach it. The cells' sums are read from the index alone.
+            format!(
+                "WITH per AS (
+                     SELECT c.account_id, sum(c.points) AS most, max(c.points) AS least,
+                            sum(c.scored) AS scored
+                     FROM ({}) c
+                     JOIN accounts owner ON owner.id = c.account_id
+                     WHERE true {of_country}
+                     GROUP BY c.account_id
+                 ), bar AS (
+                     SELECT least FROM per ORDER BY least DESC OFFSET ${l}::int8 - 1 LIMIT 1
+                 ), candidates AS (
+                     SELECT per.account_id, per.scored FROM per
+                     WHERE per.most >= COALESCE((SELECT least FROM bar), 0)
+                 ), each AS (
+                     SELECT c.account_id, best.id, best.points,
+                            row_number() OVER (
+                                PARTITION BY c.account_id
+                                ORDER BY best.points DESC, best.id COLLATE \"C\" DESC
+                            ) AS place
+                     FROM ({}) c
+                     JOIN candidates USING (account_id)
+                     CROSS JOIN LATERAL unnest(c.best_ids, c.best_points) AS best (id, points)
+                 ), top AS (
+                     SELECT e.account_id, owner.handle, sum(e.points) AS points,
+                            max(s.scored) AS scored
+                     FROM each e
+                     JOIN candidates s ON s.account_id = e.account_id
+                     JOIN accounts owner ON owner.id = e.account_id
+                     WHERE e.place <= ${c} {of_country}
+                     GROUP BY e.account_id, owner.handle
+                     ORDER BY points DESC, owner.handle COLLATE \"C\"
+                     LIMIT ${l}
+                 )
+                 SELECT top.scored AS ranked_scored, {FLIGHT_COLUMNS}
+                 FROM top
+                 JOIN each e ON e.account_id = top.account_id AND e.place <= ${c}
+                 JOIN flights f ON f.id = e.id AND f.visibility = 'public'
+                 JOIN accounts a ON a.id = f.account_id
+                 ORDER BY top.points DESC, top.handle COLLATE \"C\", e.place",
+                span("r.account_id, r.points, r.scored"),
+                span("r.account_id, r.best_ids, r.best_points"),
+            )
+        }
+    };
+    (query, parameters)
 }
 
 /// The text of the ranking and its values, as [`ranking`] asks the
@@ -934,25 +1209,17 @@ fn ranking_query<'a>(
 
 /// The months that have a scored public flight among those asked for.
 ///
-/// As in [`public`], the condition on visibility is in the query as text.
+/// Of all of everyone's flights, and of those of one glider class or of
+/// one take-off country, they are counted from the kept cells (0036);
+/// otherwise from the flights. As in [`public`], the condition on
+/// visibility is in the query as text.
 pub(super) async fn scored_months(
     client: &mut Client,
     which: &PublicFlights,
 ) -> Result<Vec<(Month, u32)>, StoreError> {
     let edges = edges_of(which);
     let mut parameters: Vec<&(dyn ToSql + Sync)> = Vec::new();
-    let mut conditions = public_conditions(which, &edges, &mut parameters);
-    conditions.push("f.score_points IS NOT NULL".to_owned());
-    let query = format!(
-        "SELECT date_part('year', f.started_at AT TIME ZONE 'UTC')::int4 AS year,
-                date_part('month', f.started_at AT TIME ZONE 'UTC')::int4 AS month,
-                count(*) AS flights
-         FROM flights f
-         WHERE {}
-         GROUP BY 1, 2
-         ORDER BY 1, 2",
-        conditions.join(" AND ")
-    );
+    let query = scored_months_query(which, &edges, &mut parameters);
     let rows = bounded_query(client, &query, &parameters, Shape::Sum).await?;
     rows.iter()
         .map(|row| {
@@ -965,6 +1232,46 @@ pub(super) async fn scored_months(
             Ok((month, u32::try_from(flights).unwrap_or(u32::MAX)))
         })
         .collect()
+}
+
+/// The text of [`scored_months`], its values put into `parameters`.
+fn scored_months_query<'a>(
+    which: &'a PublicFlights,
+    edges: &'a Edges,
+    parameters: &mut Vec<&'a (dyn ToSql + Sync)>,
+) -> String {
+    let kept = PublicFlights {
+        class: which.class,
+        country: which.country.clone(),
+        ..PublicFlights::default()
+    };
+    if *which == kept && (which.class.is_none() || which.country.is_none()) {
+        parameters.extend([
+            &edges.class_or_every as &(dyn ToSql + Sync),
+            &edges.country_or_every,
+        ]);
+        // Everyone's months, the cells of the account '' (0036).
+        return "SELECT date_part('year', r.starts)::int4 AS year,
+                       date_part('month', r.starts)::int4 AS month,
+                       r.scored::int8 AS flights
+                FROM ranking_cells r
+                WHERE r.account_id = '' AND r.period = 'm'
+                  AND r.glider_class = $1 AND r.takeoff_country = $2 AND r.scored > 0
+                ORDER BY r.starts"
+            .to_owned();
+    }
+    let mut conditions = public_conditions(which, edges, parameters);
+    conditions.push("f.score_points IS NOT NULL".to_owned());
+    format!(
+        "SELECT date_part('year', f.started_at AT TIME ZONE 'UTC')::int4 AS year,
+                date_part('month', f.started_at AT TIME ZONE 'UTC')::int4 AS month,
+                count(*) AS flights
+         FROM flights f
+         WHERE {}
+         GROUP BY 1, 2
+         ORDER BY 1, 2",
+        conditions.join(" AND ")
+    )
 }
 
 /// The pilots with a public flight whose handle or name holds a text.

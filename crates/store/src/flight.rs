@@ -519,6 +519,9 @@ pub struct PublicFlights {
     /// Only flights that took off in this country, as
     /// [`Derived::takeoff_country`] has it.
     pub country: Option<String>,
+    /// Only flights of pilots whose account names this country, as
+    /// [`Flight::pilot_country`] has it: a national ranking.
+    pub pilot_country: Option<String>,
 }
 
 /// A place and how far from it a flight may have taken off.
@@ -566,7 +569,11 @@ impl PublicFlights {
             && self
                 .country
                 .as_ref()
-                .is_none_or(|country| flight.derived.takeoff_country.as_ref() == Some(country));
+                .is_none_or(|country| flight.derived.takeoff_country.as_ref() == Some(country))
+            && self
+                .pilot_country
+                .as_ref()
+                .is_none_or(|country| flight.pilot_country.as_ref() == Some(country));
         in_area
             && near
             && drawn

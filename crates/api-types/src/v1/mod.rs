@@ -347,10 +347,10 @@ pub use social::{
     CheersResponse, Comment, CommentError, CommentRequest, CommentResponse, CommentsOpen,
     CommentsResponse, FOLLOWS_AND_CHEERS_PER_DAY, FeedFlight, FeedResponse, FollowResponse,
     FollowedPilot, FollowsResponse, MAX_COMMENT_LENGTH, MAX_FOLLOWS, NOTIFICATIONS_KEPT_DAYS,
-    Notification, NotificationKind, NotificationsResponse, NotifiedFlight, SeenRequest,
-    UNREAD_COUNTED_UP_TO, UnreadResponse, feed_path, flight_cheer_path, flight_cheers_path,
-    flight_comment_path, flight_comments_path, notifications_path, parse_comment,
-    pilot_follow_path, pilot_followers_path, pilot_following_path, social_page_path,
+    Notification, NotificationKind, NotificationsResponse, NotifiedFlight, SEEN_NEWEST,
+    SeenRequest, UNREAD_COUNTED_UP_TO, UnreadResponse, feed_path, flight_cheer_path,
+    flight_cheers_path, flight_comment_path, flight_comments_path, notifications_path,
+    parse_comment, pilot_follow_path, pilot_followers_path, pilot_following_path, social_page_path,
 };
 pub use stations::{Station, StationWithLatest, StationsResponse};
 pub use takeoffs::{

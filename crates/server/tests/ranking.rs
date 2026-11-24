@@ -558,6 +558,45 @@ async fn the_ranking_may_be_kept_and_is_checked_before_every_reuse() {
 // --- Questions that cannot be answered ------------------------------------------------
 
 #[tokio::test]
+async fn a_national_ranking_ranks_the_pilots_of_one_country() {
+    let router = recorded().await;
+    // Nobody of the development mode names a country yet.
+    let national = |country: &str| RankingRequest {
+        pilot_country: Some(country.to_owned()),
+        ..everything()
+    };
+    assert!(ranking(&router, &national("de")).await.pilots.is_empty());
+
+    let german = venti_api_types::v1::UpdateAccountRequest {
+        country: Some(Some("DE".to_owned())),
+        ..venti_api_types::v1::UpdateAccountRequest::default()
+    };
+    ask(Method::PATCH, venti_api_types::v1::ACCOUNT_PATH)
+        .token(DEMO_TOKEN)
+        .json(&german)
+        .send(&router)
+        .await
+        .ok::<serde_json::Value>(StatusCode::OK);
+    let germans = ranking(&router, &national("de")).await;
+    assert_eq!(handles(&germans.pilots), [DEMO_HANDLE.to_owned()]);
+    // The pilot's country is said with their place, in every ranking.
+    assert_eq!(germans.pilots[0].pilot.country.as_deref(), Some("DE"));
+    let all = ranking(&router, &everything()).await;
+    let demo = all
+        .pilots
+        .iter()
+        .find(|pilot| pilot.pilot.handle.as_str() == DEMO_HANDLE)
+        .unwrap();
+    assert_eq!(demo.pilot.country.as_deref(), Some("DE"));
+    assert!(ranking(&router, &national("AT")).await.pilots.is_empty());
+
+    // A country that is no code is refused in words.
+    let refused = get(&router, "/v1/ranking?pilot_country=Germany").await;
+    let message = refused.error(StatusCode::BAD_REQUEST, ErrorCode::InvalidRequest);
+    assert!(message.contains("pilot_country"), "{message}");
+}
+
+#[tokio::test]
 async fn a_question_that_cannot_be_read_is_explained() {
     let router = recorded().await;
     let refused = |query: &'static str, code: ErrorCode| {

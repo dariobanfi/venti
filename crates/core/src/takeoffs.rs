@@ -139,7 +139,7 @@ pub struct SiteBestFlightLine {
     /// The day it was flown at the site, `YYYY-MM-DD`.
     #[uniffi(default = "")]
     pub day: String,
-    /// The day in words: "Sat 9 May 2026".
+    /// The day in words: "9 May 2026".
     #[uniffi(default = "")]
     pub day_in_words: String,
     /// The scoring distance, metres.
@@ -154,7 +154,7 @@ pub struct SiteBestFlightLine {
     /// The points in words: "12.0 points".
     #[uniffi(default = "")]
     pub points_words: String,
-    /// The row in a line: "Lena Probe (@lena), Sat 9 May 2026: 12.0 km,
+    /// The row in a line: "Lena Probe (@lena), 9 May 2026: 12.0 km,
     /// 12.0 points".
     #[uniffi(default = "")]
     pub words: String,
@@ -563,7 +563,7 @@ fn best_line(flight: &api::SiteBestFlight) -> SiteBestFlightLine {
         handle: flight.pilot.handle.to_string(),
         name: one_line(&flight.pilot.display_name, 40),
     };
-    let day_in_words = flight.day.format("%a %-d %b %Y").to_string();
+    let day_in_words = short_day(flight.day);
     let distance_words = distance_in_words(flight.score.distance_m);
     let points_words = format!("{:.1} points", flight.score.points);
     SiteBestFlightLine {
@@ -887,12 +887,12 @@ mod tests {
         assert_eq!(best.pilot.handle, "lena");
         assert_eq!(best.pilot.name, "Lena Probe");
         assert_eq!(best.day, "2026-05-09");
-        assert_eq!(best.day_in_words, "Sat 9 May 2026");
+        assert_eq!(best.day_in_words, "9 May 2026");
         assert_eq!(best.distance_words, "12.0 km");
         assert_eq!(best.points_words, "12.0 points");
         assert_eq!(
             best.words,
-            "Lena Probe (@lena), Sat 9 May 2026: 12.0 km, 12.0 points"
+            "Lena Probe (@lena), 9 May 2026: 12.0 km, 12.0 points"
         );
         assert_eq!(best.page_path, "/f/ww5qkxhxaedefvypb3wy3v6m3m");
         assert!(best.file_path.contains("ww5qkxhxaedefvypb3wy3v6m3m"));

@@ -9,7 +9,7 @@ use axum::http::{Method, StatusCode, header};
 use venti_api_types::v1::{
     ACCOUNT_NOTIFICATIONS_PATH, ACCOUNT_TOKENS_PATH, ACCOUNT_UNREAD_PATH, ALERTS_PATH,
     AlertRequest, AlertRule, CommentRequest, CreateAccessTokenRequest, CreateAccessTokenResponse,
-    ErrorCode, NotificationsResponse, Password, Scope, SeenRequest, SignInResponse,
+    ErrorCode, NotificationsResponse, Password, SEEN_NEWEST, Scope, SeenRequest, SignInResponse,
     UNREAD_COUNTED_UP_TO, UnreadResponse, Visibility, WindAlert, flight_cheer_path,
     flight_comments_path, pilot_follow_path,
 };
@@ -167,7 +167,7 @@ async fn what_is_new_counts_from_the_pilots_mark_on_every_device() {
     assert_eq!(counts(unread(&router, &anna).await), (3, 1, 4));
 
     // Seen up to the first page of notifications: the two after it are
-    // new still; the alarms, left out, are seen up to the newest.
+    // new still; the alarms, left out, keep their mark.
     let partly = seen(
         &router,
         &anna,
@@ -177,7 +177,18 @@ async fn what_is_new_counts_from_the_pilots_mark_on_every_device() {
         }),
     )
     .await;
-    assert_eq!(counts(partly), (2, 0, 2));
+    assert_eq!(counts(partly), (2, 1, 3));
+    // The alarms seen up to the newest, the notifications left as they are.
+    let alarms = seen(
+        &router,
+        &anna,
+        Some(&SeenRequest {
+            notifications_cursor: None,
+            alarms_cursor: Some(SEEN_NEWEST.to_owned()),
+        }),
+    )
+    .await;
+    assert_eq!(counts(alarms), (2, 0, 2));
     // The mark does not move back.
     let back = seen(
         &router,
@@ -270,8 +281,10 @@ async fn the_development_mode_counts_what_the_demo_pilot_was_told() {
         alarms_cursor: None,
     };
     assert_golden(&golden("seen_request.json"), &request);
+    // The alarms' mark is left out, so it stays where it was: the demo
+    // pilot's one fired alarm is still new.
     assert_eq!(
         counts(seen(&router, DEMO_TOKEN, Some(&request)).await),
-        (0, 0, 0)
+        (0, 1, 1)
     );
 }

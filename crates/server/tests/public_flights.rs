@@ -557,6 +557,7 @@ async fn an_address_reads_public_flights_only_so_often_in_an_hour() {
     let mut settings = settings();
     settings.limits.public_flight_reads_per_address = 3;
     settings.limits.public_flight_reads_per_network = 5;
+    settings.limits.public_flight_reads_per_account = 2;
     let (router, _) = server(settings, &clock);
     let anna = sign_up(&router, "anna").await;
     let id = upload(&router, &anna.token, &sample_file()).await.flight.id;
@@ -584,6 +585,11 @@ async fn an_address_reads_public_flights_only_so_often_in_an_hour() {
         assert!(message.contains("public flights"), "{message}");
         assert_eq!(refused.header(header::RETRY_AFTER), "3600");
     }
+    // The ranking spends the same budget.
+    assert_eq!(
+        from("203.0.113.7", RANKING_PATH.to_owned()).await.status,
+        StatusCode::TOO_MANY_REQUESTS
+    );
     // Another address is not held up, and what is not such a read is not
     // counted: a flight by its address, its file, a pilot's page.
     assert_eq!(
@@ -597,14 +603,38 @@ async fn an_address_reads_public_flights_only_so_often_in_an_hour() {
     ] {
         assert_eq!(from("203.0.113.7", path).await.status, StatusCode::OK);
     }
-    // A session's token does not lift it: the bound is the address's. A
-    // token for a program has a budget of its own (`tests/limits.rs`).
-    let with_a_token = ask(Method::GET, &reads[2])
-        .token(&anna.token)
+    // A signed-in pilot reads by the account's budget, not the address's,
+    // and the answer says what the account has left. A token for a
+    // program has a budget of its own (`tests/limits.rs`).
+    let signed_in = || {
+        ask(Method::GET, &reads[2])
+            .token(&anna.token)
+            .from("203.0.113.7")
+            .send(&router)
+    };
+    let first = signed_in().await;
+    assert_eq!(first.status, StatusCode::OK);
+    assert_eq!(
+        first.header(header::HeaderName::from_static("ratelimit")),
+        "\"account\";a=1;w=3600"
+    );
+    assert_eq!(signed_in().await.status, StatusCode::OK);
+    let spent = signed_in().await;
+    let message = spent.error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
+    assert!(message.contains("account"), "{message}");
+    // A session that is no longer good, or never was, reads by the
+    // address.
+    let mut made_up = anna.token.clone();
+    let last = made_up.pop().unwrap();
+    made_up.push(if last == 'A' { 'B' } else { 'A' });
+    let stale = ask(Method::GET, &reads[0])
+        .token(&made_up)
         .from("203.0.113.7")
         .send(&router)
         .await;
-    assert_eq!(with_a_token.status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(stale.status, StatusCode::TOO_MANY_REQUESTS);
+    let message = stale.error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
+    assert!(message.contains("address"), "{message}");
 
     // An hour later the address reads again.
     clock.advance(chrono::Duration::minutes(59));

@@ -16,6 +16,8 @@ pub enum Asked {
     List(PublicFlights, PublicOrder),
     /// The ranking, with the flights that count of each pilot.
     Ranking(PublicFlights),
+    /// The months that have a ranking.
+    Months(PublicFlights),
 }
 
 fn moment(year: i32, month: u32, day: u32) -> Timestamp {
@@ -51,9 +53,9 @@ pub fn questions(centre: GeoPoint, pilot: &str) -> Vec<(&'static str, Asked)> {
         before: Some(moment(2026, 8, 1)),
         ..all()
     };
-    let year = || PublicFlights {
-        from: Some(moment(2025, 11, 23)),
-        before: Some(moment(2026, 11, 23)),
+    let calendar_year = || PublicFlights {
+        from: Some(moment(2026, 1, 1)),
+        before: Some(moment(2027, 1, 1)),
         ..all()
     };
     let deep_newest = PublicOrder::Newest(Some((moment(2026, 3, 15), "8".repeat(26))));
@@ -321,12 +323,28 @@ pub fn questions(centre: GeoPoint, pilot: &str) -> Vec<(&'static str, Asked)> {
             ),
         ),
         ("ranking, July", Asked::Ranking(july())),
-        ("ranking, a year", Asked::Ranking(year())),
+        ("ranking, 2026", Asked::Ranking(calendar_year())),
+        ("ranking, all time", Asked::Ranking(all())),
         (
-            "ranking, a year in SI",
+            "ranking, December to February",
+            Asked::Ranking(PublicFlights {
+                from: Some(moment(2025, 12, 1)),
+                before: Some(moment(2026, 3, 1)),
+                ..all()
+            }),
+        ),
+        (
+            "ranking, 2026 from SI",
             Asked::Ranking(PublicFlights {
                 country: Some("SI".to_owned()),
-                ..year()
+                ..calendar_year()
+            }),
+        ),
+        (
+            "ranking, 2026, pilots of AT",
+            Asked::Ranking(PublicFlights {
+                pilot_country: Some("AT".to_owned()),
+                ..calendar_year()
             }),
         ),
         (
@@ -343,8 +361,26 @@ pub fn questions(centre: GeoPoint, pilot: &str) -> Vec<(&'static str, Asked)> {
                 ..july()
             }),
         ),
+        ("months with a ranking", Asked::Months(all())),
+        (
+            "months with a ranking, box Innsbruck",
+            Asked::Months(PublicFlights {
+                area: Some(innsbruck),
+                ..all()
+            }),
+        ),
     ]
 }
+
+/// The questions that sum many rows rather than read a page along an
+/// index: the ranking of a span of several months, of a radius, and the
+/// months of a box. They are held to `VENTI_SCALE_MAX_SUM_MS` (500 by
+/// default), well under the store's read timeout of 2 s.
+pub const SUMMED: &[&str] = &[
+    "ranking, December to February",
+    "ranking, July, radius 30 km",
+    "months with a ranking, box Innsbruck",
+];
 
 /// What the database did for one question: the plan as text, or the
 /// error of a question the database gave up after its time.
@@ -352,8 +388,9 @@ pub async fn explain(store: &PgStore, asked: &Asked) -> Result<String, StoreErro
     match asked {
         // A page of 50 and one to know whether more follow, as the API asks.
         Asked::List(which, order) => store.explain_public_flights(which, order, 51).await,
-        // The six best of each of the first 50 pilots.
-        Asked::Ranking(which) => store.explain_ranking(which, 6, 50).await,
+        // The three best of each of the first 50 pilots, as the API asks.
+        Asked::Ranking(which) => store.explain_ranking(which, 3, 50).await,
+        Asked::Months(which) => store.explain_scored_months(which).await,
     }
 }
 

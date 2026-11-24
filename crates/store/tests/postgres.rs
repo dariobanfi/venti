@@ -176,7 +176,7 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
         versions,
         [
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-            25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35
+            25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36
         ]
     );
 }
@@ -1447,6 +1447,34 @@ async fn the_questions_about_groups_and_plans_use_their_indexes() {
     assert!(plan.contains("group_plans_day_idx"), "{plan}");
 }
 
+/// The ranking's cells as the triggers kept them through every kind of
+/// change are the cells a rebuild from the flights makes (0036).
+#[tokio::test]
+async fn the_ranking_s_kept_cells_are_those_a_rebuild_makes() {
+    let Some(url) = fresh_schema("ranking_cells_rebuilt").await else {
+        return;
+    };
+    let store = PgStore::connect(&url).await.unwrap();
+    suite::the_ranking_follows_every_change_of_a_flight(&store).await;
+    let (client, connection) = tokio_postgres::connect(&url, NoTls).await.unwrap();
+    tokio::spawn(connection);
+    let cells = "SELECT account_id || ' ' || period || ' ' || starts || ' ' || glider_class
+                        || ' ' || takeoff_country || ' ' || scored || ' ' || points
+                        || ' ' || best_ids::text || ' ' || best_points::text
+                 FROM ranking_cells ORDER BY 1";
+    let read = |rows: Vec<tokio_postgres::Row>| -> Vec<String> {
+        rows.iter().map(|row| row.get(0)).collect()
+    };
+    let kept = read(client.query(cells, &[]).await.unwrap());
+    client
+        .batch_execute("SELECT ranking_cells_rebuild()")
+        .await
+        .unwrap();
+    let rebuilt = read(client.query(cells, &[]).await.unwrap());
+    assert!(!kept.is_empty());
+    assert_eq!(kept, rebuilt);
+}
+
 #[path = "scale/queries.rs"]
 mod queries;
 
@@ -1477,9 +1505,6 @@ async fn flight_searches_use_the_indexes() {
     let centre = queries::centre(&url).await;
     let mut whole = Vec::new();
     for (name, asked) in queries::questions(centre, "seedacc00000001") {
-        if matches!(asked, queries::Asked::Ranking(_)) {
-            continue;
-        }
         let plan = queries::explain(&store, &asked).await.unwrap();
         if queries::reads_all_flights(&plan) {
             whole.push(format!("{name}:\n{plan}"));

@@ -7,8 +7,17 @@
 //! Like that list it holds public flights and nothing else and is the same
 //! whoever asks.
 //!
+//! `pilot_country` ranks the pilots of one country only, by the country
+//! their account names: a national ranking. The take-off's country is the
+//! filter `country`, as in the list.
+//!
 //! The answer says which years and months have a ranking at all, so that
 //! a page offers those and no empty one.
+//!
+//! The store keeps each pilot's best three of every month, year and all
+//! time (`0036_ranking_cells.sql`): a ranking of whole months, of every
+//! flight or of one glider class or one take-off country, is read from
+//! those, not summed from the flights.
 
 use std::sync::Arc;
 
@@ -18,10 +27,11 @@ use axum::response::Response;
 use serde::Deserialize;
 use venti_api_types::v1::{
     ErrorCode, FlightTerms, RANKING_COUNTED, RankedPilot, RankingMonth, RankingResponse,
-    RankingYear, YearMonth,
+    RankingYear, YearMonth, parse_country,
 };
 use venti_store::{Month, PublicFlights, Ranked, Store, Visibility};
 
+use super::budget::Reader;
 use super::cache::Keeper;
 use super::error::ApiError;
 use super::log::Sparse;
@@ -33,6 +43,7 @@ pub(crate) struct Params {
     from: Option<String>,
     to: Option<String>,
     month: Option<String>,
+    pilot_country: Option<String>,
     limit: Option<String>,
     #[serde(flatten)]
     filters: feed::FilterParams,
@@ -46,15 +57,15 @@ pub(super) fn rounded(points: f64) -> f64 {
 }
 
 fn pilot(ranked: &Ranked) -> Result<RankedPilot, ApiError> {
+    // The flights that count are the pilot's, and name their country and
+    // their picture.
+    let first = ranked.flights.first();
     Ok(RankedPilot {
-        // The flights that count are the pilot's, and name their picture.
-        pilot: wire::pictured(
+        pilot: wire::shown(
             &ranked.pilot_handle,
             &ranked.pilot_name,
-            ranked
-                .flights
-                .first()
-                .and_then(|flight| flight.pilot_picture.as_deref()),
+            first.and_then(|flight| flight.pilot_country.as_deref()),
+            first.and_then(|flight| flight.pilot_picture.as_deref()),
         )?,
         points: rounded(ranked.points),
         scored: ranked.scored,
@@ -102,12 +113,15 @@ fn periods(months: &[(Month, u32)]) -> Vec<RankingYear> {
 ///
 /// Like the list of public flights, the answer may be kept and is checked
 /// before every reuse: a flight that is made private counts no longer at
-/// once.
+/// once. Like it, it spends the budget of public reads
+/// ([`Api::count_public_read`]).
 pub(crate) async fn list<S: Store>(
     State(api): State<Arc<Api<S>>>,
+    reader: Reader,
     Query(params): Query<Params>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
+    api.count_public_read(&reader)?;
     let limit = body::page_size(params.limit.as_deref())?;
     let mut which = feed::which(
         params.bbox.as_deref(),
@@ -115,6 +129,14 @@ pub(crate) async fn list<S: Store>(
         params.to.as_deref(),
         &params.filters,
     )?;
+    which.pilot_country = params
+        .pilot_country
+        .as_deref()
+        .map(parse_country)
+        .transpose()
+        .map_err(|error| {
+            ApiError::bad_request(ErrorCode::InvalidRequest, format!("pilot_{error}"))
+        })?;
     let mut asked_month = None;
     if let Some(month) = params.month.as_deref() {
         if which.from.is_some() || which.before.is_some() {

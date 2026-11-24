@@ -1427,6 +1427,255 @@ pub(crate) async fn pilots_are_ranked_by_the_sum_of_their_best_public_flights(st
     );
 }
 
+/// The rankings the kept cells answer (0036), each beside the same
+/// ranking summed from the flights: a box around the whole world makes
+/// the store sum them.
+fn kept_and_summed() -> Vec<(String, PublicFlights, PublicFlights)> {
+    let first = |year, month| Month::new(year, month).unwrap().start();
+    let spans = [
+        ("all time", None, None),
+        ("July 2026", Some(first(2026, 7)), Some(first(2026, 8))),
+        ("2026", Some(first(2026, 1)), Some(first(2027, 1))),
+        ("2025", Some(first(2025, 1)), Some(first(2026, 1))),
+        (
+            "December to February",
+            Some(first(2025, 12)),
+            Some(first(2026, 3)),
+        ),
+        (
+            "December and 2026",
+            Some(first(2025, 12)),
+            Some(first(2027, 1)),
+        ),
+        ("from July 2026", Some(first(2026, 7)), None),
+        ("before 2026", None, Some(first(2026, 1))),
+    ];
+    let filters = [
+        ("", PublicFlights::default()),
+        (
+            ", EN B",
+            PublicFlights {
+                class: Some(GliderClass::EnB),
+                ..PublicFlights::default()
+            },
+        ),
+        (
+            ", from AT",
+            PublicFlights {
+                country: Some("AT".to_owned()),
+                ..PublicFlights::default()
+            },
+        ),
+        (
+            ", pilots of IT",
+            PublicFlights {
+                pilot_country: Some("IT".to_owned()),
+                ..PublicFlights::default()
+            },
+        ),
+    ];
+    let world = BoundingBox::new(-90.0, -180.0, 90.0, 180.0).unwrap();
+    let mut asked = Vec::new();
+    for (span, from, before) in spans {
+        for (filter, which) in &filters {
+            let kept = PublicFlights {
+                from,
+                before,
+                ..which.clone()
+            };
+            let summed = PublicFlights {
+                area: Some(world),
+                ..kept.clone()
+            };
+            asked.push((format!("{span}{filter}"), kept, summed));
+        }
+    }
+    asked
+}
+
+/// Whether every ranking the kept cells answer is the one summed from the
+/// flights, and the months that have a ranking too.
+async fn kept_as_summed(store: &impl Store, after: &str) {
+    for (name, kept, summed) in kept_and_summed() {
+        // From the top too: a span of several periods sums only the
+        // pilots who can reach it.
+        for limit in [1, 2, 100] {
+            assert_eq!(
+                ranked(store, &kept, 3, limit).await,
+                ranked(store, &summed, 3, limit).await,
+                "{name}, the first {limit}, after {after}"
+            );
+        }
+    }
+    for which in [
+        PublicFlights::default(),
+        PublicFlights {
+            class: Some(GliderClass::EnB),
+            ..PublicFlights::default()
+        },
+    ] {
+        let summed = PublicFlights {
+            area: Some(BoundingBox::new(-90.0, -180.0, 90.0, 180.0).unwrap()),
+            ..which.clone()
+        };
+        assert_eq!(
+            store.scored_months(&which).await.unwrap(),
+            store.scored_months(&summed).await.unwrap(),
+            "the months, after {after}"
+        );
+    }
+}
+
+/// A day at noon.
+fn on(year: i32, month: u32, day: u32) -> Timestamp {
+    use chrono::TimeZone;
+    chrono::Utc
+        .with_ymd_and_hms(year, month, day, 12, 0, 0)
+        .unwrap()
+}
+
+/// A flight of [`flown`] of a class, from a country.
+fn classed(
+    account: &Account,
+    n: u8,
+    start: Timestamp,
+    points: f64,
+    class: Option<GliderClass>,
+    country: Option<&str>,
+) -> NewFlight {
+    let mut new = flown(account, n, start, WALLBERG, Some(points));
+    new.glider_class = class;
+    new.derived.takeoff_country = country.map(str::to_owned);
+    new
+}
+
+pub(crate) async fn the_ranking_follows_every_change_of_a_flight(store: &impl Store) {
+    use GliderClass::{EnB, EnC};
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let bernd = create(store, "bernd").await;
+    let italy = AccountSettings {
+        country: Some(Some("IT".to_owned())),
+        ..AccountSettings::default()
+    };
+    store
+        .update_account_settings(&anna.id, &italy)
+        .await
+        .unwrap();
+    kept_as_summed(store, "nothing").await;
+
+    for new in [
+        classed(&dario, 1, on(2026, 7, 4), 50.0, Some(EnB), Some("AT")),
+        classed(&dario, 2, on(2026, 7, 20), 30.0, Some(EnB), Some("DE")),
+        classed(&dario, 3, on(2026, 1, 10), 70.0, Some(EnC), Some("AT")),
+        classed(&dario, 4, on(2025, 12, 20), 20.0, None, None),
+        classed(&dario, 5, on(2026, 7, 21), 25.0, Some(EnB), Some("AT")),
+        classed(&dario, 6, on(2026, 7, 22), 5.0, Some(EnB), Some("AT")),
+        classed(&anna, 1, on(2026, 7, 10), 40.0, Some(EnB), Some("AT")),
+        classed(&anna, 2, on(2026, 7, 11), 45.0, Some(EnB), Some("AT")),
+        classed(&anna, 3, on(2025, 2, 1), 90.0, Some(EnC), Some("IT")),
+    ] {
+        publish(store, &new).await;
+    }
+    // Bernd's best is not public yet.
+    save(
+        store,
+        &classed(&bernd, 1, on(2026, 7, 5), 100.0, Some(EnB), Some("AT")),
+    )
+    .await;
+    let july = PublicFlights {
+        from: Some(Month::new(2026, 7).unwrap().start()),
+        before: Some(Month::new(2026, 8).unwrap().start()),
+        ..PublicFlights::default()
+    };
+    assert_eq!(
+        ranked(store, &july, 3, 100).await,
+        [
+            place("dario", 105.0, &["dario1", "dario2", "dario5"], 4),
+            place("anna", 85.0, &["anna2", "anna1"], 2),
+        ]
+    );
+    kept_as_summed(store, "the uploads").await;
+
+    let later = at(21, 30);
+    store
+        .set_visibility(&dario.id, &id("dario1"), Visibility::Private, later)
+        .await
+        .unwrap();
+    kept_as_summed(store, "a flight made private").await;
+    assert_eq!(
+        ranked(store, &july, 3, 100).await,
+        [
+            place("anna", 85.0, &["anna2", "anna1"], 2),
+            place("dario", 60.0, &["dario2", "dario5", "dario6"], 3),
+        ]
+    );
+    store
+        .set_visibility(&dario.id, &id("dario1"), Visibility::Public, later)
+        .await
+        .unwrap();
+    kept_as_summed(store, "the flight made public again").await;
+
+    store
+        .set_glider_class(&anna.id, &id("anna1"), Some(EnC), later)
+        .await
+        .unwrap();
+    kept_as_summed(store, "a new glider class").await;
+
+    // Analysed again, the flight began in August and scores more.
+    let mut again = classed(&dario, 2, on(2026, 8, 2), 80.0, Some(EnB), Some("DE")).derived;
+    again.version = 2;
+    assert!(
+        store
+            .set_derived(&id("dario2"), &again, later)
+            .await
+            .unwrap()
+    );
+    kept_as_summed(store, "an analysis made again").await;
+
+    store
+        .take_down_flight(&id("anna2"), later)
+        .await
+        .unwrap()
+        .unwrap();
+    kept_as_summed(store, "a flight taken down").await;
+    store
+        .release_flight(&id("anna2"), later)
+        .await
+        .unwrap()
+        .unwrap();
+    kept_as_summed(store, "the flight released").await;
+
+    assert!(
+        store
+            .delete_flight(&dario.id, &id("dario3"), later)
+            .await
+            .unwrap()
+    );
+    kept_as_summed(store, "a flight deleted").await;
+
+    store
+        .set_all_visibility(&bernd.id, Visibility::Public, later)
+        .await
+        .unwrap();
+    kept_as_summed(store, "all of a pilot's flights made public").await;
+    assert_eq!(ranked(store, &july, 3, 100).await[0].0, "bernd");
+
+    let austria = AccountSettings {
+        country: Some(Some("AT".to_owned())),
+        ..AccountSettings::default()
+    };
+    store
+        .update_account_settings(&anna.id, &austria)
+        .await
+        .unwrap();
+    kept_as_summed(store, "a pilot of another country").await;
+
+    store.delete_account(&bernd.id).await.unwrap();
+    kept_as_summed(store, "an account deleted").await;
+    assert_eq!(ranked(store, &july, 3, 100).await[0].0, "dario");
+}
+
 // --- Public flights as data ------------------------------------------------
 
 /// Sets who may see a stored flight at `now`.

@@ -467,6 +467,11 @@ pub struct RankedPilot {
     #[uniffi(default = None)]
     #[cfg_attr(feature = "wasm", tsify(optional))]
     pub picture_path: Option<String>,
+    /// The pilot's country, an ISO 3166-1 alpha-2 code, where they set
+    /// one: for a flag beside the name.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub country: Option<String>,
 }
 
 /// The pilots of a server's public flights, ranked.
@@ -687,6 +692,7 @@ pub fn ranking_month_path(area: Option<Bounds>, month: String) -> Result<String,
         to: None,
         month: Some(month),
         filters: FlightFilters::default(),
+        pilot_country: None,
         limit: None,
     }
     .path_and_query())
@@ -716,6 +722,7 @@ pub fn ranking_path(
         from,
         to,
         filters: FlightFilters::default(),
+        pilot_country: None,
         limit: None,
     }
     .path_and_query())
@@ -747,6 +754,7 @@ pub fn ranking(status: u16, body: Vec<u8>) -> Result<Ranking, CoreError> {
             },
             flights: ranked.flights.iter().map(row).collect(),
             picture_path: ranked.pilot.picture.clone(),
+            country: ranked.pilot.country.clone(),
         });
     }
     let rule = match response.counted {

@@ -1021,6 +1021,14 @@ impl Core {
             .collect())
     }
 
+    /// The `cursor` of the last answer of what the alarms fired that the
+    /// device fetched: what [`crate::unread_seen_request`] takes as
+    /// `alarms_cursor` once the pilot was shown the list. `None` signed out
+    /// and before the first fetch.
+    pub fn alerts_fired_cursor(&self) -> Result<Option<String>, CoreError> {
+        Ok(self.held_alerts()?.and_then(|held| held.cursor))
+    }
+
     /// Starts fetching the account's alarms and what they fired since the
     /// last run. Run it after signing in, after changing an alarm, and
     /// from time to time: on Android from the app's periodic check, in a

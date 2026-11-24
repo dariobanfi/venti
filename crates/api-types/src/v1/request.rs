@@ -773,6 +773,11 @@ pub struct RankingRequest {
     /// Only flights that took off or were flown so count: the filters of
     /// the list of public flights.
     pub filters: FlightFilters,
+    /// Only pilots of this country are ranked (`pilot_country`): those
+    /// whose account names it ([`super::Account::country`]), an ISO 3166-1
+    /// alpha-2 code in upper case. A national ranking; the take-off's
+    /// country is `filters.country`.
+    pub pilot_country: Option<String>,
     /// How many pilots to return from the top, at most
     /// [`MAX_PAGE_SIZE`](super::MAX_PAGE_SIZE). The server's default is
     /// [`DEFAULT_PAGE_SIZE`](super::DEFAULT_PAGE_SIZE).
@@ -796,7 +801,13 @@ impl RankingRequest {
         );
         let path = with_plain(path, self.filters.plain_parameters());
         let path = with_query(path, self.filters.parameters());
-        with_query(path, [("limit", self.limit.map(|limit| limit.to_string()))])
+        with_query(
+            path,
+            [
+                ("pilot_country", self.pilot_country.clone()),
+                ("limit", self.limit.map(|limit| limit.to_string())),
+            ],
+        )
     }
 }
 
@@ -1138,6 +1149,11 @@ mod tests {
             "/v1/ranking?bbox=11.6,47.55,12,47.85\
              &from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z&limit=20"
         );
+        let national = RankingRequest {
+            pilot_country: Some("AT".to_owned()),
+            ..RankingRequest::default()
+        };
+        assert_eq!(national.path_and_query(), "/v1/ranking?pilot_country=AT");
     }
 
     #[test]

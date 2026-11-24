@@ -955,18 +955,25 @@ pub fn unread_request() -> ServerRequest {
     bare("GET", api::ACCOUNT_UNREAD_PATH.to_owned(), true)
 }
 
-/// The request that the pilot saw the lists: up to the `cursor` of the
-/// last answer of [`notifications_request`] and of the alarms' fetch that
-/// the pilot was shown, each `None` for up to the newest. Send it once
-/// the pilot opened the notifications; read the answer with [`unread`].
+/// The request that the pilot saw the lists: each up to the `cursor` of
+/// the last answer of it the pilot was shown ([`notifications_request`];
+/// for the alarms [`Core::alerts_fired_cursor`]), an empty text for up to
+/// the newest, or `None` to leave that list's mark where it is. Send it
+/// once the pilot opened a list; read the answer with [`unread`].
 #[uniffi::export]
 pub fn unread_seen_request(
     notifications_cursor: Option<String>,
     alarms_cursor: Option<String>,
 ) -> Result<ServerRequest, CoreError> {
+    let seen = |cursor: Option<String>| {
+        cursor.map(|cursor| match cursor.as_str() {
+            "" => api::SEEN_NEWEST.to_owned(),
+            _ => cursor,
+        })
+    };
     let request = api::SeenRequest {
-        notifications_cursor: cursor(notifications_cursor),
-        alarms_cursor: cursor(alarms_cursor),
+        notifications_cursor: seen(notifications_cursor),
+        alarms_cursor: seen(alarms_cursor),
     };
     json_request("PUT", api::ACCOUNT_UNREAD_PATH, &request, true)
 }
@@ -1442,8 +1449,18 @@ mod tests {
             serde_json::from_slice(&recorded("seen_request.json")).unwrap();
         let ours: serde_json::Value = serde_json::from_slice(&seen.body.unwrap()).unwrap();
         assert_eq!(ours, theirs);
+        // An empty cursor is up to the newest; a list left out keeps its
+        // mark.
         let all = unread_seen_request(Some(String::new()), None).unwrap();
-        assert_eq!(all.body.as_deref(), Some(&b"{}"[..]));
+        assert_eq!(
+            all.body.as_deref(),
+            Some(&br#"{"notifications_cursor":"newest"}"#[..])
+        );
+        let alarms = unread_seen_request(None, Some("17".to_owned())).unwrap();
+        assert_eq!(
+            alarms.body.as_deref(),
+            Some(&br#"{"alarms_cursor":"17"}"#[..])
+        );
     }
 
     #[test]

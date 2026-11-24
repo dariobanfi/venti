@@ -1086,6 +1086,7 @@ fn operations() -> Vec<Op> {
             "kind",
             "min_km",
             "country",
+            "pilot_country",
             "limit",
         ])
         .json("RankingResponse"),
@@ -1486,6 +1487,10 @@ fn query_parameter(spec: &str) -> Value {
         ),
         "country" => (
             "Only flights that took off in this country, an ISO 3166-1 alpha-2 code, in either case.",
+            json!({"type": "string", "minLength": 2, "maxLength": 2, "pattern": "^[A-Za-z]{2}$"}),
+        ),
+        "pilot_country" => (
+            "Only pilots whose account names this country, an ISO 3166-1 alpha-2 code, in either case: a national ranking.",
             json!({"type": "string", "minLength": 2, "maxLength": 2, "pattern": "^[A-Za-z]{2}$"}),
         ),
         "q" => (

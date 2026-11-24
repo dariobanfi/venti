@@ -190,6 +190,7 @@ macro_rules! store_suite {
             public_flights_are_found_by_when_they_started,
             public_flights_are_listed_best_first_by_their_points,
             pilots_are_ranked_by_the_sum_of_their_best_public_flights,
+            the_ranking_follows_every_change_of_a_flight,
             scored_months_are_counted,
             pilots_are_found_by_name,
             flown_by_has_public_flights,

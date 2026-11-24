@@ -153,6 +153,12 @@ impl PgStore {
         flights::explain_ranking(&mut self.client().await?, which, counted, limit).await
     }
 
+    /// The same for the months that have a ranking.
+    #[doc(hidden)]
+    pub async fn explain_scored_months(&self, which: &PublicFlights) -> Result<String, StoreError> {
+        flights::explain_scored_months(&mut self.client().await?, which).await
+    }
+
     async fn client(&self) -> Result<Client, StoreError> {
         self.pool.get().await.map_err(|error| match error {
             PoolError::Backend(error) => db_error(error),

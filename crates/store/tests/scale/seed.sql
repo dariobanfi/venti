@@ -46,6 +46,9 @@ BEGIN
            (ARRAY['en_a','en_b','en_b','en_c','en_d','ccc'])[1 + floor(random() * 6)::int]
     FROM generate_series(1, pilots) n;
 
+    -- The ranking's cells are made in one pass after the flights, which is
+    -- quicker than following each insert (0036).
+    ALTER TABLE flights DISABLE TRIGGER flights_ranking_insert;
     INSERT INTO flights (
         id, account_id, identity, visibility, uploaded_at, change, file, file_bytes,
         analysis_version, started_at, airtime_s,
@@ -94,6 +97,9 @@ BEGIN
               FROM generate_series(1, flights + private_flights) n) picked
         JOIN seed_sites s ON s.site = picked.site
     ) made;
+
+    ALTER TABLE flights ENABLE TRIGGER flights_ranking_insert;
+    PERFORM ranking_cells_rebuild();
 
     UPDATE accounts a
     SET flight_change = counted.latest

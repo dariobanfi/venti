@@ -16,8 +16,8 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use chrono::Duration;
 use venti_api_types::v1::{
-    ErrorCode, FIRED_KEPT_DAYS, NOTIFICATIONS_KEPT_DAYS, Scope, SeenRequest, UNREAD_COUNTED_UP_TO,
-    UnreadResponse,
+    ErrorCode, FIRED_KEPT_DAYS, NOTIFICATIONS_KEPT_DAYS, SEEN_NEWEST, Scope, SeenRequest,
+    UNREAD_COUNTED_UP_TO, UnreadResponse,
 };
 use venti_store::Store;
 
@@ -60,21 +60,29 @@ async fn count<S: Store>(api: &Api<S>, signed: &Signed) -> Result<UnreadResponse
     Ok(UnreadResponse::of(notifications, alarms).with_groups(groups))
 }
 
-/// A cursor of `GET /v1/account/notifications` or of `GET
-/// /v1/account/alerts/fired`, as a number.
+/// Up to where a field of the body sees its list, as the store takes it:
+/// a cursor of `GET /v1/account/notifications` or of `GET
+/// /v1/account/alerts/fired` as a number, `None` for [`SEEN_NEWEST`], and
+/// zero for a list left out, which leaves its mark as it is: the mark
+/// never moves back.
 fn cursor(text: Option<&str>, field: &str) -> Result<Option<i64>, ApiError> {
-    text.map(|text| {
-        text.parse()
+    match text {
+        None => Ok(Some(0)),
+        Some(SEEN_NEWEST) => Ok(None),
+        Some(text) => text
+            .parse()
             .ok()
             .filter(|number: &i64| *number >= 0)
+            .map(Some)
             .ok_or_else(|| {
                 ApiError::bad_request(
                     ErrorCode::InvalidCursor,
-                    format!("{field} must be the cursor of an earlier answer"),
+                    format!(
+                        "{field} must be the cursor of an earlier answer, or \"{SEEN_NEWEST}\""
+                    ),
                 )
-            })
-    })
-    .transpose()
+            }),
+    }
 }
 
 /// `GET /v1/account/unread`: how much is new since the pilot last saw it.
@@ -87,17 +95,21 @@ pub(crate) async fn show<S: Store>(
 }
 
 /// `PUT /v1/account/unread`: the pilot saw the lists, up to the cursors
-/// the body names, or up to the newest of each without one. The answer is
-/// the count after it.
+/// the body names or up to the newest where it says `"newest"`; a list
+/// the body leaves out keeps its mark. Without a body, both lists are
+/// seen up to the newest. The answer is the count after it.
 pub(crate) async fn seen<S: Store>(
     State(api): State<Arc<Api<S>>>,
     May(signed, ..): May<WriteSocial>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    // The body may be left out.
+    // The body may be left out: both lists are seen up to the newest.
     let request: SeenRequest = if body.is_empty() {
-        SeenRequest::default()
+        SeenRequest {
+            notifications_cursor: Some(SEEN_NEWEST.to_owned()),
+            alarms_cursor: Some(SEEN_NEWEST.to_owned()),
+        }
     } else {
         body::json(&headers, &body)?
     };

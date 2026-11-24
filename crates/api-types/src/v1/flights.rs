@@ -601,8 +601,10 @@ pub const PILOT_SITE_STEP_DEG: f64 = 0.0001;
 /// public flights add up to, all together and year by year.
 ///
 /// It is made from the flights the pilot made public and from nothing
-/// else, anew for every answer. Years and months are those of UTC, as a
-/// ranking's are.
+/// else, anew for every answer. A flight's year and month are those of
+/// the clock where it took off, as the apps date it (a ranking's are those
+/// of UTC: a flight on New Year's Eve near midnight may count in another
+/// year there).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PilotStatisticsResponse {
     /// The pilot.
@@ -621,7 +623,7 @@ pub struct PilotStatisticsResponse {
 /// A year of a pilot's public flights.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PilotSeason {
-    /// The year, by UTC.
+    /// The year, by the clock where each flight took off.
     pub year: i32,
     /// What its flights add up to.
     pub totals: PilotTotals,
@@ -693,7 +695,7 @@ pub struct FlownSite {
 /// A pilot's place in a ranking.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RankedPilot {
-    /// The pilot.
+    /// The pilot, with their country where they set one.
     pub pilot: Pilot,
     /// The sum of the points of the flights that count, rounded to
     /// hundredths as a flight's own points are.

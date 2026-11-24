@@ -76,3 +76,59 @@ struct Flag: View {
         }
     }
 }
+
+/// A country chosen from every country `Locale` knows, by its name with
+/// its flag, or none: the pilot's own, or the take-off's of a search. The
+/// field over the list finds one by its name or its code; a choice goes
+/// back.
+struct CountryChoiceList: View {
+    let chosen: String?
+    /// The name of the choice of none: "None", "Worldwide".
+    let none: String
+    let title: String
+    let prompt: String
+    let choose: (String?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+
+    var body: some View {
+        VentiList {
+            if text.trimmingCharacters(in: .whitespaces).isEmpty {
+                row(code: nil, name: none)
+            }
+            ForEach(Countries.finding(text), id: \.code) { country in
+                row(code: country.code, name: country.name)
+            }
+        }
+        .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: prompt)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("country-list")
+    }
+
+    /// One country: its flag, its name, and a check where it is the one chosen.
+    private func row(code: String?, name: String) -> some View {
+        let isChosen = code?.caseInsensitiveCompare(chosen ?? "") == .orderedSame || (code == nil && chosen == nil)
+        return Button {
+            choose(code)
+            dismiss()
+        } label: {
+            HStack {
+                Text([Countries.flag(code), name].compactMap { $0 }.joined(separator: " "))
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel(name)
+                Spacer(minLength: VentiSpace.s2)
+                if isChosen {
+                    Image(systemName: "checkmark")
+                        .font(.venti(.body, .semibold))
+                        .foregroundStyle(Palette.accent)
+                }
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(isChosen ? "Chosen" : "")
+        .accessibilityIdentifier("country-\(code ?? "none")")
+    }
+}

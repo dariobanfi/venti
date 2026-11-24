@@ -61,7 +61,9 @@ struct PlansSheet: View {
                         }
                         .accessibilityIdentifier("plans-groups")
                     } footer: {
-                        Text("A plan is seen by the members of its group and nobody else, and is removed two days after its day.")
+                        // The core's words: a public group's plans are
+                        // read by anyone (decision 26).
+                        Text(whoSeesAPlan(isPublic: groups.chats?.contains(where: \.isPublic) ?? false))
                     }
                 } else if let problem = groups.problem {
                     Section {
@@ -374,7 +376,7 @@ struct PlanForm: View {
                 } header: {
                     Text("Note")
                 } footer: {
-                    Text("The plan is posted in the group's chat, with \"I'm in\" on its card. It is removed two days after its day.")
+                    Text(whoSeesThisPlan(isPublic: groups.chats?.first { $0.id == (inGroup ?? group) }?.isPublic ?? false))
                 }
                 if let problem {
                     Section {

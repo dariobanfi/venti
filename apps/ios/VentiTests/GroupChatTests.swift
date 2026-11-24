@@ -216,8 +216,12 @@ final class GroupChatTests: XCTestCase {
             isPublic: false, picture: nil
         )
         XCTAssertEqual(made.group.name, "Mustergruppe")
-        XCTAssertEqual(made.members.map(\.roleWords), ["Owner", "", ""])
+        // The answer is the group as made, with its owner alone: no
+        // second question for it.
+        XCTAssertEqual(made.members.map(\.roleWords), ["Owner"])
         XCTAssertTrue(made.canModerate)
+        let asked = await sent.requests.filter { $0.httpMethod == "GET" && $0.url?.path == "/v1/groups/44444444444444444444444444" }
+        XCTAssertTrue(asked.isEmpty, "\(asked.map { $0.url?.path ?? "" })")
         let posted = await sent.requests.last { $0.httpMethod == "POST" && $0.url?.path == "/v1/groups" }
         let body = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(posted?.httpBody)) as? [String: Any])
         XCTAssertEqual(body["name"] as? String, "Mustergruppe")

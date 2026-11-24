@@ -59,6 +59,20 @@ struct RankingList: View {
                         .listRowSeparator(.hidden)
                         .accessibilityIdentifier("ranking-month")
                     }
+                    // What the flights ranked are searched by, out of the
+                    // way: the season and the month stay as it changes.
+                    HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s3) {
+                        FlightSearchLine(search: ranked.search)
+                        Spacer(minLength: 0)
+                        FlightSearchButton(search: ranked.search) { search in
+                            Task {
+                                await community.rank(search: search)
+                            }
+                        }
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: VentiSpace.s1, leading: VentiSpace.s1, bottom: 0, trailing: 0))
+                    .listRowSeparator(.hidden)
                 } footer: {
                     if !ranked.title.isEmpty {
                         Text(ranked.title)
@@ -107,7 +121,11 @@ struct RankingList: View {
                     ranked.problem == nil ? "Nobody is ranked" : "The ranking could not be fetched",
                     systemImage: ranked.problem == nil ? "trophy" : "exclamationmark.triangle",
                     description: Text(
-                        ranked.problem ?? (ranked.month == nil ? Self.nobody(in: ranked.season) : pilotsWords().monthEmpty)
+                        ranked.problem ?? (
+                            ranked.search.isSearching
+                                ? "Nobody shares a flight that matches these choices. Remove one, or widen the area."
+                                : ranked.month == nil ? Self.nobody(in: ranked.season) : pilotsWords().monthEmpty
+                        )
                     )
                 )
             }

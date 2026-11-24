@@ -29,13 +29,22 @@ struct PublicFlightsList: View {
                     // Something went wrong: said plainly, without art.
                     ContentUnavailableView {
                         Label {
-                            Text("No public flights")
+                            Text(community.search.isSearching ? "The flights could not be listed" : "No public flights")
                         } icon: {
                             Image("icon-caution")
                         }
                     } description: {
                         Text(problem)
                     }
+                } else if community.search.isSearching {
+                    // Under the order and the filter, which stay in reach.
+                    ContentUnavailableView(
+                        "No flights match",
+                        systemImage: SitesFilterIcon.name,
+                        description: Text("Nobody shares a flight that matches these choices. Remove one, or widen the area.")
+                    )
+                    .padding(.top, VentiSpace.s8)
+                    .accessibilityIdentifier("public-flights-none-match")
                 } else {
                     VentiEmpty(
                         title: "No public flights yet",
@@ -54,15 +63,28 @@ struct PublicFlightsList: View {
 
     @ViewBuilder private var flights: some View {
         Section {
-            VentiSegmented(
-                options: [
-                    (value: PublicFlightsOrder.newest, name: "Newest"),
-                    (value: PublicFlightsOrder.best, name: "Best"),
-                ],
-                selection: order
-            )
+            HStack(spacing: VentiSpace.s3) {
+                VentiSegmented(
+                    options: [
+                        (value: PublicFlightsOrder.newest, name: "Newest"),
+                        (value: PublicFlightsOrder.best, name: "Best"),
+                    ],
+                    selection: order
+                )
+                FlightSearchButton(search: community.search) { search in
+                    Task {
+                        await community.find(search)
+                    }
+                }
+            }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets())
+            if community.search.isSearching {
+                FlightSearchLine(search: community.search)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: VentiSpace.s2, leading: VentiSpace.s1, bottom: 0, trailing: 0))
+                    .listRowSeparator(.hidden)
+            }
         }
         Section {
             ForEach(community.flights, id: \.id) { flight in
@@ -390,6 +412,8 @@ struct PilotFlightsScreen: View {
     @State private var year: Int32 = 0
     /// Who follows the pilot and whom they follow, once Venti has said.
     @State private var follows: FollowList?
+    /// What the pilot's flights are searched by: everything, until chosen.
+    @State private var search = FlightSearch.everything
 
     @Environment(AccountModel.self) private var account
     @Environment(WindModel.self) private var wind
@@ -401,10 +425,16 @@ struct PilotFlightsScreen: View {
                 picturePath: statistics?.picturePath
             )
             FollowSection(handle: pilot.handle, follows: $follows)
-            if let statistics, !flights.isEmpty || year != 0 {
+            if let statistics, !flights.isEmpty || year != 0 || search.isSearching {
                 PilotTotalsSections(statistics: statistics, year: $year)
             }
             Section {
+                if flights.isEmpty, !isLoading, search.isSearching {
+                    Text(problem ?? "Nobody shares a flight that matches these choices. Remove one, or widen the area.")
+                        .font(.venti(.subheadline))
+                        .foregroundStyle(.venti(.textSecondary))
+                        .accessibilityIdentifier("pilot-flights-none-match")
+                }
                 ForEach(flights, id: \.id) { flight in
                     NavigationLink {
                         PublicFlightScreen(flight: flight)
@@ -424,11 +454,24 @@ struct PilotFlightsScreen: View {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                 }
+            } header: {
+                // The search, out of the way, over the flights it narrows.
+                if !flights.isEmpty || search.isSearching {
+                    VStack(alignment: .trailing, spacing: 0) {
+                        FlightSearchButton(search: search) { chosen in
+                            search = chosen
+                        }
+                        FlightSearchLine(search: search)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .textCase(nil)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                }
             }
         }
         .listStyle(.insetGrouped)
         .overlay {
-            if flights.isEmpty, !isLoading, year == 0 {
+            if flights.isEmpty, !isLoading, year == 0, !search.isSearching {
                 ContentUnavailableView(
                     "No public flights",
                     systemImage: "person",
@@ -470,6 +513,13 @@ struct PilotFlightsScreen: View {
                 await load()
             }
         }
+        .onChange(of: search) {
+            flights = []
+            next = nil
+            Task {
+                await load()
+            }
+        }
         .task(id: pilot.handle) {
             flights = []
             next = nil
@@ -504,21 +554,22 @@ struct PilotFlightsScreen: View {
         defer { isLoading = false }
         // The season chosen, where it is one: its bounds are the core's.
         let asked = year
+        let searched = search
         let season = statistics?.seasons.first { $0.year == asked }
         do {
             let after = flights.isEmpty ? nil : next
             let page: (flights: [PublicFlight], next: String?)
-            if let season {
+            if season != nil || searched.isSearching {
                 let found = try await community.pilot(
-                    pilot.handle, fromUnixS: season.fromUnixS, toUnixS: season.toUnixS, after: after
+                    pilot.handle, fromUnixS: season?.fromUnixS, toUnixS: season?.toUnixS, search: searched, after: after
                 )
                 page = (found.flights, found.next)
             } else {
                 let found = try await community.pilot(pilot.handle, after: after)
                 page = (found.flights, found.next)
             }
-            // Another season was chosen while this was under way.
-            guard asked == year else { return }
+            // Another season or search was chosen while this was under way.
+            guard asked == year, searched == search else { return }
             flights += page.flights
             next = page.next
             problem = nil

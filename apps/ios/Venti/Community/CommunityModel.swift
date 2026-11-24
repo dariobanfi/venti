@@ -19,6 +19,8 @@ final class CommunityModel {
     private(set) var flights: [PublicFlight] = []
     /// The order they are in.
     private(set) var order = PublicFlightsOrder.newest
+    /// What they are searched by: everything, until the pilot chooses.
+    private(set) var search = FlightSearch.everything
     /// Whether a page is being fetched.
     private(set) var isLoading = false
     /// Whether the server has more than is listed.
@@ -47,6 +49,9 @@ final class CommunityModel {
         var isLoading = false
         /// Why it is missing, in words for the pilot.
         var problem: String?
+        /// What the flights ranked are searched by: everything, until the
+        /// pilot chooses. The season and month stay as it changes.
+        var search = FlightSearch.everything
 
         /// The months of the season shown that have a ranking, the
         /// newest first, in the core's names. None for all years.
@@ -84,8 +89,8 @@ final class CommunityModel {
     @ObservationIgnored private let transport: Transport
     /// What to ask the next page with.
     @ObservationIgnored private var next: String?
-    /// Which server and order the list is from.
-    @ObservationIgnored private var listed: (server: URL, order: PublicFlightsOrder)?
+    /// Which server, order and search the list is from.
+    @ObservationIgnored private var listed: (server: URL, order: PublicFlightsOrder, search: FlightSearch)?
 
     init(transport: @escaping Transport = CommunityModel.fetch) {
         self.transport = transport
@@ -98,7 +103,7 @@ final class CommunityModel {
             forget()
             return
         }
-        if let listed, listed.server == server, listed.order == order {
+        if let listed, listed.server == server, listed.order == order, listed.search == search {
             return
         }
         await load(fromTheTop: true)
@@ -110,6 +115,16 @@ final class CommunityModel {
         self.order = order
         flights = []
         hasMore = false
+        await load(fromTheTop: true)
+    }
+
+    /// Shows the flights another search finds, from the list's top.
+    func find(_ search: FlightSearch) async {
+        guard search != self.search else { return }
+        self.search = search
+        flights = []
+        hasMore = false
+        problem = nil
         await load(fromTheTop: true)
     }
 
@@ -133,20 +148,24 @@ final class CommunityModel {
         isLoading = true
         defer { isLoading = false }
         let order = self.order
+        let search = self.search
         do {
-            let path = try publicFlightsPath(
-                order: order, area: nil, fromUnixS: nil, toUnixS: nil, after: fromTheTop ? nil : next
-            )
+            let after = fromTheTop ? nil : next
+            let path = search.isSearching
+                ? try publicFlightsSearchPath(
+                    order: order, area: nil, fromUnixS: nil, toUnixS: nil, search: search, after: after
+                )
+                : try publicFlightsPath(order: order, area: nil, fromUnixS: nil, toUnixS: nil, after: after)
             guard let url = URL(string: server.absoluteString + path) else { return }
             let (status, body) = try await transport(url)
             let page = try publicFlights(status: UInt16(clamping: status), body: body)
-            // The pilot may have changed the server or the order while
-            // this was under way.
-            guard server == self.server(), order == self.order else { return }
+            // The pilot may have changed the server, the order or the
+            // search while this was under way.
+            guard server == self.server(), order == self.order, search == self.search else { return }
             flights = fromTheTop ? page.flights : flights + page.flights
             next = page.next
             hasMore = page.next != nil
-            listed = (server, order)
+            listed = (server, order, search)
             problem = nil
         } catch is CancellationError {
             return
@@ -154,6 +173,7 @@ final class CommunityModel {
             if (error as? URLError)?.code == .cancelled {
                 return
             }
+            guard search == self.search else { return }
             problem = error is CoreError
                 ? error.words
                 : pilotsWords().unreachable
@@ -171,6 +191,16 @@ final class CommunityModel {
     /// writes the month ("2026-05"); `nil` is the whole season again.
     func rank(month: String?, now: Date? = nil) async {
         await rank(season: nil, month: month, now: now)
+    }
+
+    /// Ranks the flights another search finds: the season and the month
+    /// shown stay.
+    func rank(search: FlightSearch, now: Date? = nil) async {
+        guard search != ranked.search else { return }
+        ranked.search = search
+        ranked.pilots = []
+        ranked.rule = ""
+        await rank(season: nil, month: ranked.month, now: now)
     }
 
     private func rank(season: String?, month: String?, now: Date?) async {
@@ -194,11 +224,24 @@ final class CommunityModel {
         ranked.month = month
         ranked.problem = nil
         ranked.isLoading = true
+        let search = ranked.search
         do {
-            let path = if let month {
-                try rankingMonthPath(area: nil, month: month)
+            let path: String
+            if search.isSearching {
+                // The core has no path for a month and a search at once:
+                // the month is then asked as its span, a calendar month
+                // by UTC, as on the web.
+                let span = month.flatMap(Self.span(ofMonth:))
+                path = try rankingSearchPath(
+                    area: nil,
+                    fromUnixS: span?.fromUnixS ?? chosen.fromUnixS,
+                    toUnixS: span?.toUnixS ?? chosen.toUnixS,
+                    search: search
+                )
+            } else if let month {
+                path = try rankingMonthPath(area: nil, month: month)
             } else {
-                try rankingPath(area: nil, fromUnixS: chosen.fromUnixS, toUnixS: chosen.toUnixS)
+                path = try rankingPath(area: nil, fromUnixS: chosen.fromUnixS, toUnixS: chosen.toUnixS)
             }
             guard let url = URL(string: server.absoluteString + path) else {
                 ranked.isLoading = false
@@ -209,7 +252,9 @@ final class CommunityModel {
             // The pilot may have chosen another season, month or server
             // while this was under way: that question's answer sets the
             // rest.
-            guard server == self.server(), ranked.season == chosen.name, ranked.month == month else { return }
+            guard server == self.server(), ranked.season == chosen.name, ranked.month == month,
+                  ranked.search == search
+            else { return }
             ranked.pilots = answer.pilots
             ranked.rule = answer.rule
             ranked.periodTitle = answer.period.title
@@ -217,7 +262,7 @@ final class CommunityModel {
             ranked.seasons = Self.seasons(having: answer.periods, shown: chosen, byTheClock: byTheClock)
             ranked.isLoading = false
         } catch {
-            guard ranked.season == chosen.name, ranked.month == month else { return }
+            guard ranked.season == chosen.name, ranked.month == month, ranked.search == search else { return }
             ranked.isLoading = false
             if error is CancellationError || (error as? URLError)?.code == .cancelled {
                 return
@@ -226,6 +271,21 @@ final class CommunityModel {
                 ? error.words
                 : pilotsWords().unreachable
         }
+    }
+
+    /// The first second of a month as the ranking's periods write one
+    /// ("2026-05") and the first of the next, by UTC.
+    static func span(ofMonth month: String) -> (fromUnixS: Int64, toUnixS: Int64)? {
+        let parts = month.split(separator: "-")
+        guard parts.count == 2, parts[0].count == 4, parts[1].count == 2,
+              let year = Int(parts[0]), let number = Int(parts[1]), (1...12).contains(number)
+        else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        guard let from = calendar.date(from: DateComponents(year: year, month: number, day: 1)),
+              let to = calendar.date(byAdding: .month, value: 1, to: from)
+        else { return nil }
+        return (Int64(from.timeIntervalSince1970), Int64(to.timeIntervalSince1970))
     }
 
     /// The seasons a ranking is offered for once the server has said
@@ -294,10 +354,17 @@ final class CommunityModel {
     /// One page of a pilot's public flights that began in a season, the
     /// newest first: the season's bounds are those of the pilot's totals.
     /// `after` is the `next` of the page before.
+    /// With a search, only the flights it finds, in any season or in the
+    /// one given.
     func pilot(
-        _ handle: String, fromUnixS: Int64?, toUnixS: Int64?, after: String? = nil
+        _ handle: String, fromUnixS: Int64?, toUnixS: Int64?, search: FlightSearch = .everything,
+        after: String? = nil
     ) async throws -> PublicFlights {
-        let path = try pilotFlightsPath(handle: handle, fromUnixS: fromUnixS, toUnixS: toUnixS, after: after)
+        let path = search.isSearching
+            ? try pilotFlightsSearchPath(
+                handle: handle, order: .newest, fromUnixS: fromUnixS, toUnixS: toUnixS, search: search, after: after
+            )
+            : try pilotFlightsPath(handle: handle, fromUnixS: fromUnixS, toUnixS: toUnixS, after: after)
         guard let server = server(), let url = URL(string: server.absoluteString + path) else {
             throw URLError(.badURL)
         }

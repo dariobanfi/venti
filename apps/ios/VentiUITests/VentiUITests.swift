@@ -2312,14 +2312,18 @@ final class VentiUITests: XCTestCase {
         XCTAssertEqual(more.value as? String, shown ? "Shown" : "Hidden")
     }
 
-    /// Chooses the height of the forecast's wind from the list at the
-    /// map's right.
+    /// Chooses the height of the forecast's wind from the pill at the
+    /// map's right: opens its list, taps the height, and sees the pill
+    /// name it.
     private func chooseForecastLevel(_ name: String, in app: XCUIApplication) {
-        let level = element("forecast-level", in: app)
-        XCTAssertTrue(level.appears(timeout: 15))
-        let height = level.buttons[name]
+        let pill = element("forecast-level", in: app)
+        XCTAssertTrue(pill.appears(timeout: 15))
+        if pill.value as? String == name { return }
+        pill.tap()
+        let height = app.buttons[name].firstMatch
         XCTAssertTrue(height.appears(timeout: 10))
         height.tap()
+        XCTAssertTrue(waitUntil(timeout: 5) { pill.value as? String == name }, "\(pill.value ?? "")")
         usleep(700_000)
     }
 
@@ -2329,8 +2333,8 @@ final class VentiUITests: XCTestCase {
     /// ground: the day filled by region, light and dark, the key of the
     /// five levels, a region tapped with its words, its detail and its
     /// credit behind the map's (i); then the wind's arrows at 250 m above
-    /// the ground, chosen from the heights at the map's right, light and
-    /// dark, and the heights gone with the gusts. It leaves the wind at
+    /// the ground, chosen from the height's pill at the map's right, light
+    /// and dark, its list open, and the pill gone with the gusts. It leaves the wind at
     /// the ground, its mean.
     func testTheForecastMapShowsRegionsAndTheWindAboveTheGround() throws {
         guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
@@ -2380,9 +2384,16 @@ final class VentiUITests: XCTestCase {
         chooseForecastLevel("250 m AGL", in: app)
         let line = element("what-line", in: app)
         XCTAssertTrue(waitUntil(timeout: 30) { line.label.contains("250") && line.label.contains("13:00, forecast") }, line.label)
-        XCTAssertTrue(element("forecast-level", in: app).buttons["250 m AGL"].isSelected)
+        XCTAssertEqual(element("forecast-level", in: app).value as? String, "250 m AGL")
         sleep(3)
         keepScreenshots(light: "map-wind-1-250-agl", dark: "map-wind-dark-250-agl")
+        // The pill's list open, over the map.
+        element("forecast-level", in: app).tap()
+        XCTAssertTrue(app.buttons["2000 m"].firstMatch.appears(timeout: 10))
+        usleep(600_000)
+        keepScreenshot("map-wind-1b-heights-open")
+        app.buttons["250 m AGL"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["2000 m"].firstMatch.vanishes(timeout: 5))
 
         // The gusts have no heights.
         let gusts = element("what-gusts", in: app)
@@ -4873,6 +4884,89 @@ final class VentiUITests: XCTestCase {
         end.tap()
         XCTAssertTrue(app.buttons["Flight details"].appears(timeout: 10))
         XCTAssertFalse(element("flight-beside", in: app).exists)
+    }
+
+    /// Everyone's flights searched as XContest's flight search does,
+    /// against the development server, whose public flights take off at
+    /// the Wallberg above the Tegernsee and at the made-up sites south of
+    /// the Zugspitze, some 75 km apart, none with a glider class: the
+    /// filter's sheet, an area of 40 km around the middle of the Alps
+    /// (the Wallberg some 28 km from it, the Austrian sites some 55 km)
+    /// that leaves the Wallberg's flights, then "EN C" that leaves none.
+    /// It clears the search at the end.
+    func testEveryonesFlightsNarrowByARadiusAndAClass() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].appears(timeout: 90))
+        openTab("Community", in: app)
+        let everyone = app.buttons["Everyone"]
+        XCTAssertTrue(everyone.appears(timeout: 15))
+        everyone.tap()
+        let rows = app.descendants(matching: .any).matching(identifier: "public-flight-row")
+        let austrian = rows.matching(NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "Lena Probe", "Timo Entwurf"))
+        XCTAssertTrue(rows.firstMatch.appears(timeout: 40))
+        sleep(1)
+        // The rows on the screen: more than the Wallberg's alone.
+        let all = rows.count
+        let filter = element("flight-search", in: app)
+        XCTAssertTrue(filter.appears(timeout: 10))
+        XCTAssertEqual(filter.value as? String ?? "", "")
+
+        // The filter's sheet, and the area on its map: 40 km around the
+        // middle the map opens on.
+        filter.tap()
+        let area = element("flight-search-area", in: app)
+        XCTAssertTrue(area.appears(timeout: 10))
+        usleep(400_000)
+        keepScreenshots(light: "flight-search-1-sheet", dark: "flight-search-dark-sheet")
+        area.tap()
+        let radius = app.sliders["search-area-radius"]
+        XCTAssertTrue(radius.appears(timeout: 10))
+        radius.adjust(toNormalizedSliderPosition: 39.0 / 99.0)
+        let said = radius.value as? String ?? ""
+        let km = Int(said.split(separator: " ").first ?? "") ?? 0
+        XCTAssertTrue((30...52).contains(km), said)
+        sleep(2)
+        keepScreenshots(light: "flight-search-2-radius", dark: "flight-search-dark-radius")
+        element("search-area-use", in: app).tap()
+        XCTAssertTrue(waitUntil(timeout: 10) { area.label.contains("Within \(km) km") }, area.label)
+
+        // EN C, which no flight of the development mode has: after the
+        // list was seen to narrow by the area alone.
+        app.buttons["Done"].tap()
+        XCTAssertTrue(waitUntil(timeout: 20) { (filter.value as? String) == "Within \(km) km" }, "\(filter.value ?? "")")
+        XCTAssertTrue(rows.firstMatch.appears(timeout: 30))
+        XCTAssertTrue(waitUntil(timeout: 20) { rows.count < all }, "\(rows.count) of \(all)")
+        XCTAssertFalse(austrian.firstMatch.exists)
+        XCTAssertTrue(rows.matching(NSPredicate(format: "label CONTAINS %@", "Jonas Beispiel")).firstMatch.exists)
+        XCTAssertTrue(element("flight-search-line", in: app).exists)
+        sleep(1)
+        keepScreenshots(light: "flight-search-3-within", dark: "flight-search-dark-within")
+        filter.tap()
+        let glider = element("flight-search-class", in: app)
+        XCTAssertTrue(glider.appears(timeout: 10))
+        glider.tap()
+        let enC = app.buttons["EN C"].firstMatch
+        XCTAssertTrue(enC.appears(timeout: 10))
+        enC.tap()
+        usleep(600_000)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(element("public-flights-none-match", in: app).appears(timeout: 20))
+        XCTAssertFalse(rows.firstMatch.exists)
+        XCTAssertEqual(filter.value as? String, "Within \(km) km, EN C")
+        sleep(1)
+        keepScreenshots(light: "flight-search-4-none", dark: "flight-search-dark-none")
+
+        // Cleared: the whole list again.
+        filter.tap()
+        let clear = app.navigationBars.buttons["Clear"]
+        XCTAssertTrue(clear.appears(timeout: 10))
+        clear.tap()
+        app.buttons["Done"].tap()
+        XCTAssertTrue(waitUntil(timeout: 30) { rows.count == all }, "\(rows.count) of \(all)")
+        XCTAssertEqual(filter.value as? String ?? "", "")
     }
 
     /// The ranking of a month, a pilot found by name, and the pilot's

@@ -51,55 +51,55 @@ struct ForecastWindLevel: Hashable {
     var isGround: Bool { heightM == nil && aboveGroundM == nil }
 }
 
-/// The heights of the forecast's wind, a short list at the map's right
-/// under the chips (the web's `HeightList.svelte`, after Burnair's weather
-/// map): the ground, the heights above it, then those above the sea, each
-/// by the core's name, the chosen one in the primary colour with the
-/// pack's tick.
-struct ForecastHeightList: View {
+/// The height of the forecast's wind, as one small pill at the map's right
+/// under the chips that names the height shown ("250 m AGL", "Ground") and
+/// opens the list of heights when tapped: the ground, the heights above
+/// it, then those above the sea, each by the core's name, the chosen one
+/// ticked; a choice closes it. A list of eight always open took a third
+/// of a phone's map (docs/design.md, "The wind").
+struct ForecastHeightPill: View {
     let levels: [ThermalMapLevel]
     let chosen: ForecastWindLevel
     let choose: (ForecastWindLevel) -> Void
 
+    /// The level shown: a height the map no longer has is the ground, as
+    /// it is asked for.
+    private var shown: ThermalMapLevel? {
+        levels.first { ForecastWindLevel($0) == chosen } ?? levels.first { ForecastWindLevel($0).isGround }
+    }
+
     var body: some View {
-        VStack(alignment: .trailing, spacing: 0) {
-            ForEach(levels, id: \.name) { level in
-                let isChosen = ForecastWindLevel(level) == chosen
-                Button {
-                    choose(ForecastWindLevel(level))
-                } label: {
-                    HStack(spacing: VentiSpace.s1) {
-                        if isChosen {
-                            ChipTick()
-                        }
-                        Text(level.name)
-                            .font(.ventiType(.label))
-                            .fontWeight(.semibold)
-                            .monospacedDigit()
-                            .lineLimit(1)
-                    }
-                    .padding(.horizontal, VentiSpace.s2)
-                    .frame(maxWidth: .infinity, minHeight: VentiSize.touch, alignment: .trailing)
-                    .foregroundStyle(.venti(isChosen ? .onPrimary : .text))
-                    .background {
-                        if isChosen {
-                            RoundedRectangle(cornerRadius: VentiRadius.s)
-                                .fill(.venti(.primary))
-                        }
-                    }
-                    .contentShape(.rect)
+        Menu {
+            Picker("Height", selection: Binding(get: { shown.map(ForecastWindLevel.init) ?? .ground }, set: choose)) {
+                ForEach(levels, id: \.name) { level in
+                    Text(level.name).tag(ForecastWindLevel(level))
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(level.name)
-                .accessibilityValue(level.words)
-                .accessibilityAddTraits(isChosen ? .isSelected : [])
             }
+            .pickerStyle(.inline)
+        } label: {
+            HStack(spacing: VentiSpace.s1) {
+                Text(shown?.name ?? "")
+                    .font(.ventiType(.label))
+                    .fontWeight(.semibold)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.ventiType(.caption))
+                    .fontWeight(.semibold)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, VentiSpace.s3)
+            .padding(.vertical, VentiSpace.s2)
+            .foregroundStyle(.venti(.text))
+            .ventiFloating(in: .capsule)
+            .frame(minHeight: VentiSize.touch)
+            .contentShape(.rect)
         }
-        .fixedSize(horizontal: true, vertical: false)
-        .padding(VentiSpace.s1)
-        .ventiFloating(in: .rect(cornerRadius: VentiRadius.m))
-        .accessibilityElement(children: .contain)
+        .menuOrder(.fixed)
+        .fixedSize()
         .accessibilityLabel("Height")
+        .accessibilityValue(shown?.name ?? "")
+        .accessibilityHint(shown?.words ?? "")
         .accessibilityIdentifier("forecast-level")
     }
 }
@@ -319,50 +319,68 @@ struct ChosenRegion: Identifiable {
 }
 
 /// A tapped region: its name, a mark in its level's colour beside the
-/// core's words, and where the level comes from. Small, the region in view
-/// above it.
+/// core's words, and where the level comes from. As tall as its three
+/// lines, the region in view above it (docs/design.md, "The wind").
 struct ForecastRegionSheet: View {
     let region: ChosenRegion
     @Environment(\.dismiss) private var dismiss
+    /// The height of the lines as drawn, which the sheet takes: about
+    /// three lines until they are measured.
+    @State private var height: CGFloat = 3 * VentiSize.touch
+    /// The sheet's one height, moved with the lines'.
+    @State private var detent = PresentationDetent.height(3 * VentiSize.touch)
 
     var body: some View {
-        NavigationStack {
-            VentiList {
-                Section {
-                    HStack(spacing: VentiSpace.s2) {
-                        Rectangle()
-                            .fill(region.level.colorOnMap)
-                            .overlay {
-                                Rectangle()
-                                    .strokeBorder(.venti(.borderStrong), lineWidth: 1)
-                            }
-                            .frame(width: VentiSpace.s3, height: VentiSpace.s3)
-                            .accessibilityHidden(true)
-                        Text(region.words)
-                            .font(.venti(.headline))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("forecast-region-words")
-                    if !region.detail.isEmpty {
-                        Text(region.detail)
-                            .font(.venti(.subheadline))
-                            .foregroundStyle(.secondary)
-                            .accessibilityIdentifier("forecast-region-detail")
-                    }
+        VStack(alignment: .leading, spacing: VentiSpace.s3) {
+            HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s3) {
+                Text(region.name)
+                    .font(.venti(.headline))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("forecast-region")
+                Spacer(minLength: 0)
+                Button("Done") {
+                    dismiss()
                 }
+                .font(.venti(.headline))
+                .foregroundStyle(.venti(.link))
+                .frame(minHeight: VentiSize.touch)
             }
-            .navigationTitle(region.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
+            HStack(spacing: VentiSpace.s2) {
+                Rectangle()
+                    .fill(region.level.colorOnMap)
+                    .overlay {
+                        Rectangle()
+                            .strokeBorder(.venti(.borderStrong), lineWidth: 1)
                     }
-                }
+                    .frame(width: VentiSpace.s3, height: VentiSpace.s3)
+                    .accessibilityHidden(true)
+                Text(region.words)
+                    .font(.venti(.body))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("forecast-region-words")
+            if !region.detail.isEmpty {
+                Text(region.detail)
+                    .font(.venti(.subheadline))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("forecast-region-detail")
             }
         }
-        .presentationDetents([.medium])
-        .accessibilityIdentifier("forecast-region")
+        .padding(.horizontal, VentiSpace.s4)
+        .padding(.top, VentiSpace.s2)
+        .padding(.bottom, VentiSpace.s5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { measured in
+            guard measured > 0, abs(measured - height) > 1 else { return }
+            height = measured
+            detent = .height(measured)
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(.venti(.surface))
+        .presentationDetents([.height(height)], selection: $detent)
+        .presentationDragIndicator(.hidden)
     }
 }

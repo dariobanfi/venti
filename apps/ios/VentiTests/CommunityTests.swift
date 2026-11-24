@@ -174,6 +174,90 @@ final class CommunityTests: XCTestCase {
         }
     }
 
+    /// A search taken apart into its chips in the core's words and order,
+    /// counted for the filter's button, one choice let go of, and an area
+    /// the core refuses in words before anything is asked.
+    func testASearchIsTakenApartIntoTheCoresChips() {
+        XCTAssertFalse(FlightSearch.everything.isSearching)
+        XCTAssertEqual(FlightSearch.everything.count, 0)
+        let search = FlightSearch(
+            near: Coordinate(lat: 47.45, lon: 11.6), radiusKm: 40, gliderClass: .c, minKm: 50, country: "AT"
+        )
+        XCTAssertEqual(search.chips.map(\.words), ["Within 40 km", "EN C", "50 km or more", "AT"])
+        XCTAssertEqual(search.chips.map(\.part), [.near, .gliderClass, .minKm, .country])
+        XCTAssertEqual(search.count, 4)
+        XCTAssertNil(search.refusal)
+        let rest = search.without(.near)
+        XCTAssertNil(rest.near)
+        XCTAssertNil(rest.radiusKm)
+        XCTAssertEqual(rest.count, 3)
+        // A drawn area takes the place of the circle, and the other way.
+        let corners = [
+            Coordinate(lat: 47.7, lon: 11.7), Coordinate(lat: 47.7, lon: 11.9), Coordinate(lat: 47.6, lon: 11.8),
+        ]
+        let drawn = search.withArea(near: nil, radiusKm: nil, area: corners)
+        XCTAssertEqual(drawn.chips.map(\.words).first, "Drawn area")
+        XCTAssertNil(drawn.near)
+        XCTAssertEqual(drawn.withArea(near: corners[0], radiusKm: 5, area: []).area, [])
+        // Too wide a radius, or two corners, are refused in the core's words.
+        XCTAssertEqual(
+            FlightSearch(near: corners[0], radiusKm: 500).refusal, "Choose a radius from 1 to 100 km."
+        )
+        XCTAssertNotNil(FlightSearch(area: Array(corners.prefix(2))).refusal)
+        // The least distance as typed.
+        XCTAssertEqual(FlightSearchSheet.km("50"), 50)
+        XCTAssertEqual(FlightSearchSheet.km("12,5"), 12.5)
+        XCTAssertNil(FlightSearchSheet.km("0"))
+        XCTAssertNil(FlightSearchSheet.km(""))
+        XCTAssertEqual(FlightSearchSheet.km("5000"), FlightSearchChoices.bounds.maxMinKm)
+        // A month of the ranking as its span by UTC.
+        let may = CommunityModel.span(ofMonth: "2026-05")
+        XCTAssertEqual(may?.fromUnixS, 1_777_593_600)
+        XCTAssertEqual(may?.toUnixS, 1_780_272_000)
+        XCTAssertNil(CommunityModel.span(ofMonth: "2026-13"))
+    }
+
+    /// The list asked again for a search, from its top, with the server's
+    /// own names; the same search not asked twice; everything again the
+    /// plain list; a pilot's flights searched the same way.
+    func testTheListIsAskedAgainForASearch() async throws {
+        let asked = Asked()
+        let community = CommunityModel(transport: server(noting: asked, sample: try sampleText()))
+        let address = try XCTUnwrap(URL(string: "http://127.0.0.1:8080"))
+        community.server = { address }
+        await community.loadIfNeeded()
+
+        let search = FlightSearch(near: Coordinate(lat: 47.45, lon: 11.6), radiusKm: 40, gliderClass: .c)
+        await community.find(search)
+        XCTAssertEqual(community.search, search)
+        let searchedAsked = await asked.addresses.last?.absoluteString
+        let searched = try XCTUnwrap(searchedAsked)
+        XCTAssertTrue(searched.hasPrefix("http://127.0.0.1:8080/v1/flights/public?"), searched)
+        XCTAssertTrue(searched.contains("radius_km=40"), searched)
+        XCTAssertTrue(searched.contains("class=en_c"), searched)
+        XCTAssertEqual(community.flights.count, 2)
+        // The next page keeps the search.
+        await community.loadMore()
+        let moreAsked = await asked.addresses.last?.absoluteString
+        let more = try XCTUnwrap(moreAsked)
+        XCTAssertTrue(more.contains("class=en_c") && more.contains("after=second"), more)
+
+        let count = await asked.addresses.count
+        await community.find(search)
+        let again = await asked.addresses.count
+        XCTAssertEqual(again, count)
+
+        await community.find(.everything)
+        let plain = await asked.addresses.last?.absoluteString
+        XCTAssertEqual(plain, "http://127.0.0.1:8080/v1/flights/public")
+
+        _ = try await community.pilot("mara", fromUnixS: nil, toUnixS: nil, search: FlightSearch(kind: .faiTriangle))
+        let pilotAsked = await asked.addresses.last?.absoluteString
+        let pilot = try XCTUnwrap(pilotAsked)
+        XCTAssertTrue(pilot.hasPrefix("http://127.0.0.1:8080/v1/flights/public?"), pilot)
+        XCTAssertTrue(pilot.contains("kind=fai_triangle") && pilot.hasSuffix("pilot=mara"), pilot)
+    }
+
     /// A country's flag is drawn from its two letters and its name is
     /// `Locale`'s in English; the list to choose from has the countries
     /// and none of the continents.

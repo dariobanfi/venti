@@ -9,7 +9,7 @@ import VentiCore
 /// strip, or with the thermals by region the five levels by name, and an
 /// "i" with the whole key and the notes, folded until the pilot asks. The
 /// wind's gusts are a small control of the wind's forecast; its heights
-/// stand at the map's side (`ForecastHeightList`). What the pilot has to be told about the data as it
+/// stand at the map's side (`ForecastHeightPill`). What the pilot has to be told about the data as it
 /// stands is never folded away: rain that is not the rain of now, a part
 /// of the map with nothing forecast, and what could not be had, with "Try
 /// again". Every word about the data is the core's.

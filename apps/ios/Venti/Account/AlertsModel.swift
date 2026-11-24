@@ -321,6 +321,9 @@ enum AlertNotices {
         /// Counts every push from Venti that arrived while the app was in
         /// front: the count of what is new is read again.
         var pushArrived = 0
+        /// The group whose chat is on the screen, whose own messages are
+        /// pushed without a banner: the chat shows them.
+        var chatInFront: String?
     }
 
     @MainActor static let taps = Taps()
@@ -370,6 +373,12 @@ enum AlertNotices {
             }
             if pushed != nil {
                 await MainActor.run { AlertNotices.taps.pushArrived += 1 }
+            }
+            // A message of the group whose chat is in front: the chat
+            // shows it, and a banner over it would say it twice.
+            if let pushed, case .groupChat(let group) = phoneMessageTarget(kind: pushed.kind, id: pushed.id),
+               await MainActor.run(body: { AlertNotices.taps.chatInFront == group }) {
+                return []
             }
             return [.banner, .list, .sound]
         }

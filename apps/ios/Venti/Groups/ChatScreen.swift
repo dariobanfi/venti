@@ -79,7 +79,15 @@ struct GroupChatScreen: View {
             await chat.run()
             _ = await (read, board)
         }
+        // While the chat is in front, a push of its own messages shows
+        // no banner over it (`AlertNotices.Centre`).
+        .onAppear {
+            AlertNotices.taps.chatInFront = id
+        }
         .onDisappear {
+            if AlertNotices.taps.chatInFront == id {
+                AlertNotices.taps.chatInFront = nil
+            }
             Task {
                 await unread.read()
                 await groups.loadChats()

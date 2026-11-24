@@ -114,8 +114,6 @@ struct MapScreen: View {
     @State private var chosenHourSquare: ChosenHourSquare?
     /// A region of the forecast by region the pilot tapped.
     @State private var chosenRegion: ChosenRegion?
-    /// How high the panel at the map's foot and the credits stand.
-    @State private var footHeight: CGFloat = 0
     /// A place where airspace is drawn, tapped.
     @State private var chosenAirspace: ChosenAirspacePlace?
     /// Who made the photographs in view on the map.
@@ -310,24 +308,13 @@ struct MapScreen: View {
                 zoomInNotice
             }
         }
-        // The heights of the forecast's wind, at the map's right under the
-        // chips and over the round buttons, scrolling where the screen
-        // has not the room.
+        // The height of the forecast's wind, one pill at the map's right
+        // under the chips.
         .overlay(alignment: .topTrailing) {
             if !windLevels.isEmpty {
-                ViewThatFits(in: .vertical) {
-                    heightList
-                    ScrollView {
-                        heightList
-                    }
-                    .scrollBounceBehavior(.basedOnSize)
-                    .fixedSize(horizontal: true, vertical: false)
-                }
-                .padding(.top, VentiSize.touch + VentiSpace.s3)
-                .padding(.trailing, VentiSpace.s4)
-                // Over the round buttons and the panel, whichever stands
-                // higher.
-                .padding(.bottom, max(3 * VentiSize.touch + 2 * VentiSpace.s3 + 2 * VentiSpace.s4, footHeight + 2 * VentiSpace.s2))
+                ForecastHeightPill(levels: windLevels, chosen: windLevel, choose: chooseWindLevel)
+                    .padding(.top, VentiSize.touch + VentiSpace.s3)
+                    .padding(.trailing, VentiSpace.s4)
             }
         }
         // Airspace switched on: asked for at once around the map, which
@@ -348,11 +335,6 @@ struct MapScreen: View {
                     sitesFilterLine
                 }
                 credits
-            }
-            // How high the panel and the credits stand, which the heights
-            // of the wind keep clear of.
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                footHeight = height
             }
             .padding(.leading, VentiSpace.s2)
             .padding(.bottom, VentiSpace.s2)
@@ -984,10 +966,6 @@ struct MapScreen: View {
               map.layers.contains(where: { $0.layer == .wind && $0.hasLevels })
         else { return [] }
         return map.levels
-    }
-
-    private var heightList: some View {
-        ForecastHeightList(levels: windLevels, chosen: windLevel, choose: chooseWindLevel)
     }
 
     /// The layer of the day to ask for, where the map offers layers.

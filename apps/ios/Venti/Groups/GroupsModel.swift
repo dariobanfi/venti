@@ -161,16 +161,15 @@ final class GroupsModel {
     /// was chosen (a JPEG).
     func create(_ draft: CommunityDraft, isPublic: Bool, picture: Data?) async throws -> CommunityDetail {
         let core = core
-        // The answer is the group as it was made, without its members: the
-        // same as before decision 26, so the core's `groupMade` reads it.
+        // The answer is the group as it was made, with the pilot as its
+        // owner and only member: no second question for it.
         let made = try await send({ try core.createCommunityRequest(draft: draft, public: isPublic) }) {
-            try core.groupMade(status: $0, body: $1)
+            try core.communityMade(status: $0, body: $1)
         }
-        let id = made.group.id
         let shown = if let picture {
-            try await setPicture(id, picture)
+            try await setPicture(made.group.id, picture)
         } else {
-            try await self.detail(id)
+            made
         }
         await reloadAll()
         return shown

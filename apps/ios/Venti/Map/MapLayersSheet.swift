@@ -59,19 +59,14 @@ struct MapLayersSheet: View {
             VentiList {
                 Section {
                     // Every layer laid over what the map shows is a switch
-                    // here: the sites first, then the pilot's own flights,
-                    // off until switched on.
+                    // here, in the order of Android and the web: the sites,
+                    // airspace, pilots and cables, then the pilot's own
+                    // flights, off until switched on.
                     if offers.hasServer {
                         Toggle(isOn: shown($hidesSites)) {
                             Label(words.sites, image: "icon-site")
                         }
                         .accessibilityIdentifier("layer-sites")
-                    }
-                    if hasMyFlights || showsMyFlights {
-                        Toggle(isOn: $showsMyFlights) {
-                            Label(words.myFlights, image: "icon-track")
-                        }
-                        .accessibilityIdentifier("layer-my-flights")
                     }
                     Toggle(isOn: $showsAirspace) {
                         Label(words.airspace, image: "icon-airspace")
@@ -121,6 +116,12 @@ struct MapLayersSheet: View {
                             }
                         }
                         .accessibilityIdentifier("layer-cables")
+                    }
+                    if hasMyFlights || showsMyFlights {
+                        Toggle(isOn: $showsMyFlights) {
+                            Label(words.myFlights, image: "icon-track")
+                        }
+                        .accessibilityIdentifier("layer-my-flights")
                     }
                     // Where thermals are found, from thermal.kk7.ch: off
                     // until switched on, and only where the app can name

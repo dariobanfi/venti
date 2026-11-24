@@ -75,8 +75,8 @@ struct CommunityHub: View {
                         openPlansNear(isSignedIn: true)
                         following
                     } else {
-                        signIn
                         openPlansNear(isSignedIn: false)
+                        signIn
                     }
                     pilotsNear
                     if isSignedIn {
@@ -159,7 +159,7 @@ struct CommunityHub: View {
                 }
                 let cards = board.days.flatMap(\.plans)
                 if board.groups.isEmpty {
-                    HubLine(words: "You are in no group yet. A group is a few pilots who tell each other where they mean to fly; only its members see it.")
+                    HubLine(words: "You are in no group yet. A group is a chat of pilots who fly together: public ones near you to join, or a private one of your own.")
                 } else if cards.isEmpty {
                     HubLine(words: "Nobody in your groups has posted a plan for today or a later day.")
                         .accessibilityIdentifier("community-plans-none")
@@ -180,6 +180,11 @@ struct CommunityHub: View {
                 }
                 if board.isCutShort {
                     HubLine(words: "Your groups hold more plans than fit here: the later days are missing.")
+                }
+                if !board.groups.isEmpty {
+                    // Who sees a plan, in the core's words, as on the web.
+                    HubLine(words: whoSeesAPlan(isPublic: groups.chats?.contains(where: \.isPublic) ?? false))
+                        .accessibilityIdentifier("community-plans-who-sees")
                 }
             } else if let problem = groups.problem {
                 HubProblem(words: problem) {
@@ -849,7 +854,7 @@ struct NearPilotRow: View {
                     .foregroundStyle(.venti(.textSecondary))
                     .fixedSize(horizontal: false, vertical: true)
                 if let season = pilot.season, !season.words.isEmpty {
-                    Text(season.words)
+                    Text(verbatim: "\(season.name): \(season.words)")
                         .font(.venti(.footnote))
                         .foregroundStyle(.venti(.textSecondary))
                         .fixedSize(horizontal: false, vertical: true)

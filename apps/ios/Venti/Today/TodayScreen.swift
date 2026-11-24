@@ -386,7 +386,7 @@ struct TodayScreen: View {
     @ViewBuilder private func content(_ shown: Arrangement) -> some View {
         switch today.state {
         case .failed(let message):
-            Explained(title: "The forecast could not be read", words: message, action: "Try again") {
+            Explained(title: "The forecast could not be read", words: message, action: commonWords().tryAgain) {
                 Task { await today.load(around: place) }
             }
         case .idle, .loading:
@@ -395,7 +395,9 @@ struct TodayScreen: View {
         case .loaded:
             if today.places.isEmpty {
                 Explained(
-                    title: "No take-offs within 30 km",
+                    // "No take-offs within 30 km": how far is the core's to say.
+                    title: today.listed.map { "No take-offs " + $0.nearTitle.prefix(1).lowercased() + $0.nearTitle.dropFirst() }
+                        ?? "No take-offs within 30 km",
                     words: position.place == nil
                         ? "These would be the take-offs around the Tegernsee. Venti knows none there yet."
                         : "Venti knows no take-off around where you are.",

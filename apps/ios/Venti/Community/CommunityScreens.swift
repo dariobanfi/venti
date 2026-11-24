@@ -2,10 +2,18 @@ import SwiftUI
 import VentiCore
 
 /// Everyone's public flights on the pilot's Venti server: the newest
-/// first, or the best. A pilot is found by name on the Community page
-/// (`CommunityHub`).
+/// first, or the best. The field over them finds a pilot by name, as on
+/// the Community page (`CommunityHub`), Android and the web: while
+/// something is typed, the pilots found stand in place of the flights.
 struct PublicFlightsList: View {
     @Environment(CommunityModel.self) private var community
+
+    @State private var typed = ""
+    @State private var pilots = PilotSearch()
+
+    private var isFinding: Bool {
+        !typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     /// The order shown; choosing the other asks the server for it.
     private var order: Binding<PublicFlightsOrder> {
@@ -20,16 +28,29 @@ struct PublicFlightsList: View {
 
     var body: some View {
         VentiList {
-            flights
+            if isFinding {
+                PilotsFoundSection(search: pilots)
+            } else {
+                flights
+            }
         }
         .listStyle(.insetGrouped)
+        .searchable(
+            text: $typed, placement: .navigationBarDrawer(displayMode: .always),
+            prompt: pilotsWords().searchPlaceholder
+        )
+        .autocorrectionDisabled()
+        .textInputAutocapitalization(.never)
+        .onChange(of: typed) { _, typed in
+            pilots.search(typed, in: community)
+        }
         .overlay {
-            if community.flights.isEmpty, !community.isLoading {
+            if !isFinding, community.flights.isEmpty, !community.isLoading {
                 if let problem = community.problem {
                     // Something went wrong: said plainly, without art.
                     ContentUnavailableView {
                         Label {
-                            Text(community.search.isSearching ? "The flights could not be listed" : "No public flights")
+                            Text("The flights could not be listed")
                         } icon: {
                             Image("icon-caution")
                         }
@@ -575,6 +596,40 @@ struct PilotFlightsScreen: View {
             problem = nil
         } catch {
             problem = error is CoreError ? error.words : pilotsWords().unreachable
+        }
+    }
+}
+
+/// What the field over a list found: a row for each pilot with their
+/// face, which opens their page, and the core's line about the result.
+struct PilotsFoundSection: View {
+    let search: PilotSearch
+
+    var body: some View {
+        let pilots = search.found?.pilots ?? []
+        Section {
+            ForEach(pilots, id: \.handle) { pilot in
+                NavigationLink {
+                    PilotFlightsScreen(pilot: PilotRoute(handle: pilot.handle, name: pilot.name))
+                } label: {
+                    HStack(spacing: VentiSpace.s3) {
+                        PilotFace(name: pilot.name, picturePath: pilot.picturePath, size: VentiSpace.s6)
+                        Text(pilot.words)
+                            .foregroundStyle(.venti(.text))
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("found-pilot")
+            }
+            if search.isSearching {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+            }
+        } footer: {
+            if let words = search.words ?? search.found?.words {
+                Text(words)
+                    .accessibilityIdentifier("pilots-found-words")
+            }
         }
     }
 }

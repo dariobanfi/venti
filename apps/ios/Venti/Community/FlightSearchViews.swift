@@ -152,7 +152,7 @@ struct FlightSearchSheet: View {
                     .disabled(!draft.isSearching)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(commonWords().done) {
                         dismiss()
                     }
                 }

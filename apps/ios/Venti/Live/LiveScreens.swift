@@ -127,7 +127,7 @@ struct LiveList: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(commonWords().done) {
                         dismiss()
                     }
                 }
@@ -331,7 +331,7 @@ struct OtherAircraftSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(commonWords().done) {
                         dismiss()
                     }
                 }

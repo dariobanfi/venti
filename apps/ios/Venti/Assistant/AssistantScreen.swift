@@ -36,8 +36,15 @@ struct AssistantScreen: View {
                                         set: { model in chat.use(model: model) }
                                     )
                                 ) {
+                                    // Each model's note under its name, as
+                                    // on Android: the menu shows the second
+                                    // text as the row's subtitle.
                                     ForEach(assistantModels(), id: \.id) { model in
-                                        Text(model.name).tag(model.id)
+                                        VStack {
+                                            Text(model.name)
+                                            Text(model.note)
+                                        }
+                                        .tag(model.id)
                                     }
                                 }
                             } else {
@@ -74,7 +81,7 @@ struct AssistantScreen: View {
             ),
             presenting: chat.problem
         ) { _ in
-            Button("OK", role: .cancel) {}
+            Button(commonWords().ok, role: .cancel) {}
         } message: { problem in
             Text(problem)
         }

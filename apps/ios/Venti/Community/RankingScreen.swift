@@ -12,6 +12,7 @@ import VentiCore
 /// flight.
 struct RankingList: View {
     @Environment(CommunityModel.self) private var community
+    @Environment(AccountModel.self) private var account
 
     /// The season shown; choosing another asks the server for it.
     private var season: Binding<String> {
@@ -36,6 +37,20 @@ struct RankingList: View {
         }
     }
 
+    /// A month of the year shown, or the whole year (`""`), as a chip.
+    private func monthChip(value: String, name: String) -> some View {
+        let isChosen = (community.ranked.month ?? "") == value
+        return VentiChip(
+            title: name,
+            isOn: Binding {
+                isChosen
+            } set: { _ in
+                month.wrappedValue = isChosen ? "" : value
+            }
+        )
+        .accessibilityAddTraits(isChosen ? .isSelected : [])
+    }
+
     var body: some View {
         let ranked = community.ranked
         VentiList {
@@ -49,19 +64,33 @@ struct RankingList: View {
                     .listRowInsets(EdgeInsets())
                     .accessibilityIdentifier("ranking-season")
                     if !ranked.months.isEmpty {
-                        VentiSegmented(
-                            options: [(value: "", name: ranked.wholeName)]
-                                + ranked.months.map { (value: $0.month, name: $0.name) },
-                            selection: month
-                        )
+                        // The whole year first, in the core's name for it,
+                        // then the months that have a ranking, as chips:
+                        // the one chosen, tapped again, gives the whole
+                        // year back.
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: VentiSpace.s2) {
+                                monthChip(value: "", name: ranked.wholeName)
+                                ForEach(ranked.months, id: \.month) { choice in
+                                    monthChip(value: choice.month, name: choice.name)
+                                }
+                            }
+                        }
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: VentiSpace.s2, leading: 0, bottom: 0, trailing: 0))
                         .listRowSeparator(.hidden)
+                        .accessibilityElement(children: .contain)
                         .accessibilityIdentifier("ranking-month")
                     }
-                    // What the flights ranked are searched by, out of the
-                    // way: the season and the month stay as it changes.
+                    // Whose pilots, and what the flights ranked are
+                    // searched by, out of the way: the season and the
+                    // month stay as either changes.
                     HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s3) {
+                        PilotsFromChip(country: ranked.pilotCountry, own: account.account?.country) { country in
+                            Task {
+                                await community.rank(pilotCountry: country)
+                            }
+                        }
                         FlightSearchLine(search: ranked.search)
                         Spacer(minLength: 0)
                         FlightSearchButton(search: ranked.search) { search in
@@ -213,5 +242,47 @@ private struct RankedFlightLine: View {
         .font(.venti(.subheadline))
         .monospacedDigit()
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Whose pilots the ranking ranks, as on Android and the web: "Global",
+/// or one country's alone (a national ranking, by the country the pilots
+/// set on their account), the reader's own first, then every country.
+struct PilotsFromChip: View {
+    let country: String?
+    /// The reader's own country, offered first.
+    let own: String?
+    let choose: (String?) -> Void
+
+    var body: some View {
+        Menu {
+            Button("Global") { choose(nil) }
+                .accessibilityIdentifier("pilots-from-global")
+            if let own, Countries.flag(own) != nil {
+                Button(Countries.named(own)) { choose(own.uppercased()) }
+                    .accessibilityIdentifier("pilots-from-own")
+            }
+            Section("Every country") {
+                ForEach(Countries.all, id: \.code) { country in
+                    Button(Countries.named(country.code)) { choose(country.code) }
+                }
+            }
+        } label: {
+            HStack(spacing: VentiSpace.s1) {
+                Text(country.map(Countries.named) ?? "Global")
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.venti(.caption))
+                    .accessibilityHidden(true)
+            }
+            .font(.ventiType(.label))
+            .foregroundStyle(.venti(.link))
+            .frame(minHeight: VentiSize.touch)
+            .contentShape(.rect)
+        }
+        .fixedSize()
+        .accessibilityLabel("Pilots from")
+        .accessibilityValue(country.map(Countries.name) ?? "Global")
+        .accessibilityIdentifier("ranking-pilots-from")
     }
 }

@@ -73,7 +73,7 @@ struct GlideReachCard: View {
             }
             .accessibilityIdentifier("glide-reach-glide")
             Stepper {
-                LabeledContent("Start", value: startWords)
+                LabeledContent("Start height", value: startWords)
             } onIncrement: {
                 reach.raiseStart()
             } onDecrement: {
@@ -85,7 +85,7 @@ struct GlideReachCard: View {
                 .accessibilityIdentifier("glide-reach-wind")
             if reach.windIsOn {
                 Stepper {
-                    LabeledContent("From", value: Format.compassPoint(degrees: reach.windFromDeg))
+                    LabeledContent("Wind from", value: Format.compassPoint(degrees: reach.windFromDeg))
                 } onIncrement: {
                     reach.windFromDeg = (reach.windFromDeg + GlideReachWords.windStepDeg).truncatingRemainder(dividingBy: 360)
                 } onDecrement: {
@@ -94,7 +94,7 @@ struct GlideReachCard: View {
                 }
                 .accessibilityIdentifier("glide-reach-wind-from")
                 Stepper(value: $reach.windKmh, in: GlideReachWords.windsKmh, step: GlideReachWords.windStepKmh) {
-                    LabeledContent("Speed", value: "\(Format.count(reach.windKmh)) km/h")
+                    LabeledContent("Wind speed", value: "\(Format.count(reach.windKmh)) km/h")
                 }
                 .accessibilityIdentifier("glide-reach-wind-speed")
             }

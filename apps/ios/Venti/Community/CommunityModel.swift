@@ -52,6 +52,10 @@ final class CommunityModel {
         /// What the flights ranked are searched by: everything, until the
         /// pilot chooses. The season and month stay as it changes.
         var search = FlightSearch.everything
+        /// Whose pilots are ranked: `nil` for every country ("Global"),
+        /// or a country's two letters for its pilots alone, by the
+        /// country they set on their account.
+        var pilotCountry: String?
 
         /// The months of the season shown that have a ranking, the
         /// newest first, in the core's names. None for all years.
@@ -158,7 +162,9 @@ final class CommunityModel {
                 : try publicFlightsPath(order: order, area: nil, fromUnixS: nil, toUnixS: nil, after: after)
             guard let url = URL(string: server.absoluteString + path) else { return }
             let (status, body) = try await transport(url)
-            let page = try publicFlights(status: UInt16(clamping: status), body: body)
+            let page = search.isSearching
+                ? try searchedFlights(status: UInt16(clamping: status), body: body)
+                : try publicFlights(status: UInt16(clamping: status), body: body)
             // The pilot may have changed the server, the order or the
             // search while this was under way.
             guard server == self.server(), order == self.order, search == self.search else { return }
@@ -193,6 +199,16 @@ final class CommunityModel {
         await rank(season: nil, month: month, now: now)
     }
 
+    /// Ranks the pilots of one country alone, by its two letters, or of
+    /// every country (`nil`): the season, the month and the search stay.
+    func rank(pilotCountry: String?, now: Date? = nil) async {
+        guard pilotCountry != ranked.pilotCountry else { return }
+        ranked.pilotCountry = pilotCountry
+        ranked.pilots = []
+        ranked.rule = ""
+        await rank(season: nil, month: ranked.month, now: now)
+    }
+
     /// Ranks the flights another search finds: the season and the month
     /// shown stay.
     func rank(search: FlightSearch, now: Date? = nil) async {
@@ -225,9 +241,11 @@ final class CommunityModel {
         ranked.problem = nil
         ranked.isLoading = true
         let search = ranked.search
+        let pilotCountry = ranked.pilotCountry
+        let searched = search.isSearching || pilotCountry != nil
         do {
             let path: String
-            if search.isSearching {
+            if searched {
                 // The core has no path for a month and a search at once:
                 // the month is then asked as its span, a calendar month
                 // by UTC, as on the web.
@@ -236,7 +254,8 @@ final class CommunityModel {
                     area: nil,
                     fromUnixS: span?.fromUnixS ?? chosen.fromUnixS,
                     toUnixS: span?.toUnixS ?? chosen.toUnixS,
-                    search: search
+                    search: search,
+                    pilotCountry: pilotCountry
                 )
             } else if let month {
                 path = try rankingMonthPath(area: nil, month: month)
@@ -248,12 +267,14 @@ final class CommunityModel {
                 return
             }
             let (status, body) = try await transport(url)
-            let answer = try VentiCore.ranking(status: UInt16(clamping: status), body: body)
+            let answer = searched
+                ? try searchedRanking(status: UInt16(clamping: status), body: body)
+                : try VentiCore.ranking(status: UInt16(clamping: status), body: body)
             // The pilot may have chosen another season, month or server
             // while this was under way: that question's answer sets the
             // rest.
             guard server == self.server(), ranked.season == chosen.name, ranked.month == month,
-                  ranked.search == search
+                  ranked.search == search, ranked.pilotCountry == pilotCountry
             else { return }
             ranked.pilots = answer.pilots
             ranked.rule = answer.rule
@@ -262,7 +283,9 @@ final class CommunityModel {
             ranked.seasons = Self.seasons(having: answer.periods, shown: chosen, byTheClock: byTheClock)
             ranked.isLoading = false
         } catch {
-            guard ranked.season == chosen.name, ranked.month == month, ranked.search == search else { return }
+            guard ranked.season == chosen.name, ranked.month == month, ranked.search == search,
+                  ranked.pilotCountry == pilotCountry
+            else { return }
             ranked.isLoading = false
             if error is CancellationError || (error as? URLError)?.code == .cancelled {
                 return
@@ -369,7 +392,9 @@ final class CommunityModel {
             throw URLError(.badURL)
         }
         let (status, body) = try await transport(url)
-        return try publicFlights(status: UInt16(clamping: status), body: body)
+        return search.isSearching
+            ? try searchedFlights(status: UInt16(clamping: status), body: body)
+            : try publicFlights(status: UInt16(clamping: status), body: body)
     }
 
     /// The pilots whose handle or name holds a text, as the core lists

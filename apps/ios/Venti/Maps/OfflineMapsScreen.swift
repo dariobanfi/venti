@@ -140,7 +140,7 @@ struct OfflineMapsScreen: View {
         if maps.offered == nil {
             return "Asking Venti which maps it has."
         }
-        return "This server has no maps to download."
+        return "Venti has no maps to download."
     }
 
     /// The credits of every kept region, each once.

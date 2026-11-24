@@ -75,9 +75,13 @@ struct AlertsScreen: View {
                     }
                 }
                 if alerts.alerts.isEmpty {
+                    // The heading and a line, as on Android and the web.
                     Section {
-                        VentiEmpty(title: words.listTitle, text: words.listEmpty) {}
+                        Text(words.listEmpty)
+                            .foregroundStyle(.secondary)
                             .accessibilityIdentifier("alerts-none")
+                    } header: {
+                        Text(words.listTitle)
                     }
                 } else {
                     Section {
@@ -95,11 +99,13 @@ struct AlertsScreen: View {
                             .accessibilityIdentifier("alerts-fired-none")
                     }
                     ForEach(Array(alerts.fired.enumerated()), id: \.offset) { _, line in
+                        // The core's line, then the day and time it fired,
+                        // as on Android and the web.
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(line.title)
-                                .font(.venti(.headline))
                             Text(line.line)
+                            Text(verbatim: "\(Format.dayInYear(unixSeconds: line.firedAtUnixS)), \(Format.time(unixSeconds: line.firedAtUnixS))")
                                 .font(.venti(.subheadline))
+                                .monospacedDigit()
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 2)
@@ -249,6 +255,10 @@ struct AlertForm: View {
                     case .day, .pilots:
                         LabeledContent(words.place, value: draft.placeName)
                     }
+                    // After the name and the station or place, as on the
+                    // web.
+                    Toggle(words.on, isOn: $draft.enabled)
+                        .accessibilityIdentifier("alert-enabled")
                 } header: {
                     Text(words.name)
                 }
@@ -276,11 +286,6 @@ struct AlertForm: View {
                     pilotsFields
                 }
 
-                Section {
-                    Toggle(words.on, isOn: $draft.enabled)
-                        .accessibilityIdentifier("alert-enabled")
-                }
-
                 if let id {
                     Section {
                         Button(words.delete, role: .destructive) {
@@ -300,7 +305,7 @@ struct AlertForm: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(commonWords().cancel) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(words.save) {
@@ -320,20 +325,23 @@ struct AlertForm: View {
     /// the gusts and the hours as steppers.
     @ViewBuilder private var windFields: some View {
         let any = words.any
-        let points: [(value: Int, name: String)] =
-            [(-1, any)] + alerts.points.enumerated().map { ($0.offset, $0.element) }
+        let named: [(value: Int, name: String)] = alerts.points.enumerated().map { ($0.offset, $0.element) }
+        // "Any" is a choice of the first only, which clears both; each
+        // side chosen alone takes the other along, as on Android and the
+        // web.
+        let points: [(value: Int, name: String)] = [(-1, any)] + named
         Section {
             VStack(alignment: .leading, spacing: VentiSpace.s2) {
                 Text(words.windFrom)
                     .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
-                VentiSegmented(options: points, selection: point(\.fromPoint))
+                VentiSegmented(options: points, selection: fromPoint)
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("alert-from")
                 Text(words.windTo)
                     .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
-                VentiSegmented(options: points, selection: point(\.toPoint))
+                VentiSegmented(options: named, selection: toPoint)
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("alert-to")
             }
@@ -369,10 +377,33 @@ struct AlertForm: View {
         }
     }
 
-    private func point(_ path: WritableKeyPath<AlertDraft, UInt8?>) -> Binding<Int> {
+    /// Where the wind comes from at least: "Any" clears both sides, a
+    /// point chosen where "To" has none sets it too.
+    private var fromPoint: Binding<Int> {
         Binding(
-            get: { draft[keyPath: path].map(Int.init) ?? -1 },
-            set: { draft[keyPath: path] = $0 < 0 ? nil : UInt8($0) }
+            get: { draft.fromPoint.map(Int.init) ?? -1 },
+            set: { chosen in
+                if chosen < 0 {
+                    draft.fromPoint = nil
+                    draft.toPoint = nil
+                } else {
+                    draft.fromPoint = UInt8(chosen)
+                    draft.toPoint = draft.toPoint ?? UInt8(chosen)
+                }
+            }
+        )
+    }
+
+    /// Where the wind comes from at most: a point chosen where "From" has
+    /// none sets it too.
+    private var toPoint: Binding<Int> {
+        Binding(
+            get: { draft.toPoint.map(Int.init) ?? -1 },
+            set: { chosen in
+                guard chosen >= 0 else { return }
+                draft.toPoint = UInt8(chosen)
+                draft.fromPoint = draft.fromPoint ?? UInt8(chosen)
+            }
         )
     }
 

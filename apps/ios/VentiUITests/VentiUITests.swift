@@ -1361,7 +1361,7 @@ final class VentiUITests: XCTestCase {
 
         // The files behind the warnings.
         openTab("Settings", in: app)
-        let files = app.buttons["Airspace"]
+        let files = app.buttons["airspace-link"]
         XCTAssertTrue(files.appears(timeout: 15))
         files.tap()
         XCTAssertTrue(labelled(containing: "sample-zones-not-real", in: app).appears(timeout: 15))
@@ -3106,7 +3106,8 @@ final class VentiUITests: XCTestCase {
             .matching(NSPredicate(format: "identifier IN %@", ["wind-chart", "station-day-empty"]))
             .firstMatch
         XCTAssertTrue(pastDay.appears(timeout: 30))
-        XCTAssertTrue(labelled(containing: "Day", in: app).exists)
+        // The chart is headed by the day's name, as on Android.
+        XCTAssertTrue(labelled(containing: "17 Nov 2026", in: app).exists)
         sleep(2)
         keepScreenshot("station-2-past-day")
 
@@ -5005,6 +5006,28 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(labelled(containing: "Place 1, Lena Probe", in: app).appears(timeout: 30))
         usleep(400_000)
         keepScreenshots(light: "pilots-1-ranking-of-a-month", dark: "pilots-dark-1-ranking-of-a-month")
+        // Whose pilots are ranked: every country's until one is chosen,
+        // as on Android and the web.
+        let pilotsFrom = element("ranking-pilots-from", in: app)
+        XCTAssertTrue(pilotsFrom.appears(timeout: 10))
+        XCTAssertEqual(pilotsFrom.value as? String, "Global")
+
+        // Everyone's flights have the same field over them, which finds
+        // a pilot in place of the flights.
+        app.navigationBars.buttons["Everyone"].tap()
+        let overFlights = app.searchFields.firstMatch
+        XCTAssertTrue(overFlights.appears(timeout: 15))
+        overFlights.tap()
+        overFlights.typeText("le")
+        XCTAssertTrue(labelled(containing: "Lena Probe (@lena), 3 public flights", in: app).appears(timeout: 30))
+        usleep(400_000)
+        keepScreenshots(light: "pilots-1b-pilot-found-over-everyone", dark: "pilots-dark-1b-pilot-found-over-everyone")
+        // The search's own way out: "Cancel" or, on newer systems, the
+        // round button beside the field.
+        if let close = ["Cancel", "Close"].map({ app.buttons[$0].firstMatch }).first(where: { $0.exists }) {
+            close.tap()
+        }
+        XCTAssertTrue(app.navigationBars.buttons["Community"].appears(timeout: 10))
 
         // A pilot is found by two letters of the name, in the field over
         // Community.
@@ -6125,7 +6148,10 @@ extension VentiUITests {
         // The Jägerkamp, one of Today's rows, kept on its page.
         // Wherever the core's order puts it on the day: a row, or the card.
         openJaegerkamp(in: app)
-        element("site-keep", in: app).tap()
+        // Under the forecast and the alarm, as on Android.
+        let keep = element("site-keep", in: app)
+        bringUp(keep, in: app)
+        keep.tap()
         XCTAssertTrue(app.buttons["Kept"].appears(timeout: 10))
         // Sent to the account at once: the core's note says where it lives.
         XCTAssertTrue(
@@ -6896,6 +6922,11 @@ extension VentiUITests {
         XCTAssertTrue(labelled(containing: "OpenStreetMap", in: app).appears(timeout: 10))
         usleep(400_000)
         keepScreenshot("licences-1-map")
+        // The thermal map's licence asks for its credit, as on Android.
+        XCTAssertTrue(bring("credit-thermal-map", into: app).exists)
+        XCTAssertTrue(labelled(containing: "thermal.kk7.ch by M. von Känel, under CC-BY-NC-SA 4.0", in: app).exists)
+        usleep(400_000)
+        keepScreenshot("licences-1b-thermal-map")
 
         // The libraries are the page's last section.
         let bridge = bring("credit-bridge", into: app)

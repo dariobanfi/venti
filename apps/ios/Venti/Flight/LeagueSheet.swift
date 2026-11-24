@@ -55,7 +55,7 @@ struct LeagueSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(commonWords().done) {
                         dismiss()
                     }
                 }
@@ -79,7 +79,7 @@ struct LeagueSheet: View {
                 isPresented: Binding(get: { answer != nil }, set: { if !$0 { answer = nil } }),
                 presenting: answer
             ) { _ in
-                Button("OK", role: .cancel) {}
+                Button(commonWords().ok, role: .cancel) {}
             } message: { answer in
                 Text(answer.words)
             }

@@ -190,7 +190,7 @@ struct SitesFilterForm: View {
             }
         }
         .accessibilityIdentifier("sites-filter-form")
-        .navigationTitle("Filter the sites")
+        .navigationTitle(mapLayersWords().filterSites)
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -255,7 +255,7 @@ struct SitesFilterSheet: View {
             SitesFilterForm()
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") {
+                        Button(commonWords().done) {
                             dismiss()
                         }
                     }

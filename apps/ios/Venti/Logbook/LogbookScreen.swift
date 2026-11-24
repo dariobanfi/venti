@@ -62,7 +62,7 @@ struct LogbookScreen: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            if let progress = logbook.importProgress, progress.total > 1 {
+            if let progress = logbook.importProgress, progress.total != 1 {
                 ImportProgressBar(progress: progress)
             }
         }
@@ -247,11 +247,16 @@ private struct ImportProgressBar: View {
     let progress: LogbookModel.ImportProgress
 
     var body: some View {
+        let isLooking = progress.total == 0
         VStack(alignment: .leading, spacing: 6) {
-            Text("Importing \(Format.count(progress.done)) of \(Format.count(progress.total))")
+            Text(isLooking ? "Looking for flight files" : "Importing \(Format.count(progress.done)) of \(Format.count(progress.total))")
                 .font(.venti(.subheadline, .medium))
                 .monospacedDigit()
-            ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
+            if isLooking {
+                ProgressView()
+            } else {
+                ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -260,7 +265,7 @@ private struct ImportProgressBar: View {
         .padding(.bottom, 8)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Importing flights")
-        .accessibilityValue("\(progress.done) of \(progress.total)")
+        .accessibilityValue(isLooking ? "Looking for flight files" : "\(progress.done) of \(progress.total)")
         .accessibilityIdentifier("import-progress")
     }
 }

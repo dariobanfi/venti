@@ -158,7 +158,7 @@ final class WindModel {
             }
             problem = error is CoreError
                 ? error.words
-                : "The wind server could not be reached. \(error.localizedDescription)"
+                : "Venti could not be reached for the wind. \(error.localizedDescription)"
             if answered.map({ Date().timeIntervalSince($0.at) > Self.keepWithoutAnswer }) ?? true {
                 stations = []
                 credits = []

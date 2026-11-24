@@ -453,7 +453,7 @@ struct MapScreen: View {
                 PlanScreen(id: chosen.id)
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") {
+                            Button(commonWords().done) {
                                 chosenPlan = nil
                             }
                         }
@@ -527,7 +527,7 @@ struct MapScreen: View {
                 LiveGliderScreen(id: chosen.id)
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") {
+                            Button(commonWords().done) {
                                 chosenGlider = nil
                             }
                         }
@@ -622,7 +622,7 @@ struct MapScreen: View {
             ),
             presenting: problem
         ) { _ in
-            Button("OK", role: .cancel) {}
+            Button(commonWords().ok, role: .cancel) {}
         } message: { problem in
             Text(problem)
         }

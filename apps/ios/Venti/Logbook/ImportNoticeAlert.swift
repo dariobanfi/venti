@@ -1,4 +1,5 @@
 import SwiftUI
+import VentiCore
 
 extension View {
     /// Shows an import message as an alert and clears it when dismissed.
@@ -15,7 +16,7 @@ extension View {
             ),
             presenting: notice.wrappedValue
         ) { _ in
-            Button("OK", role: .cancel) {}
+            Button(commonWords().ok, role: .cancel) {}
         } message: { notice in
             Text(notice.text)
         }

@@ -94,7 +94,7 @@ struct AirspaceProximityBadge: View {
         .padding(.vertical, VentiSpace.s2)
         .ventiFloating(in: .rect(cornerRadius: VentiRadius.m), ground: proximity.ground)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Airspace")
+        .accessibilityLabel("Airspace next")
         .accessibilityValue(proximity.spoken)
         .accessibilityIdentifier("airspace-proximity")
     }
@@ -151,7 +151,7 @@ struct AirspaceProximityStrip: View {
         .buttonStyle(.plain)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Airspace")
+        .accessibilityLabel("Airspace next")
         .accessibilityValue(proximity.spoken)
         .accessibilityHint("Shows all warnings")
         .accessibilityIdentifier("airspace-proximity-map")

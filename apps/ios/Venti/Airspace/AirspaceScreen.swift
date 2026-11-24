@@ -93,7 +93,7 @@ struct AirspaceScreen: View {
                     }
                     if !layer.saysWhatItCovers {
                         Label(
-                            "The server does not say for which area this is complete, so the cockpit cannot take silence for \"no airspace near\" and says that it is not checking.",
+                            "Venti does not say for which area this is complete, so the cockpit cannot take silence for “no airspace near” and says that it is not checking.",
                             systemImage: "exclamationmark.triangle.fill"
                         )
                         .font(.venti(.footnote))

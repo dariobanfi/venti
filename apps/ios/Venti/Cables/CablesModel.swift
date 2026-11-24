@@ -69,7 +69,7 @@ final class CablesModel {
             failedAt = Date()
             problem = error is CoreError
                 ? error.words
-                : "The server could not be reached for cables. \(error.localizedDescription)"
+                : "Venti could not be reached for cables. \(error.localizedDescription)"
         }
     }
 
@@ -182,11 +182,11 @@ struct CableSheet: View {
                     .accessibilityIdentifier("cable-credits")
                 }
             }
-            .navigationTitle(cable.line.name ?? "Cable")
+            .navigationTitle(cable.line.name ?? cable.line.words)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(commonWords().done) {
                         dismiss()
                     }
                 }

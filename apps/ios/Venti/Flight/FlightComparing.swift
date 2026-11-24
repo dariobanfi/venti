@@ -133,7 +133,7 @@ struct CompareChooser: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(commonWords().cancel) {
                         dismiss()
                     }
                 }
@@ -145,7 +145,7 @@ struct CompareChooser: View {
                 "This flight could not be laid beside it",
                 isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })
             ) {
-                Button("OK", role: .cancel) {}
+                Button(commonWords().ok, role: .cancel) {}
             } message: {
                 Text(problem ?? "")
             }
@@ -320,7 +320,7 @@ struct ComparisonSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(commonWords().done) {
                         dismiss()
                     }
                 }

@@ -7,6 +7,7 @@ struct SettingsScreen: View {
     @Environment(WindModel.self) private var wind
     @Environment(AccountModel.self) private var account
     @Environment(OfflineMapsModel.self) private var maps
+    @Environment(AirspaceModel.self) private var airspace
 
     @AppStorage(Preferences.pilot) private var pilot = ""
     @AppStorage(Preferences.glider) private var glider = ""
@@ -32,9 +33,12 @@ struct SettingsScreen: View {
                     NavigationLink("Waypoints") {
                         WaypointsScreen()
                     }
-                    NavigationLink("Airspace") {
+                    NavigationLink {
                         AirspaceScreen()
+                    } label: {
+                        LabeledContent("Airspace", value: airspace.inALine)
                     }
+                    .accessibilityIdentifier("airspace-link")
                     // The glider, the FAI triangle areas and the
                     // brightness: on a page of their own.
                     NavigationLink(pagesWords().gliderAndCockpit) {
@@ -49,7 +53,7 @@ struct SettingsScreen: View {
                     NavigationLink {
                         AccountScreen()
                     } label: {
-                        LabeledContent("Account", value: account.account.map { "@\($0.handle)" } ?? "Not signed in")
+                        LabeledContent("Account", value: account.account.map { $0.needsSignIn ? "Signed out" : "@\($0.handle)" } ?? "Not signed in")
                     }
                     .accessibilityIdentifier("account-link")
                     // Maps for flying without a network come from the
@@ -85,7 +89,7 @@ struct SettingsScreen: View {
         if let problem = wind.problem {
             return problem
         }
-        return "The map shows the wind stations Venti collects, and the assistant can look them up. With an account your flights are kept on Venti and can be shared."
+        return "The map's wind, sites and forecast come from Venti, and the assistant can look them up. With an account your flights are kept there and can be shared; without one, your flights stay on this iPhone."
     }
 
     private static var version: String {
@@ -119,6 +123,12 @@ struct CreditsScreen: View {
                     link: "https://www.openstreetmap.org/copyright"
                 )
                 .accessibilityIdentifier("credit-time-zones")
+                credit(
+                    "Thermal map",
+                    "thermal.kk7.ch by M. von Känel, under CC-BY-NC-SA 4.0. Shown only while it is switched on.",
+                    link: "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+                )
+                .accessibilityIdentifier("credit-thermal-map")
                 credit(
                     "Labels",
                     "Noto Sans, under the SIL Open Font License.",

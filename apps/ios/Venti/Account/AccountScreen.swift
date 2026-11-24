@@ -39,7 +39,7 @@ struct AccountScreen: View {
             ),
             presenting: account.problem
         ) { _ in
-            Button("OK", role: .cancel) {}
+            Button(commonWords().ok, role: .cancel) {}
         } message: { problem in
             Text(problem)
         }
@@ -129,7 +129,7 @@ private struct SignInForm: View {
                     Text(address.host() ?? address.absoluteString)
                 } footer: {
                     if isNew {
-                        Text("A handle is 3 to 20 letters, digits or underscores. A password needs at least 15 characters; a few words in a row are easy to remember. A forgotten password cannot be recovered: Venti knows no email address. Handle and name are shown with your public flights.")
+                        Text("A handle is 3 to 20 letters, digits or underscores. A password needs at least 15 characters; a few words in a row are easy to remember. A forgotten password cannot be recovered: Venti knows no email address. Handle and name are public once you share a flight.")
                     }
                 }
 
@@ -259,7 +259,7 @@ private struct GoogleHandleStep: View {
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
+                Button(commonWords().cancel) {
                     account.leaveGoogleSignUp()
                 }
                 .disabled(account.isWorking)
@@ -373,7 +373,6 @@ private struct SignedInView: View {
 
             if account.isSignedIn {
                 WhoSeesFlights(signedIn: signedIn)
-                ShownNearSection(signedIn: signedIn)
                 // What pilots nearby do: new open plans near a place, and
                 // being asked for help after a landing. Both off until
                 // turned on.
@@ -383,11 +382,6 @@ private struct SignedInView: View {
             // What other makers' programs may do for the pilot: with a
             // token each, never with the password.
             Section {
-                NavigationLink(tokenForm().title) {
-                    ProgramsScreen()
-                }
-                .disabled(signedIn.needsSignIn)
-                .accessibilityIdentifier("programs-link")
                 // The pilot's alarms, which Venti checks where the data
                 // arrives, and what they fired.
                 NavigationLink(alertFormWords().title) {
@@ -402,6 +396,11 @@ private struct SignedInView: View {
                 }
                 .disabled(signedIn.needsSignIn)
                 .accessibilityIdentifier("account-notifications")
+                NavigationLink(tokenForm().title) {
+                    ProgramsScreen()
+                }
+                .disabled(signedIn.needsSignIn)
+                .accessibilityIdentifier("programs-link")
             }
 
             Section {
@@ -443,7 +442,7 @@ private struct SignedInView: View {
                     }
                 }
             }
-            Button("Cancel", role: .cancel) {
+            Button(commonWords().cancel, role: .cancel) {
                 password = ""
             }
         } message: {
@@ -517,6 +516,9 @@ private struct WhoSeesFlights: View {
                 }
             }
             .accessibilityIdentifier("account-new-flights-public")
+            // Being shown near the places one flies from: the second row
+            // of who sees, as on Android and the web.
+            ShownNearRow(signedIn: signedIn)
             Button(words.makeAllPublic) {
                 asking = .public
             }
@@ -623,15 +625,16 @@ struct ShareFlightSheet: View {
                     .disabled(account.isWorking)
 
                     if sharing.visibility != .private, let link = URL(string: sharing.link) {
+                        // Whether other pilots can write under it, then
+                        // the link, as on Android and the web.
+                        if sharing.visibility == .public, !sharing.flightId.isEmpty {
+                            CommentsSwitchSection(flight: sharing.flightId)
+                        }
                         Section("Link") {
                             Text(sharing.link)
                                 .font(.venti(.footnote))
                                 .textSelection(.enabled)
                             ShareLink("Share the link", item: link)
-                        }
-                        // Whether other pilots can write under it.
-                        if sharing.visibility == .public, !sharing.flightId.isEmpty {
-                            CommentsSwitchSection(flight: sharing.flightId)
                         }
                     }
                 } else {
@@ -651,7 +654,7 @@ struct ShareFlightSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(commonWords().done) {
                         dismiss()
                     }
                 }

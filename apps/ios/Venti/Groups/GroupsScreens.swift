@@ -439,6 +439,15 @@ struct GroupPage: View {
         var id: String { rawValue }
     }
 
+    /// A step with a member asked first, as on Android and the web:
+    /// handing the group on (`handsOn`) or taking the member out.
+    private struct Confirming {
+        let member: CommunityMember
+        let handsOn: Bool
+    }
+
+    @State private var confirming: Confirming?
+
     private var words: CommunityWords { groups.words }
 
     var body: some View {
@@ -528,7 +537,7 @@ struct GroupPage: View {
                 let handle = handle
                 act { outcome = try await groups.invite(handle, to: id) }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(commonWords().cancel, role: .cancel) {}
         } message: {
             Text("By the handle on their pilot's page.")
         }
@@ -557,6 +566,31 @@ struct GroupPage: View {
             Text(asking == .delete
                 ? "The group goes for every member, with its messages and plans."
                 : "Its messages stay; your plans in it go with you.")
+        }
+        .alert(
+            confirming.map { $0.handsOn ? "Hand the group to \($0.member.name)?" : "Remove \($0.member.name)?" } ?? "",
+            isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }),
+            presenting: confirming
+        ) { asked in
+            if asked.handsOn {
+                Button("Hand on") {
+                    act { detail = try await groups.handOver(id, to: asked.member.handle) }
+                }
+                .accessibilityIdentifier("member-confirm")
+            } else {
+                Button("Remove from the group", role: .destructive) {
+                    act {
+                        try await groups.remove(asked.member.handle, from: id)
+                        await load()
+                    }
+                }
+                .accessibilityIdentifier("member-confirm")
+            }
+            Button(commonWords().cancel, role: .cancel) {}
+        } message: { asked in
+            Text(asked.handsOn
+                ? "They become its owner. You stay in the group as a member, and cannot take it back yourself."
+                : "Their plans go with them.")
         }
         .sheet(isPresented: $isEditing) {
             if let detail {
@@ -672,15 +706,12 @@ struct GroupPage: View {
                 }
             }
             Button("Make \(member.name) the owner") {
-                act { detail = try await groups.handOver(id, to: member.handle) }
+                confirming = Confirming(member: member, handsOn: true)
             }
         }
         if isOwner || member.role == .member {
             Button("Remove from the group", role: .destructive) {
-                act {
-                    try await groups.remove(member.handle, from: id)
-                    await load()
-                }
+                confirming = Confirming(member: member, handsOn: false)
             }
         }
     }
@@ -892,7 +923,7 @@ struct GroupForm: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(commonWords().cancel) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }

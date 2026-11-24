@@ -363,7 +363,7 @@ struct CandidateSheet: View {
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", action: done)
+                    Button(commonWords().done, action: done)
                 }
             }
         }

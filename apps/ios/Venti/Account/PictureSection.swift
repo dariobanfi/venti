@@ -98,7 +98,7 @@ struct PictureSection: View {
 
 /// "Show me among pilots near a place": the account's own switch, with
 /// the core's line under it, shown as asked until Venti answers.
-struct ShownNearSection: View {
+struct ShownNearRow: View {
     let signedIn: AccountView
 
     @Environment(AccountModel.self) private var account
@@ -121,17 +121,15 @@ struct ShownNearSection: View {
     }
 
     var body: some View {
-        Section {
-            Toggle(isOn: shown) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(words.shownNearPlaces)
-                    Text(words.shownNearPlacesLine)
-                        .font(.venti(.footnote))
-                        .foregroundStyle(.secondary)
-                }
+        Toggle(isOn: shown) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(words.shownNearPlaces)
+                Text(words.shownNearPlacesLine)
+                    .font(.venti(.footnote))
+                    .foregroundStyle(.secondary)
             }
-            .accessibilityIdentifier("account-shown-near")
         }
+        .accessibilityIdentifier("account-shown-near")
         .disabled(account.isWorking || signedIn.needsSignIn)
     }
 }

@@ -59,8 +59,11 @@ final class TaskModel {
                 url.stopAccessingSecurityScopedResource()
             }
         }
-        guard let data = try? Data(contentsOf: url) else {
-            problem = "The file could not be read."
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            problem = "The file could not be read. \(error.localizedDescription)"
             return false
         }
         guard data.count <= Self.largestFile else {

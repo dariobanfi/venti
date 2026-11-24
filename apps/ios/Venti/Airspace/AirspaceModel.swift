@@ -168,7 +168,7 @@ final class AirspaceModel {
             failedAt = Date()
             serverProblem = error is CoreError
                 ? error.words
-                : "The server could not be reached for airspace. \(error.localizedDescription)"
+                : "Venti could not be reached for airspace. \(error.localizedDescription)"
         }
     }
 

@@ -861,7 +861,7 @@ struct SiteConfirmationsScreen: View {
                     Text(problem)
                         .foregroundStyle(.venti(.danger))
                         .accessibilityIdentifier("site-confirmations-problem")
-                    Button("Try again") {
+                    Button(commonWords().tryAgain) {
                         Task {
                             await load()
                         }
@@ -1093,7 +1093,7 @@ struct SiteHistoryScreen: View {
                     Text(problem)
                         .foregroundStyle(.venti(.danger))
                         .accessibilityIdentifier("site-history-problem")
-                    Button("Try again") {
+                    Button(commonWords().tryAgain) {
                         Task {
                             await load()
                         }
@@ -1324,7 +1324,7 @@ struct PressedPlaceSheet: View {
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", action: done)
+                    Button(commonWords().done, action: done)
                 }
             }
         }

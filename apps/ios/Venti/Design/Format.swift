@@ -174,6 +174,13 @@ enum Format {
         decimal(ratio, places: 1)
     }
 
+    /// The glide ratio needed to reach a place, as on Android: level with
+    /// the place the ratio has no upper end, and from a hundred on the
+    /// number says no more than "out of reach", so it is "99+".
+    static func neededGlide(_ ratio: Double) -> String {
+        ratio >= 99.95 ? "99+" : glideRatio(ratio)
+    }
+
     /// Hours, minutes and seconds of a running flight: "0:12:34".
     static func stopwatch(seconds: Int64) -> String {
         Duration.seconds(seconds).formatted(.time(pattern: .hourMinuteSecond))

@@ -299,6 +299,6 @@ final class OfflineMapsTests: XCTestCase {
             folder: nil, transport: { _ in (500, Data()) }, fetch: { _, _, _ in 500 }, watchesNetwork: false
         )
         nowhere.download(region)
-        XCTAssertEqual(nowhere.progress[Self.id], .stopped("There is no server to download from."))
+        XCTAssertEqual(nowhere.progress[Self.id], .stopped("There is nothing to download from."))
     }
 }

@@ -257,7 +257,7 @@ extension ThermalMapModel {
             hoursState = .failed(
                 error is CoreError
                     ? error.words
-                    : "Venti could not be reached for the hours. \(error.localizedDescription)"
+                    : "Venti could not be reached for the hours of this layer. \(error.localizedDescription)"
             )
         }
     }

@@ -730,7 +730,7 @@ final class AccountModel {
         if (error as? URLError)?.code == .userAuthenticationRequired {
             return "This iPhone is no longer signed in. Sign in again."
         }
-        return "The server could not be reached. \(error.localizedDescription)"
+        return "Venti could not be reached. \(error.localizedDescription)"
     }
 
     /// Keeps the session token in the Keychain, or removes it.

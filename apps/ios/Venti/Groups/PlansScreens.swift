@@ -81,7 +81,7 @@ struct PlansSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
+                    Button(commonWords().done) {
                         dismiss()
                     }
                 }
@@ -117,7 +117,16 @@ enum PlanWords {
         if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now), calendar.isDate(date, inSameDayAs: tomorrow) {
             return "Tomorrow"
         }
-        return date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))
+        // In English whatever the iPhone's language, as the rest of the
+        // app and Android: "Saturday, 21 Nov".
+        return date.formatted(
+            Date.VerbatimFormatStyle(
+                format: "\(weekday: .wide), \(day: .defaultDigits) \(month: .abbreviated)",
+                locale: Locale(identifier: "en_US_POSIX"),
+                timeZone: calendar.timeZone,
+                calendar: calendar
+            )
+        )
     }
 }
 
@@ -389,7 +398,7 @@ struct PlanForm: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(commonWords().cancel) {
                         dismiss()
                     }
                 }

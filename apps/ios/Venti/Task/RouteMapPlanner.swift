@@ -133,7 +133,7 @@ struct RouteMapPlanner: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(commonWords().cancel) {
                         dismiss()
                     }
                 }

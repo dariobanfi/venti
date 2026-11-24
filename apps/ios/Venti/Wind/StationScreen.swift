@@ -71,7 +71,7 @@ struct StationScreen: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(message)
                             .foregroundStyle(.secondary)
-                        Button("Try again") {
+                        Button(commonWords().tryAgain) {
                             Task { await load() }
                         }
                     }
@@ -167,10 +167,10 @@ struct StationScreen: View {
         if let step = air.temperatureStep {
             Section {
                 VStack(alignment: .leading, spacing: VentiSpace.s1) {
-                    Text(step.words)
-                        .font(.venti(.headline))
                     Text(Self.stepLine(step))
                         .monospacedDigit()
+                    Text(step.words)
+                        .font(.venti(.headline))
                     Text(step.rule)
                         .font(.venti(.footnote))
                         .foregroundStyle(.secondary)
@@ -186,15 +186,15 @@ struct StationScreen: View {
         }
     }
 
-    /// The other station and the figures of the step: "Wallberg, 4.2 km
-    /// away, 920 m higher, 3 °C: −0.6 °C per 100 m".
+    /// The other station and the figures of the step, as Android and the
+    /// web write them: "Patscherkofel, 8.2 km away and 1673 m higher:
+    /// −0.60 °C per 100 m".
     static func stepLine(_ step: TemperatureStep) -> String {
         let height = step.higherByM >= 0
             ? "\(Format.metres(step.higherByM)) m higher"
             : "\(Format.metres(-step.higherByM)) m lower"
-        return "\(step.otherName), \(Format.kilometres(metres: step.distanceM)) km away, \(height), "
-            + "\(Format.temperature(celsius: step.otherTemperatureC)) °C: "
-            + "\(Format.signedDecimal(step.per100mC, places: 1)) °C per 100 m"
+        return "\(step.otherName), \(Format.kilometres(metres: step.distanceM)) km away and \(height): "
+            + "\(Format.signedDecimal(step.per100mC, places: 2)) °C per 100 m"
     }
 
     // MARK: Past days
@@ -213,7 +213,7 @@ struct StationScreen: View {
         let range = Self.time(days.firstUnixS)...Self.time(max(days.lastUnixS, days.firstUnixS))
         return VStack(alignment: .leading, spacing: VentiSpace.s1) {
             DatePicker(
-                date == nil ? "Last 24 hours" : "Day",
+                date == nil ? "Last 24 hours" : chosenMoment.map { Format.day(unixSeconds: Int64($0.timeIntervalSince1970)) } ?? (date ?? ""),
                 selection: Binding(
                     get: {
                         min(max(chosenMoment ?? range.upperBound, range.lowerBound), range.upperBound)
@@ -261,10 +261,6 @@ struct StationScreen: View {
                 value: reading?.temperatureC.map { Format.temperature(celsius: $0) } ?? "–",
                 unit: reading?.temperatureC == nil ? "" : "°C"
             )
-            Metric(
-                caption: "Measured",
-                value: reading.map { Format.time(unixSeconds: $0.timeUnixS) } ?? "–"
-            )
             // A station whose source gives no height has none here: not
             // "0 m", not a dash. The room stays, so the row keeps the
             // columns of the row above.
@@ -274,6 +270,10 @@ struct StationScreen: View {
             } else {
                 Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
             }
+            Metric(
+                caption: "Measured",
+                value: reading.map { Format.time(unixSeconds: $0.timeUnixS) } ?? "–"
+            )
         }
     }
 

@@ -391,7 +391,7 @@ struct CockpitScreen: View {
                     LiveScreen()
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
-                                Button("Done") {
+                                Button(commonWords().done) {
                                     isShowingLive = false
                                 }
                             }
@@ -1435,7 +1435,7 @@ private struct Instruments: View {
                         name: "Glide",
                         value: view.glideRatio.map(Format.glideRatio),
                         unit: "",
-                        note: way?.requiredGlide.map { "Needs \(Format.glideRatio($0))" }
+                        note: way?.requiredGlide.map { "Needs \(Format.neededGlide($0))" }
                     )
                 }
                 // The wind as last measured while circling. One from a
@@ -2105,7 +2105,7 @@ struct TaskReadingsPage: View {
                 HStack(alignment: .top, spacing: VentiSpace.s3) {
                     Reading(
                         name: "Glide needed",
-                        value: next.glideNeeded.map(Format.glideRatio),
+                        value: next.glideNeeded.map(Format.neededGlide),
                         unit: "",
                         size: .medium
                     )
@@ -2127,7 +2127,7 @@ struct TaskReadingsPage: View {
                 HStack(alignment: .top, spacing: VentiSpace.s3) {
                     Reading(name: "Goal", value: Format.kilometres(metres: goal.distanceM), unit: "km", size: .medium)
                     OverNeeded(leg: goal, isLarge: false, stillAir: !readings.windKnown)
-                    Reading(name: "Glide needed", value: goal.glideNeeded.map(Format.glideRatio), unit: "", size: .medium)
+                    Reading(name: "Glide needed", value: goal.glideNeeded.map(Format.neededGlide), unit: "", size: .medium)
                 }
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("task-goal")

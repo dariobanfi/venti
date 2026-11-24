@@ -86,7 +86,9 @@ final class LogbookModel {
             }
             return report
         }
-        importProgress = ImportProgress(done: 0, total: urls.count)
+        // A folder is searched for flight files first: a total of none
+        // says so ("Looking for flight files"), as on Android.
+        importProgress = ImportProgress(done: 0, total: urls.contains(where: \.hasDirectoryPath) ? 0 : urls.count)
         defer { importProgress = nil }
         let (core, pause) = (self.core, pauseAfterEachFile)
         let report = await Task.detached(priority: .userInitiated) { [weak self] () -> ImportReport in
@@ -346,9 +348,9 @@ struct ImportReport: Sendable, Equatable {
                 ? ""
                 : alreadyThere.count == 1
                     ? " 1 was in your logbook already."
-                    : " \(alreadyThere.count) were in your logbook already."
+                    : " \(Format.count(alreadyThere.count)) were in your logbook already."
             return ImportNotice(
-                title: added.count == 1 ? "1 flight added" : "\(added.count) flights added",
+                title: added.count == 1 ? "1 flight added" : "\(Format.count(added.count)) flights added",
                 text: (added.count == 1 ? "It is" : "They are") + " in your logbook, on this iPhone.\(before)"
             )
         }

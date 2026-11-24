@@ -296,12 +296,12 @@ struct WhatPanel: View {
             } else if case .failed(let words) = thermals.hoursState {
                 CardProblem(words: words, identifier: "forecast-hours-problem", tryAgain: tryHoursAgain)
             } else if thermals.map == nil, thermals.state == .loading {
-                asking("Asking Venti for the forecast.", identifier: "forecast-asking")
+                asking("Asking Venti for the forecast map.", identifier: "forecast-asking")
             } else if thermals.map != nil, day == nil {
                 CardCaution(words: "The forecast map has no day from today on.")
                     .accessibilityIdentifier("forecast-problem")
             } else if day != nil, !isInView, thermals.hoursState != .loading {
-                Text("No forecast for this part of the map.")
+                Text("The forecast map has no squares for this part of the map.")
                     .font(.ventiType(.label))
                     .foregroundStyle(.venti(.textSecondary))
                     .fixedSize(horizontal: false, vertical: true)

@@ -68,7 +68,7 @@ struct LiveScreen: View {
             if !account.isSignedIn {
                 Section {
                     Label(
-                        "Sharing a flight needs an account on Venti. Sign in under Settings.",
+                        "Sharing a flight needs a Venti account. Sign in under Settings.",
                         systemImage: "person.crop.circle.badge.exclamationmark"
                     )
                     .foregroundStyle(.venti(.textSecondary))

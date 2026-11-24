@@ -47,7 +47,7 @@ struct ForecastScreen: View {
                 } description: {
                     Text(message)
                 } actions: {
-                    Button("Try again") {
+                    Button(commonWords().tryAgain) {
                         phase = .loading
                         Task { await load() }
                     }
@@ -87,7 +87,7 @@ struct ForecastScreen: View {
             phase = .failed(
                 error is CoreError
                     ? error.words
-                    : "The server could not be reached. \(error.localizedDescription)"
+                    : "Venti could not be reached. \(error.localizedDescription)"
             )
         }
     }

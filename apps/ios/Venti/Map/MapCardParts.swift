@@ -1,4 +1,5 @@
 import SwiftUI
+import VentiCore
 
 /// What the panel over the map tab's map is made of with other cards: a
 /// line of a key, and how a card says that something is wrong.
@@ -64,7 +65,7 @@ struct CardProblem: View {
         VStack(alignment: .leading, spacing: VentiSpace.s2) {
             CardCaution(words: words)
                 .accessibilityIdentifier(identifier)
-            Button("Try again", action: tryAgain)
+            Button(commonWords().tryAgain, action: tryAgain)
                 .buttonStyle(.venti(.quiet))
         }
     }

@@ -196,7 +196,7 @@ final class SitesModel {
             }
             problem = error is CoreError
                 ? error.words
-                : "The server could not be reached for flying sites. \(error.localizedDescription)"
+                : "Venti could not be reached for flying sites. \(error.localizedDescription)"
         }
     }
 

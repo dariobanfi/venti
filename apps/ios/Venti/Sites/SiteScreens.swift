@@ -188,13 +188,13 @@ struct SiteList: View {
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(commonWords().done) {
                         dismiss()
                     }
                 }
                 // The same filter as the map's.
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Filter the sites", systemImage: SitesFilterIcon.name) {
+                    Button(mapLayersWords().filterSites, systemImage: SitesFilterIcon.name) {
                         showsFilter = true
                     }
                     .accessibilityIdentifier("sites-list-filter-button")
@@ -389,6 +389,18 @@ struct SiteScreen: View {
                         .accessibilityIdentifier("site-said")
                 }
             }
+            // The day's air as a picture: the thermals hour by hour and
+            // the wind at heights, where the forecast knows the model's
+            // ground to stand them on. At the top, as on Android and the
+            // web, under the web's heading.
+            let showsAir = day.map { !$0.hours.isEmpty && $0.groundM != nil } ?? false
+            if let day, showsAir {
+                Section {
+                    AirChart(day: day, takeoffM: site.elevationM)
+                } header: {
+                    Text("The air through the day")
+                }
+            }
             Section {
                 LabeledContent("Where", value: Format.place(lat: site.position.lat, lon: site.position.lon))
                 // Only where the source gives one: a row that says
@@ -467,20 +479,6 @@ struct SiteScreen: View {
                     Text("Wind measured nearby")
                 }
             }
-            // The day's air as a picture: the thermals hour by hour and
-            // the wind at heights, where the forecast knows the model's
-            // ground to stand them on. Under what the site is and the wind
-            // measured around it, and over the way to the whole forecast.
-            // Under it, what the layers and the wind near by are and are
-            // not, in the core's words.
-            let showsAir = day.map { !$0.hours.isEmpty && $0.groundM != nil } ?? false
-            if let day, showsAir {
-                Section {
-                    AirChart(day: day, takeoffM: site.elevationM)
-                } header: {
-                    Text("The air · \(day.name)")
-                }
-            }
             if wind.server != nil {
                 Section {
                     NavigationLink {
@@ -490,6 +488,10 @@ struct SiteScreen: View {
                     }
                     .accessibilityIdentifier("site-forecast")
                 }
+            }
+            // A day alarm for a take-off, on the account.
+            if isForTakingOff {
+                AlertMeSection(draft: AlertsModel.draft(for: site))
             }
             Section {
                 Button(isOwn ? "Kept" : "Keep as my take-off", systemImage: isOwn ? "checkmark" : "plus") {
@@ -501,10 +503,6 @@ struct SiteScreen: View {
                 .accessibilityHint(isOwn ? "Forgets it as your take-off" : "")
             } footer: {
                 Text(ownProblem ?? Self.ownWords(isOwn: isOwn, note: own.list?.note))
-            }
-            // A day alarm for a take-off, on the account.
-            if isForTakingOff {
-                AlertMeSection(draft: AlertsModel.draft(for: site))
             }
             Section {
                 Button(kept == nil ? "Add to my waypoints" : "In your waypoints", systemImage: kept == nil ? "plus" : "checkmark") {

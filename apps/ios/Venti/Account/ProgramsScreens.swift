@@ -67,7 +67,7 @@ private struct ProgramsList: View {
                         Image("icon-caution")
                     }
                     .accessibilityIdentifier("programs-problem")
-                    Button("Try again") {
+                    Button(commonWords().tryAgain) {
                         Task { await model.load() }
                     }
                 }
@@ -191,12 +191,12 @@ private struct GiveAccessSheet: View {
                     form
                 }
             }
-            .navigationTitle(model.form.submit)
+            .navigationTitle(model.created == nil ? model.form.submit : model.form.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if model.created == nil {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
+                        Button(commonWords().cancel) {
                             dismiss()
                         }
                     }

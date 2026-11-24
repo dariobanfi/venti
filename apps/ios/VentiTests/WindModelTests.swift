@@ -366,12 +366,12 @@ final class WindModelTests: XCTestCase {
             per100mC: -0.62, kind: .coolerAbove, words: "Cooler above, as in air at rest", rule: "", note: ""
         )
         XCTAssertEqual(
-            StationScreen.stepLine(step), "Wallberg, 4.2 km away, 920 m higher, 3 °C: \u{2212}0.6 °C per 100 m"
+            StationScreen.stepLine(step), "Wallberg, 4.2 km away and 920 m higher: \u{2212}0.62 °C per 100 m"
         )
         var lower = step
         lower.higherByM = -650
         lower.per100mC = 0.3
         XCTAssertTrue(StationScreen.stepLine(lower).contains("650 m lower"))
-        XCTAssertTrue(StationScreen.stepLine(lower).hasSuffix("+0.3 °C per 100 m"))
+        XCTAssertTrue(StationScreen.stepLine(lower).hasSuffix("+0.30 °C per 100 m"))
     }
 }

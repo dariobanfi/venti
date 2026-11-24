@@ -1,4 +1,5 @@
 import SwiftUI
+import VentiCore
 import Vision
 import VisionKit
 
@@ -37,18 +38,23 @@ struct TaskScanSheet: View {
                             .padding(24)
                     }
                 } else {
-                    ContentUnavailableView(
-                        "The camera cannot be used",
-                        systemImage: "camera",
-                        description: Text("Allow Venti to use the camera in the iPhone's Settings, or copy the task from a message and paste it.")
-                    )
+                    ContentUnavailableView {
+                        Label("The camera cannot be used", systemImage: "camera")
+                    } description: {
+                        Text("Allow Venti to use the camera in the iPhone's Settings, or copy the task from a message and paste it.")
+                    } actions: {
+                        // The way to the switch, as on Android.
+                        if let settings = URL(string: UIApplication.openSettingsURLString) {
+                            Link("Open the iPhone's Settings", destination: settings)
+                        }
+                    }
                 }
             }
             .navigationTitle("Scan a task")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(commonWords().cancel) {
                         dismiss()
                     }
                 }

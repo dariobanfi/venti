@@ -171,7 +171,7 @@ final class OfflineMapsModel {
             }
             problem = error is CoreError
                 ? error.words
-                : "The server could not be reached for its maps. \(error.localizedDescription)"
+                : "Venti could not be reached for its maps. \(error.localizedDescription)"
         }
     }
 
@@ -247,7 +247,7 @@ final class OfflineMapsModel {
     func download(_ region: MapRegionView) {
         guard tasks[region.id] == nil else { return }
         guard let server = server(), let folder else {
-            progress[region.id] = .stopped("There is no server to download from.")
+            progress[region.id] = .stopped("There is nothing to download from.")
             return
         }
         let id = region.id
@@ -497,12 +497,12 @@ final class OfflineMapsModel {
                 // Not the file from where it stopped: from the start, then.
                 try? files.removeItem(at: part)
             case 404:
-                throw Stopped(words: "The server no longer has this map. Pull down to see what it has now.")
+                throw Stopped(words: "Venti no longer has this map. Pull down to see what it has now.")
             default:
-                throw Stopped(words: "The server refused the download (status \(status)).")
+                throw Stopped(words: "Venti refused the download (status \(status)).")
             }
         }
-        throw Stopped(words: "The server does not hand this map out in a way that can be downloaded.")
+        throw Stopped(words: "Venti does not hand this map out in a way that can be downloaded.")
     }
 
     /// Fetches with the system's networking, piece by piece, so that a

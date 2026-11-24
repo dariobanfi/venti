@@ -63,7 +63,7 @@ struct Reported: Identifiable {
 
     /// An open plan, which everyone reads.
     static func openPlan(_ id: String) -> Reported {
-        Reported(subject: .openPlan(id: id), title: "Report this open plan")
+        Reported(subject: .openPlan(id: id), title: "Report this plan")
     }
 
     /// A pilot's picture, by their handle.
@@ -199,7 +199,7 @@ struct ReportSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(outcome == nil && obstacle == nil ? "Cancel" : "Done") {
+                    Button(outcome == nil && obstacle == nil ? commonWords().cancel : commonWords().done) {
                         dismiss()
                     }
                 }

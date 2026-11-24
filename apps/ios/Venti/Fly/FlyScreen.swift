@@ -104,7 +104,7 @@ struct FlyScreen: View {
             ),
             presenting: fly.problem
         ) { _ in
-            Button("OK", role: .cancel) {}
+            Button(commonWords().ok, role: .cancel) {}
         } message: { problem in
             Text(problem)
         }

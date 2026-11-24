@@ -206,7 +206,7 @@ struct ForecastHourSquareSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(commonWords().done) {
                         dismiss()
                     }
                 }
@@ -339,7 +339,7 @@ struct ForecastRegionSheet: View {
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("forecast-region")
                 Spacer(minLength: 0)
-                Button("Done") {
+                Button(commonWords().done) {
                     dismiss()
                 }
                 .font(.venti(.headline))

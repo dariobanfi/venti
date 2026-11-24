@@ -71,6 +71,7 @@ import fly.venti.app.logbook.TrackThumbnail
 import fly.venti.app.logbook.groupedShape
 import fly.venti.core.FlownSiteLine
 import fly.venti.core.FoundPilotLine
+import fly.venti.core.FlightSearch
 import fly.venti.core.PublicFlight
 import fly.venti.core.gliderClassName
 import fly.venti.core.PublicFlightsOrder
@@ -311,7 +312,7 @@ private fun EveryonesFlights(community: CommunityModel, onOpen: (PublicFlight) -
             }
             if (flights.isEmpty() && !community.isLoading) {
                 item(key = "none") {
-                    if (searchChips(community.flightSearch).isEmpty()) {
+                    if (!community.flightSearch.isSearching) {
                         NoFlights("No public flights yet", community.problem ?: CommunityWords.NONE_YET, R.drawable.venti_league)
                     } else {
                         NoFlights(FlightSearchWords.NONE_FOUND, community.problem ?: FlightSearchWords.NONE_FOUND_LINE, R.drawable.venti_league)
@@ -390,8 +391,22 @@ fun PilotFlightsScreen(
     var year by rememberSaveable(handle) { mutableIntStateOf(0) }
     // The flights under the totals are that season's too, by the bounds the core gives it.
     val season = totals?.statistics?.seasons?.firstOrNull { it.year == year }
-    LaunchedEffect(handle, season?.fromUnixS, season?.toUnixS) {
-        community.showPilot(handle, season?.fromUnixS, season?.toUnixS)
+    // What the flights are searched by: as the list last shown for this pilot had it, so that it stays on the way back from a flight.
+    var search by remember(handle) { mutableStateOf(community.pilot?.takeIf { it.handle == handle }?.search ?: FlightSearch()) }
+    var searches by remember { mutableStateOf(false) }
+    LaunchedEffect(handle, season?.fromUnixS, season?.toUnixS, search) {
+        community.showPilot(handle, season?.fromUnixS, season?.toUnixS, search)
+    }
+    if (searches) {
+        FlightSearchSheet(
+            search,
+            middle = fly.venti.app.map.OverviewMap.lastLookedAt,
+            onShow = { chosen ->
+                searches = false
+                search = chosen
+            },
+            onDismiss = { searches = false },
+        )
     }
     // A total that is one flight's opens that flight, once the list of
     // everyone's flights knows it.
@@ -488,13 +503,28 @@ fun PilotFlightsScreen(
                     SectionFooter(problem, Modifier.padding(bottom = VentiSpace.s4).testTag("pilot-totals-problem"))
                 }
             }
+            // The search, out of the way, over the flights it narrows; the totals above stay.
+            if (flights.isNotEmpty() || search.isSearching) {
+                item(key = "search") {
+                    FlightSearchBar(
+                        search,
+                        onOpen = { searches = true },
+                        onChange = { search = it },
+                        modifier = Modifier.padding(bottom = VentiSpace.s3),
+                    )
+                }
+            }
             if (flights.isEmpty() && pilot?.isLoading == false && (pilot.isLoaded || pilot.problem != null)) {
                 item(key = "none") {
-                    NoFlights(
-                        "No public flights",
-                        pilot.problem ?: "This pilot shares no flight with everyone at the moment.",
-                        R.drawable.ic_person,
-                    )
+                    if (search.isSearching) {
+                        NoFlights(FlightSearchWords.NONE_FOUND, pilot.problem ?: FlightSearchWords.NONE_FOUND_LINE, R.drawable.ic_person)
+                    } else {
+                        NoFlights(
+                            "No public flights",
+                            pilot.problem ?: "This pilot shares no flight with everyone at the moment.",
+                            R.drawable.ic_person,
+                        )
+                    }
                 }
             }
             itemsIndexed(flights, key = { _, flight -> flight.id }) { index, flight ->

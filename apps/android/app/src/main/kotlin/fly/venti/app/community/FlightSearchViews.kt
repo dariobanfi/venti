@@ -1,5 +1,6 @@
 package fly.venti.app.community
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
@@ -89,7 +92,11 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-/** The words of the flight search that are not the core's: the web's (`SearchFilter.svelte`, `AreaSheet.svelte`). */
+/**
+ * The words of the flight search that are not the core's: the web's
+ * (`SearchFilter.svelte`, `AreaSheet.svelte`, `words.ts`) and the
+ * iPhone's (`FlightSearchViews.swift`), the same on all three.
+ */
 object FlightSearchWords {
     const val FILTER = "Filter"
     const val GLIDER = "Glider"
@@ -105,16 +112,23 @@ object FlightSearchWords {
     const val RADIUS = "Radius"
     const val DRAW = "Draw an area"
     const val USE = "Use this area"
-    const val NO_AREA = "No area"
+    const val NO_AREA = "Remove the area"
     const val UNDO = "Undo"
     const val START_AGAIN = "Start again"
-    const val CLEAR = "Clear all"
-    const val SHOW = "Show flights"
+    const val CLEAR = "Clear"
     const val MAP_RADIUS = "Map: the place and the radius"
     const val MAP_DRAW = "Map: tap the corners of the area"
     const val TAP_CORNERS = "Tap the corners on the map."
-    const val NONE_FOUND = "No flights found"
-    const val NONE_FOUND_LINE = "No public flight matches this filter. Remove a choice to see more."
+    const val NONE_FOUND = "No flights match"
+    const val NONE_FOUND_LINE = "Nobody shares a flight that matches these choices. Remove one, or widen the area."
+
+    /** Over a ranking a search leaves empty. */
+    const val NOBODY_RANKED = "Nobody is ranked"
+
+    /** The ranking's choice of whose pilots: everyone, or one country's alone. */
+    const val PILOTS_FROM = "Pilots from"
+    const val GLOBAL = "Global"
+    const val EVERY_COUNTRY = "Every country"
 
     /** "Remove EN C", for the × of a chip. */
     fun remove(words: String) = "Remove $words"
@@ -129,6 +143,10 @@ object FlightSearchWords {
         else -> "$most corners, the most an area has"
     }
 }
+
+/** Whether a search chooses anything: a search of everything is the list without one. */
+val FlightSearch.isSearching: Boolean
+    get() = (near != null && radiusKm != null) || area.isNotEmpty() || gliderClass != null || kind != null || minKm != null || !country.isNullOrBlank()
 
 /** The least distances offered, kilometres: a few steps, as XContest's filter has them. */
 internal val LEAST_KM = listOf(10.0, 25.0, 50.0, 100.0, 200.0)
@@ -156,15 +174,23 @@ fun searchRefused(search: FlightSearch): String? =
 /**
  * "Filter" over a list of public flights, with the count of what is on,
  * and a chip for each choice in the core's words, whose × drops it.
+ * `before` stands first in the row: the ranking's "Pilots from".
  */
 @Composable
-fun FlightSearchBar(search: FlightSearch, onOpen: () -> Unit, onChange: (FlightSearch) -> Unit, modifier: Modifier = Modifier) {
+fun FlightSearchBar(
+    search: FlightSearch,
+    onOpen: () -> Unit,
+    onChange: (FlightSearch) -> Unit,
+    modifier: Modifier = Modifier,
+    before: @Composable () -> Unit = {},
+) {
     val chips = searchChips(search)
     Row(
         modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        before()
         OutlinedButton(
             onClick = onOpen,
             modifier = Modifier
@@ -191,8 +217,8 @@ fun FlightSearchBar(search: FlightSearch, onOpen: () -> Unit, onChange: (FlightS
 /**
  * The choices of the search in a sheet: the glider's class, the kind of
  * route, the least distance, the take-off's country, and the area, a mark
- * with a radius or corners drawn on a map. "Show flights" hands the search
- * back; the core says why one cannot be asked.
+ * with a radius or corners drawn on a map. "Done" hands the search back,
+ * as the iPhone's does; the core says why one cannot be asked.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -224,7 +250,7 @@ fun FlightSearchSheet(
                 if (picksArea) {
                     TextButton(onClick = { picksArea = false }) { Text(Common.words.back) }
                 } else {
-                    TextButton(onClick = { chosen = FlightSearch() }, modifier = Modifier.testTag("flight-search-clear")) { Text(FlightSearchWords.CLEAR) }
+                    TextButton(onClick = { chosen = FlightSearch() }, enabled = chosen.isSearching, modifier = Modifier.testTag("flight-search-clear")) { Text(FlightSearchWords.CLEAR) }
                 }
             }
             if (picksArea) {
@@ -301,7 +327,7 @@ fun FlightSearchSheet(
                     .padding(horizontal = VentiSpace.s5, vertical = VentiSpace.s3)
                     .heightIn(min = VentiSize.touch)
                     .testTag("flight-search-show"),
-            ) { Text(FlightSearchWords.SHOW) }
+            ) { Text(Common.words.done) }
         }
     }
 }
@@ -314,6 +340,54 @@ private fun Part(title: String) {
         color = Venti.colours.textSecondary,
         modifier = Modifier.padding(top = VentiSpace.s3).semantics { heading() },
     )
+}
+
+/**
+ * Whose pilots the ranking ranks, as on the web: "Global", or one
+ * country's alone (a national ranking, by the country the pilots set on
+ * their account), the reader's own first, then every country.
+ */
+@Composable
+fun PilotsFromChip(country: String?, own: String?, onChoose: (String?) -> Unit, modifier: Modifier = Modifier) {
+    var isOpen by remember { mutableStateOf(false) }
+    val shown = country?.let(Countries::named) ?: FlightSearchWords.GLOBAL
+    Box(modifier) {
+        FilterChip(
+            selected = country != null,
+            onClick = { isOpen = true },
+            label = { Text(shown, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            trailingIcon = { Icon(painterResource(R.drawable.ic_arrow_drop_down), contentDescription = null, modifier = Modifier.size(VentiSpace.s5)) },
+            modifier = Modifier
+                .heightIn(min = VentiSize.touch)
+                .testTag("ranking-pilots-from")
+                .semantics {
+                    contentDescription = FlightSearchWords.PILOTS_FROM
+                    stateDescription = country?.let(Countries::name) ?: FlightSearchWords.GLOBAL
+                },
+        )
+        // Each opening starts at its head, Global and the reader's own country: the menu would keep its scroll.
+        val scroll = remember(isOpen) { ScrollState(0) }
+        DropdownMenu(expanded = isOpen, onDismissRequest = { isOpen = false }, scrollState = scroll) {
+            fun choose(code: String?) {
+                isOpen = false
+                onChoose(code)
+            }
+            DropdownMenuItem(text = { Text(FlightSearchWords.GLOBAL) }, onClick = { choose(null) }, modifier = Modifier.testTag("pilots-from-global"))
+            own?.takeIf { Countries.flag(it) != null }?.let { code ->
+                DropdownMenuItem(text = { Text(Countries.named(code)) }, onClick = { choose(code.uppercase()) }, modifier = Modifier.testTag("pilots-from-own"))
+            }
+            HorizontalDivider(color = Venti.colours.border)
+            Text(
+                FlightSearchWords.EVERY_COUNTRY,
+                style = MaterialTheme.typography.labelMedium,
+                color = Venti.colours.textSecondary,
+                modifier = Modifier.padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2).semantics { heading() },
+            )
+            for ((code, _) in Countries.all) {
+                DropdownMenuItem(text = { Text(Countries.named(code)) }, onClick = { choose(code) }, modifier = Modifier.testTag("pilots-from-$code"))
+            }
+        }
+    }
 }
 
 /** The take-off's country: worldwide, or one of every country there is, by name with its flag. */

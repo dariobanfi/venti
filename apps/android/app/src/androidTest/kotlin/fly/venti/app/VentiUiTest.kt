@@ -3291,6 +3291,94 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { rows() == before }
     }
 
+    /**
+     * The same search on a pilot's page and on the ranking, against the
+     * development server, whose made-up flights name no glider's class:
+     * EN C leaves Lena Probe's page without flights, in the words the web
+     * and the iPhone use, while her totals stay; on the ranking of May 2026
+     * it leaves nobody ranked and May chosen. "Pilots from" Germany ranks
+     * nobody either, since no made-up pilot set a country; Global ranks
+     * them all again.
+     */
+    @Test
+    fun aSearchNarrowsAPilotsFlightsAndTheRanking() = inEveryLook {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        waitFor(described("Show my position"))
+        tap(tab("Community"))
+        showEveryonesFlights()
+        val field = hasTestTag("pilot-search")
+        waitFor(field)
+        screen.onNode(field).performTextInput("le")
+        val lena = hasText("Lena Probe (@lena), 3 public flights")
+        waitFor(lena)
+        tap(lena)
+        waitFor(hasTestTag("pilot-totals"))
+        bringThePilotsFlightsIntoView()
+
+        // Her page: a class none of her flights names.
+        val list = hasTestTag("pilot-flights")
+        screen.onNode(list).performScrollToNode(hasTestTag("flights-filter"))
+        tap(hasTestTag("flights-filter"))
+        waitFor(hasTestTag("flight-search"))
+        assertTrue(exists(hasTestTag("flight-search-clear") and hasText(FlightSearchWords.CLEAR)))
+        tap(hasTestTag("search-class-c"))
+        tap(hasTestTag("flight-search-show") and hasText("Done"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            !exists(hasTestTag("pilot-flight-row")) &&
+                runCatching { screen.onNode(list).performScrollToNode(hasText(FlightSearchWords.NONE_FOUND)) }.isSuccess
+        }
+        assertTrue(exists(hasText(FlightSearchWords.NONE_FOUND_LINE)))
+        assertTrue(exists(hasTestTag("search-chip-class") and hasText("EN C")))
+        keepScreenshot("light-pilot-search-1-none")
+        // The totals stay over the search.
+        screen.onNode(list).performScrollToNode(hasTestTag("pilot-totals"))
+        assertTrue(exists(hasText("28.19")))
+        // The chip's × gives her flights back.
+        screen.onNode(list).performScrollToNode(hasTestTag("search-chip-class"))
+        tap(hasTestTag("search-chip-class"))
+        bringThePilotsFlightsIntoView()
+        assertFalse(exists(hasTestTag("search-chip-class")))
+
+        // The ranking of May 2026, searched: the month stays.
+        tap(described("Back"))
+        waitFor(lena)
+        tap(described("Clear the search"))
+        tap(hasTestTag("league-ranking"))
+        waitFor(hasTestTag("ranking-months"))
+        val may = described("May 2026: 1 flight")
+        screen.onNode(may).performScrollTo().performClick()
+        waitFor(hasTestTag("ranking-title") and hasText("May 2026"))
+        waitFor(hasTestTag("ranked-pilot"))
+        waitFor(hasTestTag("ranking-pilots-from") and saying(FlightSearchWords.GLOBAL))
+        keepScreenshot("light-ranking-search-1-month")
+        tap(hasTestTag("flights-filter"))
+        waitFor(hasTestTag("flight-search"))
+        tap(hasTestTag("search-class-c"))
+        tap(hasTestTag("flight-search-show"))
+        waitFor(hasTestTag("search-chip-class") and hasText("EN C"))
+        waitFor(hasText(FlightSearchWords.NOBODY_RANKED))
+        assertTrue(exists(hasText(FlightSearchWords.NONE_FOUND_LINE)))
+        assertFalse(exists(hasTestTag("ranked-pilot")))
+        assertTrue(exists(may and isSelected()))
+        keepScreenshot("light-ranking-search-2-none")
+        tap(hasTestTag("search-chip-class"))
+        waitFor(hasTestTag("ranked-pilot"))
+        assertTrue(exists(hasTestTag("ranking-title") and hasText("May 2026")))
+
+        // Whose pilots: Germany's alone, then everyone's again.
+        tap(hasTestTag("ranking-pilots-from"))
+        screen.onNode(hasTestTag("pilots-from-DE")).performScrollTo().performClick()
+        waitFor(hasTestTag("ranking-pilots-from") and saying("Germany"))
+        waitFor(hasText(FlightSearchWords.NOBODY_RANKED))
+        keepScreenshot("light-ranking-search-3-pilots-from")
+        tap(hasTestTag("ranking-pilots-from"))
+        screen.onNode(hasTestTag("pilots-from-global")).performScrollTo().performClick()
+        waitFor(hasTestTag("ranking-pilots-from") and saying(FlightSearchWords.GLOBAL))
+        waitFor(hasTestTag("ranked-pilot"))
+    }
+
     @Test
     fun theForecastMapByTheHour() = inEveryLook { lookAtTheForecastByTheHour("light", dark = false) }
 

@@ -80,6 +80,8 @@ class CommunityModelTest {
                 "/v1/pilots?q=" in url ->
                     if (url.endsWith("q=zz")) HttpAnswer(200, """{"pilots": []}""".toByteArray()) else HttpAnswer(200, recorded("pilots.json"))
                 url.endsWith("/v1/pilots/lena/statistics") -> HttpAnswer(200, recorded("pilot_statistics.json"))
+                // A pilot's flights, searched: as everyone's are.
+                "/v1/pilots/demo/flights" in url -> HttpAnswer(200, recorded("public_flights.json"))
                 "/v1/pilots/" in url -> HttpAnswer(404, """{"error": {"code": "not_found", "message": "x"}}""".toByteArray())
                 "/v1/flights/public" !in url -> HttpAnswer(404, ByteArray(0))
                 refusal != null -> checkNotNull(refusal)
@@ -526,6 +528,73 @@ class CommunityModelTest {
         // No network.
         server.isReachable = false
         assertTrue(whyNot(community) { community.open(flight) }.startsWith("The flight could not be fetched."))
+    }
+
+    @Test
+    fun aMonthIsItsSpanByUtc() {
+        assertEquals(1_777_593_600L to 1_780_272_000L, CommunityModel.monthSpan("2026-05"))
+        assertEquals(1_796_083_200L to 1_798_761_600L, CommunityModel.monthSpan("2026-12"))
+        assertNull(CommunityModel.monthSpan("May"))
+        assertNull(CommunityModel.monthSpan("2026-13"))
+        assertNull(CommunityModel.monthSpan("2026-5"))
+    }
+
+    @Test
+    fun theRankingOfASearchKeepsItsMonthAsItsSpanAndNamesWhosePilots() = runBlocking {
+        val server = Server()
+        val community = model(server)
+        // 20 November 2026.
+        val now = 1_795_132_800L
+        community.rank("2026", "2026-05", nowUnixS = now)
+        assertEquals("$BASE/v1/ranking?month=2026-05", server.asked.last())
+
+        // A search with the month: the month is asked as its span, and stays.
+        val search = fly.venti.core.FlightSearch(gliderClass = GliderClassKind.C)
+        community.rank(search, null, nowUnixS = now)
+        val (from, to) = checkNotNull(CommunityModel.monthSpan("2026-05"))
+        assertEquals(BASE + fly.venti.core.rankingSearchPath(null, from, to, search, null), server.asked.last())
+        assertEquals("2026-05", community.ranked.month)
+        assertEquals(search, community.ranked.search)
+        assertTrue(community.ranked.pilots.isNotEmpty())
+
+        // Whose pilots, on top of it; the same choice again asks nothing.
+        community.rank(search, "AT", nowUnixS = now)
+        assertEquals(BASE + fly.venti.core.rankingSearchPath(null, from, to, search, "AT"), server.asked.last())
+        assertEquals("AT", community.ranked.pilotCountry)
+        val asked = server.asked.size
+        community.rank(search, "AT", nowUnixS = now)
+        assertEquals(asked, server.asked.size)
+
+        // Another season keeps the search and the pilots' country; the whole season is its span.
+        community.rank("2026", null, nowUnixS = now)
+        assertEquals(search, community.ranked.search)
+        assertEquals("AT", community.ranked.pilotCountry)
+        assertTrue(server.asked.last(), server.asked.last().contains("from="))
+
+        // Both dropped: the ranking as before.
+        community.rank(fly.venti.core.FlightSearch(), null, nowUnixS = now)
+        assertTrue(server.asked.last(), server.asked.last().startsWith("$BASE/v1/ranking?from="))
+        assertFalse(server.asked.last(), server.asked.last().contains("class="))
+    }
+
+    @Test
+    fun aPilotsFlightsAreSearchedAndTheSearchIsKeptWithThem() = runBlocking {
+        val server = Server()
+        val community = model(server)
+        community.showPilot("demo")
+        val search = fly.venti.core.FlightSearch(kind = RouteKind.FAI_TRIANGLE)
+        community.showPilot("demo", search = search)
+        val path = fly.venti.core.pilotFlightsSearchPath("demo", PublicFlightsOrder.NEWEST, null, null, search, null)
+        assertEquals(BASE + path, server.asked.last())
+        assertEquals(search, community.pilot?.search)
+        assertTrue(checkNotNull(community.pilot).isLoaded)
+        // Come back to with the same search, nothing is asked.
+        val asked = server.asked.size
+        community.showPilot("demo", search = search)
+        assertEquals(asked, server.asked.size)
+        // Without it, the pilot's page again.
+        community.showPilot("demo")
+        assertEquals("$BASE/v1/pilots/demo", server.asked.last())
     }
 
     @Test

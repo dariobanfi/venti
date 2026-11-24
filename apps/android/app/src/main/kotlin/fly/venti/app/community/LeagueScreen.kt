@@ -183,7 +183,7 @@ fun LeagueScreen(
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
                 !hasServer -> Unconnected()
-                shown == LeagueList.Ranking -> RankingList(community, onOpenFlight, onOpenPilot)
+                shown == LeagueList.Ranking -> RankingList(community, onOpenFlight, onOpenPilot, ownCountry = account.account?.country)
                 shown == LeagueList.Community -> CommunityPage(
                     community,
                     social,
@@ -310,11 +310,26 @@ private fun RankingList(
     community: CommunityModel,
     onOpenFlight: (PublicFlight) -> Unit,
     onOpenPilot: (String, String) -> Unit,
+    /** The reader's own country, first among whose pilots to rank. */
+    ownCountry: String?,
 ) {
     val scope = rememberCoroutineScope()
     var isRefreshing by remember { mutableStateOf(false) }
     LaunchedEffect(community) { community.rank() }
     val ranked = community.ranked
+    // The search's choices, in a sheet over the ranking.
+    var searches by remember { mutableStateOf(false) }
+    if (searches) {
+        FlightSearchSheet(
+            ranked.search,
+            middle = fly.venti.app.map.OverviewMap.lastLookedAt,
+            onShow = { chosen ->
+                searches = false
+                scope.launch { community.rank(chosen, ranked.pilotCountry) }
+            },
+            onDismiss = { searches = false },
+        )
+    }
 
     PullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -379,6 +394,18 @@ private fun RankingList(
                     }
                 }
             }
+            // Whose pilots, and what the flights ranked are searched by:
+            // the season and the month stay as either changes.
+            item(key = "search") {
+                FlightSearchBar(
+                    ranked.search,
+                    onOpen = { searches = true },
+                    onChange = { chosen -> scope.launch { community.rank(chosen, ranked.pilotCountry) } },
+                    before = {
+                        PilotsFromChip(ranked.pilotCountry, ownCountry, onChoose = { country -> scope.launch { community.rank(ranked.search, country) } })
+                    },
+                )
+            }
             if (ranked.title.isNotEmpty()) {
                 // What the ranking is of: "May 2026", "2026", "All years".
                 item(key = "title") {
@@ -407,13 +434,17 @@ private fun RankingList(
                         verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
                     ) {
                         Text(
-                            if (ranked.problem == null) "Nobody is ranked" else "The ranking could not be fetched",
+                            if (ranked.problem == null) FlightSearchWords.NOBODY_RANKED else "The ranking could not be fetched",
                             style = MaterialTheme.typography.titleLarge,
                             textAlign = TextAlign.Center,
                         )
                         Text(
                             // A month without a ranked flight has the core's sentence.
-                            ranked.problem ?: if (ranked.month != null) pilotsWords().monthEmpty else RankingWords.nobody(ranked.season),
+                            ranked.problem ?: when {
+                                ranked.search.isSearching || ranked.pilotCountry != null -> FlightSearchWords.NONE_FOUND_LINE
+                                ranked.month != null -> pilotsWords().monthEmpty
+                                else -> RankingWords.nobody(ranked.season)
+                            },
                             color = Venti.colours.textSecondary,
                             textAlign = TextAlign.Center,
                         )
@@ -452,7 +483,8 @@ private fun RankedPilotCard(pilot: RankedPilot, onOpenPilot: () -> Unit, onOpenF
                     .heightIn(min = VentiSize.touch)
                     .padding(horizontal = VentiSpace.s3, vertical = VentiSpace.s3)
                     .clearAndSetSemantics {
-                        contentDescription = "Place ${Format.count(pilot.place.toLong())}, ${pilot.name}"
+                        contentDescription = listOfNotNull("Place ${Format.count(pilot.place.toLong())}", pilot.name, pilot.country?.takeIf { Countries.flag(it) != null }?.let(Countries::name))
+                            .joinToString(", ")
                         stateDescription = "${Format.points(pilot.points)} points, ${pilot.counted}"
                     },
                 verticalAlignment = Alignment.CenterVertically,
@@ -468,7 +500,11 @@ private fun RankedPilotCard(pilot: RankedPilot, onOpenPilot: () -> Unit, onOpenF
                 )
                 Spacer(Modifier.width(VentiSpace.s3))
                 Column(Modifier.weight(1f)) {
-                    Text(pilot.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // The flag before the name, where the pilot set a country.
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
+                        Flag(pilot.country, style = MaterialTheme.typography.titleMedium)
+                        Text(pilot.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                     Text(
                         pilot.counted,
                         style = MaterialTheme.typography.bodyMedium,

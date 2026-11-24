@@ -43,6 +43,8 @@ import fly.venti.core.RankingYearChoice
 import fly.venti.core.ranking
 import fly.venti.core.rankingMonthPath
 import fly.venti.core.rankingPath
+import fly.venti.core.rankingSearchPath
+import fly.venti.core.pilotFlightsSearchPath
 import fly.venti.core.rankingSeasons
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -113,6 +115,8 @@ class CommunityModel(
         /** The season the list is narrowed to: its first second and the first after it. Neither for all years. */
         val fromUnixS: Long? = null,
         val toUnixS: Long? = null,
+        /** What the flights are searched by: everything, until the pilot chooses. */
+        val search: FlightSearch = FlightSearch(),
         val flights: List<PublicFlight> = emptyList(),
         /** What to ask the next page with. Absent when there is none. */
         val next: String? = null,
@@ -155,6 +159,10 @@ class CommunityModel(
         val problem: String? = null,
         /** The years that have a ranking, each with its months, as the server last said them. */
         val periods: List<RankingYearChoice> = emptyList(),
+        /** What the flights ranked are searched by: everything, until the pilot chooses. The season and month stay as it changes. */
+        val search: FlightSearch = FlightSearch(),
+        /** Whose pilots are ranked: a country's two letters, or `null` for all (Global). */
+        val pilotCountry: String? = null,
     )
 
     /** The ranking of the season last asked for. */
@@ -355,7 +363,13 @@ class CommunityModel(
         val seasons = seasons(ranked.periods, wanted, nowUnixS)
         val chosen = seasons.firstOrNull { it.name == wanted } ?: seasons.firstOrNull() ?: return
         // Another span's pilots are not this one's.
-        val shown = if (chosen.name == ranked.season && month == ranked.month) ranked else Ranked(periods = ranked.periods)
+        val shown = if (chosen.name == ranked.season && month == ranked.month) {
+            ranked
+        } else {
+            Ranked(periods = ranked.periods, search = ranked.search, pilotCountry = ranked.pilotCountry)
+        }
+        val search = shown.search
+        val pilotCountry = shown.pilotCountry
         val months = months(ranked.periods, chosen.name)
         ranked = shown.copy(
             seasons = seasons,
@@ -367,12 +381,22 @@ class CommunityModel(
             isLoading = true,
         )
         try {
-            val path = if (month != null) rankingMonthPath(null, month) else rankingPath(null, chosen.fromUnixS, chosen.toUnixS)
+            val path = if (search.isSearching || pilotCountry != null) {
+                // The core has no path for a month and a search at once:
+                // the month is then asked as its span, a calendar month by
+                // UTC, as on the web and the iPhone.
+                val span = month?.let(::monthSpan)
+                rankingSearchPath(null, span?.first ?: chosen.fromUnixS, span?.second ?: chosen.toUnixS, search, pilotCountry)
+            } else if (month != null) {
+                rankingMonthPath(null, month)
+            } else {
+                rankingPath(null, chosen.fromUnixS, chosen.toUnixS)
+            }
             val answer = transport(server + path)
             val ranking = withContext(background) { ranking(answer.status16, answer.body) }
             // The pilot may have chosen another span or server while this
             // was under way: that question's answer sets the rest.
-            if (server != this.server() || ranked.season != chosen.name || ranked.month != month) return
+            if (server != this.server() || !ranked.isFor(chosen.name, month, search, pilotCountry)) return
             ranking.pilots.forEach { pilot -> known += pilot.flights.associateBy { it.id } }
             // A server that does not name its years leaves those there were.
             val periods = ranking.periods.ifEmpty { ranked.periods }
@@ -387,10 +411,10 @@ class CommunityModel(
                 periods = periods,
             )
         } catch (error: CancellationException) {
-            if (ranked.season == chosen.name && ranked.month == month) ranked = ranked.copy(isLoading = false)
+            if (ranked.isFor(chosen.name, month, search, pilotCountry)) ranked = ranked.copy(isLoading = false)
             throw error
         } catch (error: Exception) {
-            if (ranked.season != chosen.name || ranked.month != month) return
+            if (!ranked.isFor(chosen.name, month, search, pilotCountry)) return
             ranked = ranked.copy(
                 isLoading = false,
                 problem = when (error) {
@@ -400,6 +424,20 @@ class CommunityModel(
             )
         }
     }
+
+    /**
+     * Ranks the flights another search finds, of the pilots of a country or
+     * of all: the season and the month shown stay.
+     */
+    suspend fun rank(search: FlightSearch, pilotCountry: String?, nowUnixS: Long? = null) {
+        val country = pilotCountry?.takeIf { it.isNotBlank() }
+        if (search == ranked.search && country == ranked.pilotCountry) return
+        ranked = ranked.copy(search = search, pilotCountry = country, pilots = emptyList(), rule = "")
+        rank(ranked.season.ifEmpty { null }, ranked.month, nowUnixS)
+    }
+
+    private fun Ranked.isFor(season: String, month: String?, search: FlightSearch, pilotCountry: String?) =
+        this.season == season && this.month == month && this.search == search && this.pilotCountry == pilotCountry
 
     /**
      * The seasons a ranking is offered for: the years the server says have
@@ -535,11 +573,11 @@ class CommunityModel(
      * already: all of them, or those of one season, by the bounds the
      * core's totals give it.
      */
-    suspend fun showPilot(handle: String, fromUnixS: Long? = null, toUnixS: Long? = null) {
+    suspend fun showPilot(handle: String, fromUnixS: Long? = null, toUnixS: Long? = null, search: FlightSearch = FlightSearch()) {
         val shown = pilot
-        val isSame = shown != null && shown.handle == handle && shown.fromUnixS == fromUnixS && shown.toUnixS == toUnixS
+        val isSame = shown != null && shown.handle == handle && shown.fromUnixS == fromUnixS && shown.toUnixS == toUnixS && shown.search == search
         if (isSame && shown.isLoaded && shown.problem == null) return
-        pilot = PilotFlights(handle, fromUnixS, toUnixS)
+        pilot = PilotFlights(handle, fromUnixS, toUnixS, search)
         loadPilot()
     }
 
@@ -558,8 +596,14 @@ class CommunityModel(
         pilot = shown.copy(isLoading = true)
         val result = try {
             val server = server() ?: throw NoLongerPublic()
-            // All years are the pilot's page; a season is the public flights' list, narrowed.
-            val (flights, next) = if (shown.fromUnixS == null && shown.toUnixS == null) {
+            // All years are the pilot's page; a season or a search is the public flights' list, narrowed.
+            val (flights, next) = if (shown.search.isSearching) {
+                val path = withContext(background) {
+                    pilotFlightsSearchPath(shown.handle, PublicFlightsOrder.NEWEST, shown.fromUnixS, shown.toUnixS, shown.search, shown.next)
+                }
+                val answer = transport(server + path)
+                withContext(background) { publicFlights(answer.status16, answer.body) }.let { it.flights to it.next }
+            } else if (shown.fromUnixS == null && shown.toUnixS == null) {
                 val answer = transport(server + pilotPagePath(shown.handle, shown.next))
                 withContext(background) { pilotPage(answer.status16, answer.body) }.let { it.flights to it.next }
             } else {
@@ -643,5 +687,20 @@ class CommunityModel(
 
         /** How many years the ranking's row of seasons has room for, beside all years. */
         private const val YEARS_OFFERED = 4
+
+        /**
+         * The first second of a month as the ranking's periods write one
+         * ("2026-05") and the first of the next, by UTC; `null` for
+         * anything else.
+         */
+        fun monthSpan(month: String): Pair<Long, Long>? {
+            val parts = month.split("-")
+            if (parts.size != 2 || parts[0].length != 4 || parts[1].length != 2) return null
+            val year = parts[0].toIntOrNull() ?: return null
+            val number = parts[1].toIntOrNull()?.takeIf { it in 1..12 } ?: return null
+            val from = java.time.LocalDate.of(year, number, 1)
+            return from.atStartOfDay(java.time.ZoneOffset.UTC).toEpochSecond() to
+                from.plusMonths(1).atStartOfDay(java.time.ZoneOffset.UTC).toEpochSecond()
+        }
     }
 }

@@ -7,6 +7,7 @@
  * the rules of putting pages together.
  */
 
+import { messageOf } from '#lib/core/index.ts';
 import type { ChatMessage, CoreClient, MessageDraft, SentGroupPicture } from '#lib/core/index.ts';
 import { CHAT_EVERY_MS, cursorBefore, merged, newestCursor } from './chat';
 
@@ -86,7 +87,7 @@ export class ChatModel {
 			this.loaded = true;
 			await this.#markRead();
 		} catch (error) {
-			this.problem = said(error);
+			this.problem = messageOf(error);
 		}
 	}
 
@@ -100,7 +101,7 @@ export class ChatModel {
 			this.#older = page.older;
 			this.hasOlder = page.older !== undefined;
 		} catch (error) {
-			this.problem = said(error);
+			this.problem = messageOf(error);
 		} finally {
 			this.loadingOlder = false;
 		}
@@ -126,7 +127,7 @@ export class ChatModel {
 			await this.#markRead();
 		} catch (error) {
 			// Offline for a moment: the chat stays as it was and asks again.
-			this.problem = said(error);
+			this.problem = messageOf(error);
 		} finally {
 			this.#asking = false;
 		}
@@ -166,5 +167,3 @@ export class ChatModel {
 		}
 	}
 }
-
-const said = (error: unknown) => (error instanceof Error ? error.message : String(error));

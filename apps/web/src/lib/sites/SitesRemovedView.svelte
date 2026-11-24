@@ -15,9 +15,9 @@
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import type { SiteRemovedLine, SiteWritten } from '#lib/core/index.ts';
+	import { messageOf, type SiteRemovedLine, type SiteWritten } from '#lib/core/index.ts';
 	import PromptDialog from '#lib/design/PromptDialog.svelte';
-	import { said, type SiteEditsModel } from './edit.svelte';
+	import type { SiteEditsModel } from './edit.svelte';
 
 	const app = getApp();
 
@@ -54,7 +54,7 @@
 				if (mine === asked) phase = { is: 'ready', partners, pilots };
 			},
 			(error) => {
-				if (mine === asked) phase = { is: 'failed', why: said(error) };
+				if (mine === asked) phase = { is: 'failed', why: messageOf(error) };
 			}
 		);
 	}
@@ -88,7 +88,7 @@
 			}
 			bringing = { line, revision: history.bringBackRevision };
 		} catch (error) {
-			problem = { id: line.id, why: said(error) };
+			problem = { id: line.id, why: messageOf(error) };
 		} finally {
 			reading = undefined;
 		}
@@ -103,7 +103,7 @@
 			bringing = undefined;
 			onwritten(written);
 		} catch (error) {
-			refusal = said(error);
+			refusal = messageOf(error);
 		} finally {
 			working = false;
 		}

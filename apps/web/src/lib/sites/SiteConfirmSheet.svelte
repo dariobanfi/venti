@@ -11,15 +11,16 @@
 	which is how its day is changed.
 -->
 <script lang="ts">
-	import type {
-		SiteConfirmFlight,
-		SiteConfirmForm,
-		SiteView,
-		SiteWritten
+	import {
+		messageOf,
+		type SiteConfirmFlight,
+		type SiteConfirmForm,
+		type SiteView,
+		type SiteWritten
 	} from '#lib/core/index.ts';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import { dayOf } from '#lib/groups/days.ts';
-	import { said, type SiteEditsModel } from './edit.svelte';
+	import type { SiteEditsModel } from './edit.svelte';
 
 	interface Props {
 		open: boolean;
@@ -58,7 +59,7 @@
 		form = undefined;
 		edits.confirmForm(today).then(
 			(known) => (form = known),
-			(error) => (refusal = said(error))
+			(error) => (refusal = messageOf(error))
 		);
 	});
 
@@ -95,7 +96,7 @@
 				await edits.confirm(site.id, day, today, note, flight === '' ? undefined : flight)
 			);
 		} catch (error) {
-			refusal = said(error);
+			refusal = messageOf(error);
 		} finally {
 			sending = false;
 		}

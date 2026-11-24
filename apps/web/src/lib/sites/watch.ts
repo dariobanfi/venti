@@ -12,7 +12,7 @@
  */
 
 import type { Bounds, Credit, SitesMap, SiteView } from '#lib/core/index.ts';
-import { isInWords } from '#lib/core/index.ts';
+import { inWordsOr } from '#lib/core/index.ts';
 import { contains, grown } from '#lib/wind/watch.ts';
 
 /**
@@ -208,6 +208,5 @@ function same(first: SitesState, second: SitesState): boolean {
 
 /** Why the sites could not be fetched, for the pilot. */
 function words(error: unknown): string {
-	const said = error instanceof Error ? error.message : String(error);
-	return isInWords(error) ? said : `The flying sites could not be shown. ${said}`;
+	return inWordsOr('The flying sites could not be shown.', error);
 }

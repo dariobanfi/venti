@@ -17,6 +17,8 @@ import { FIRST_REGION } from '#lib/today/model.svelte.ts';
 export class NearPlace {
 	/** Where the lists are for: what this browser remembers, until the position comes. */
 	place = $state.raw<Coordinate>(rememberedPlace()?.at ?? FIRST_REGION);
+	/** Whether the place is the browser's position. */
+	isPosition = $state(false);
 
 	/**
 	 * Takes the browser's position once, where it was allowed already. For a
@@ -33,7 +35,9 @@ export class NearPlace {
 					navigator.geolocation,
 					(fix) => {
 						stop();
-						if (current) this.place = { lat: fix.lat, lon: fix.lon };
+						if (!current) return;
+						this.place = { lat: fix.lat, lon: fix.lon };
+						this.isPosition = true;
 					},
 					() => {}
 				);

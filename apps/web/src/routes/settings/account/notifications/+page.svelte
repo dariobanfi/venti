@@ -8,6 +8,7 @@
 	the pilot's picture moves past what was shown. Nothing is pushed.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { accountHref, pilotHref, publicFlightHref } from '#lib/app/routes.ts';
 	import type { Notifications } from '#lib/core/index.ts';
@@ -39,7 +40,7 @@
 			},
 			(error) => {
 				// The core's line that the list could not be loaded, then why.
-				const why = error instanceof Error ? error.message : String(error);
+				const why = messageOf(error);
 				if (current) problem = [said?.notificationsFailed, why].filter(Boolean).join(' ');
 			}
 		);

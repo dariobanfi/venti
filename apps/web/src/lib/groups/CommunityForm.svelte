@@ -12,6 +12,8 @@
 	circle's edge drags the radius.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { groupHref } from '#lib/app/routes.ts';
@@ -34,9 +36,11 @@
 
 	let { open, model, editing, onchange, onclose }: Props = $props();
 
+	const app = getApp();
+
 	const id = $props.id();
-	const PUBLIC = $derived(model.words?.public ?? 'Public');
-	const PRIVATE = $derived(model.words?.private ?? 'Private');
+	const PUBLIC = $derived(app.said?.community.public ?? 'Public');
+	const PRIVATE = $derived(app.said?.community.private ?? 'Private');
 
 	let name = $state('');
 	let description = $state('');
@@ -86,7 +90,7 @@
 				await goto(groupHref(made.group.id));
 			}
 		} catch (error) {
-			problem = error instanceof Error ? error.message : String(error);
+			problem = messageOf(error);
 		} finally {
 			saving = false;
 		}

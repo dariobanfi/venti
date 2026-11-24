@@ -10,6 +10,7 @@
 	is no longer there, and the page says so in the core's words.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import { browser } from '$app/env';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -65,7 +66,7 @@
 			(error) => {
 				if (!current) return;
 				plan = undefined;
-				missing = error instanceof Error ? error.message : String(error);
+				missing = messageOf(error);
 			}
 		);
 		return () => {
@@ -82,7 +83,7 @@
 			await work();
 			if (thenLeave) await goto(communityHref());
 		} catch (error) {
-			problem = error instanceof Error ? error.message : String(error);
+			problem = messageOf(error);
 		} finally {
 			working = false;
 		}
@@ -195,7 +196,7 @@
 				<!-- The pilot's own word on the plan. -->
 				{#if signedIn}
 					<button class="group-row" type="button" disabled={working} onclick={() => setIn(shown)}>
-						{shown.amIn ? "I'm out" : "I'm in"}
+						{shown.amIn ? app.said?.community.imOut : app.said?.community.imIn}
 						<Icon name={shown.amIn ? 'close' : 'check'} />
 					</button>
 				{:else}

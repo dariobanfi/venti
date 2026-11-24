@@ -14,6 +14,7 @@
 	own checks are off, so there is one voice.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import Segmented from '#lib/design/Segmented.svelte';
 	import { goToGoogle } from './google';
 	import GoogleButton from './GoogleButton.svelte';
@@ -27,6 +28,8 @@
 	}
 
 	let { account, host }: Props = $props();
+
+	const app = getApp();
 
 	const MODES = ['Sign in', 'New account'] as const;
 	let mode = $state<string>(MODES[0]);
@@ -216,9 +219,9 @@
 						disabled={account.working || handle === '' || password === ''}
 					>
 						{#if account.working}
-							Working…
+							{app.said?.common.working}
 						{:else}
-							{isNew ? 'Create account' : 'Sign in'}
+							{isNew ? 'Create account' : app.said?.common.signIn}
 						{/if}
 					</button>
 				</div>

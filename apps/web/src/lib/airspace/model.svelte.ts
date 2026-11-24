@@ -19,7 +19,6 @@ import {
 	type Coordinate,
 	type CoreClient,
 	type Credit,
-	isInWords,
 	type KeptAirspace
 } from '#lib/core/index.ts';
 import type { Notice } from '#lib/logbook/import-report.ts';
@@ -134,7 +133,7 @@ export class AirspaceModel {
 			this.problem = undefined;
 			return shapes;
 		} catch (error) {
-			this.problem = `Your airspace could not be loaded, so none is drawn. ${words(error)}`;
+			this.problem = `Your airspace could not be loaded, so none is drawn. ${reasonFor(error)}`;
 			return [];
 		}
 	}
@@ -166,7 +165,7 @@ export class AirspaceModel {
 				const result = await this.#core.importAirspace(file.name, await file.arrayBuffer());
 				lines.push(importSummary(result, file.name, text));
 			} catch (error) {
-				lines.push(`${file.name}: ${words(error)}`);
+				lines.push(`${file.name}: ${reasonFor(error)}`);
 			}
 		}
 		await this.reload();
@@ -200,7 +199,7 @@ export class AirspaceModel {
 			if (kept) await this.reload();
 		} catch (error) {
 			this.#failedAt = this.#now();
-			this.serverProblem = words(error);
+			this.serverProblem = reasonFor(error);
 		} finally {
 			this.#fetching = false;
 		}
@@ -234,15 +233,8 @@ export class AirspaceModel {
 			]);
 			this.problem = undefined;
 		} catch (error) {
-			this.problem = `Your airspace could not be loaded, so none is drawn. ${words(error)}`;
+			this.problem = `Your airspace could not be loaded, so none is drawn. ${reasonFor(error)}`;
 		}
 		this.revision += 1;
 	}
-}
-
-/** Why something about the airspace did not work, for the pilot. */
-function words(error: unknown): string {
-	// The core's refusals and a server out of reach are worded already.
-	if (isInWords(error)) return (error as Error).message;
-	return reasonFor(error);
 }

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { ONLINE } from '../map/online';
 import { flightFromFile, type FlightView } from './pkg/venti_core_wasm.js';
-import { type GetTile, PLACES_UNDER_A_FLIGHT, TerrainSource } from './terrain-source';
+import { PLACES_UNDER_A_FLIGHT, TerrainSource } from './terrain-source';
 import { sampleFlight, startCore, tileServer } from './testing';
 
 beforeAll(startCore);

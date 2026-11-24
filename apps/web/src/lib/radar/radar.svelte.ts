@@ -11,7 +11,7 @@
  */
 
 import type { CoreClient, RadarMoment, RadarView } from '#lib/core/index.ts';
-import { isInWords } from '#lib/core/index.ts';
+import { inWordsOr } from '#lib/core/index.ts';
 import {
 	AGES_EVERY_MS,
 	cautioned,
@@ -299,6 +299,5 @@ export class RadarModel {
 
 /** An error in words for the pilot: the core's as they are, anything else behind the shell's. */
 function inWords(error: unknown): string {
-	const said = error instanceof Error ? error.message : String(error);
-	return isInWords(error) ? said : `${WORDS.unreachable} ${said}`;
+	return inWordsOr(WORDS.unreachable, error);
 }

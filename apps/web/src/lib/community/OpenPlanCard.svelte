@@ -11,6 +11,8 @@
 	are initials. What another pilot wrote is set as text.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { accountHref, openPlanHref } from '#lib/app/routes.ts';
 	import type { OpenPlanView } from '#lib/core/index.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -29,6 +31,8 @@
 
 	let { plan, day, model, myName }: Props = $props();
 
+	const app = getApp();
+
 	const shown = $derived(facesOf(plan.pilotsIn, plan.amIn, myName));
 	let busy = $state(false);
 	/** Why the pilot's word did not go through, in words. */
@@ -40,7 +44,7 @@
 		try {
 			await model.setIn(plan.id, !plan.amIn);
 		} catch (error) {
-			problem = error instanceof Error ? error.message : String(error);
+			problem = messageOf(error);
 		} finally {
 			busy = false;
 		}
@@ -94,11 +98,11 @@
 			onclick={toggle}
 		>
 			{#if plan.amIn}<Icon name="check" />{/if}
-			<span>I'm in</span>
+			<span>{app.said?.community.imIn}</span>
 		</button>
 	{:else}
 		<!-- Saying so needs an account: the way to one. -->
-		<a class="in" href={accountHref()}>I'm in</a>
+		<a class="in" href={accountHref()}>{app.said?.community.imIn}</a>
 	{/if}
 	{#if problem}
 		<p class="problem" role="alert">{problem}</p>

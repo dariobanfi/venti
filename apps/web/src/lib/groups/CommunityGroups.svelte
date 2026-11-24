@@ -10,6 +10,8 @@
 	(docs/api.md): signed out, Community says so in its sign-in card.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { goto } from '$app/navigation';
 	import { groupHref } from '#lib/app/routes.ts';
 	import type { CommunityInvite, Coordinate, FoundCommunity } from '#lib/core/index.ts';
@@ -25,8 +27,10 @@
 
 	let { model, near }: Props = $props();
 
+	const app = getApp();
+
 	const id = $props.id();
-	const said = $derived(model.words);
+	const said = $derived(app.said?.community);
 
 	$effect(() => model.keepCurrent());
 
@@ -55,7 +59,7 @@
 					},
 					(error) => {
 						if (asking !== asked) return;
-						findProblem = error instanceof Error ? error.message : String(error);
+						findProblem = messageOf(error);
 						finding = false;
 					}
 				);
@@ -82,7 +86,7 @@
 				await model.decline(invite);
 			}
 		} catch (error) {
-			inviteProblem = error instanceof Error ? error.message : String(error);
+			inviteProblem = messageOf(error);
 		}
 	}
 
@@ -91,7 +95,7 @@
 
 <section class="part span-12" id="groups" aria-labelledby="{id}-groups">
 	<header>
-		<h2 id="{id}-groups">{said?.title ?? 'Groups'}</h2>
+		<h2 id="{id}-groups">{said?.title}</h2>
 		<button class="more" type="button" onclick={() => (making = true)}>New group</button>
 	</header>
 
@@ -102,7 +106,7 @@
 					<span class="words">{invite.words}</span>
 					<span class="buttons">
 						<button class="button-plain" type="button" onclick={() => answer(invite, true)}>
-							{said?.join ?? 'Join'}
+							{said?.join}
 						</button>
 						<button class="button-plain" type="button" onclick={() => answer(invite, false)}>
 							Decline
@@ -120,7 +124,7 @@
 		{#if model.mine.length === 0}
 			<p class="quiet">You are in no group yet. Join one near you, or make one.</p>
 		{:else}
-			<ul class="cards" aria-label={said?.yours ?? 'Your groups'}>
+			<ul class="cards" aria-label={said?.yours}>
 				{#each model.mine as group (group.id)}
 					<GroupCard {group} />
 				{/each}
@@ -136,22 +140,22 @@
 
 <section class="part span-12" aria-labelledby="{id}-near">
 	<header>
-		<h2 id="{id}-near">{text.trim() ? 'Found' : (said?.nearYou ?? 'Near you')}</h2>
+		<h2 id="{id}-near">{text.trim() ? 'Found' : said?.nearYou}</h2>
 	</header>
 	<input
 		class="text-field search"
 		type="search"
-		aria-label={said?.search ?? 'Search by name or place'}
-		placeholder={said?.search ?? 'Search by name or place'}
+		aria-label={said?.search}
+		placeholder={said?.search}
 		autocomplete="off"
 		bind:value={text}
 	/>
 	{#if findProblem}
 		<p class="quiet" role="alert">{findProblem}</p>
 	{:else if found && found.length === 0 && !finding}
-		<p class="quiet">{said?.noneFound ?? 'No group here yet.'}</p>
+		<p class="quiet">{said?.noneFound}</p>
 	{:else if found}
-		<ul class="cards" aria-label={text.trim() ? 'Found' : (said?.nearYou ?? 'Near you')}>
+		<ul class="cards" aria-label={text.trim() ? 'Found' : said?.nearYou}>
 			{#each found as one (one.group.id)}
 				<GroupCard
 					group={one.group}

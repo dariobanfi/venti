@@ -118,6 +118,7 @@ export type {
 	FlownCellView,
 	FlownThermals,
 	MapLayersWords,
+	NothingFoundWords,
 	ClosingCircleView,
 	GlideReach,
 	GlideReachSetting,
@@ -323,7 +324,9 @@ export type {
 export type { PushSubscribed } from './social-source';
 export type { ScreenWords } from './protocol';
 import type { CoreErrorKind } from './pkg/venti_core_wasm.js';
-import { UNREACHABLE } from './protocol';
+import { messageOf, UNREACHABLE } from './protocol';
+
+export { messageOf } from './protocol';
 
 export type { GoogleEntered, NewAccount, NewGoogleAccount } from './account-source';
 export type { OpenedOwnFlight, OwnFlight, OwnFlights, Uploaded } from './own-flights-source';
@@ -375,11 +378,9 @@ export function isInWords(error: unknown): boolean {
 }
 
 /**
- * Asks the browser to keep the site's data when the device runs short of
- * space, instead of clearing it as it may clear any site's. Browsers grant
- * this by their own rules, some after asking the pilot; nothing depends on
- * the answer.
+ * What went wrong, for the pilot: an error's words where they were written
+ * for the pilot, else `lead` and the words after it.
  */
-export function askToKeepStorage(): void {
-	void navigator.storage?.persist?.().catch(() => {});
+export function inWordsOr(lead: string, error: unknown): string {
+	return isInWords(error) ? messageOf(error) : `${lead} ${messageOf(error)}`;
 }

@@ -179,7 +179,7 @@
 				</button>
 			</div>
 		{:else if !problem}
-			<p class="group-note" role="status">Asking Venti…</p>
+			<p class="group-note" role="status">{form.loading}</p>
 		{/if}
 	{/if}
 </div>

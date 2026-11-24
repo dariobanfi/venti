@@ -7,6 +7,7 @@
  * map is zoomed out, and drawn again when it comes back.
  */
 
+import { messageOf } from '#lib/core/index.ts';
 import type { Bounds, CableLine, CablesMap, Coordinate } from '#lib/core/index.ts';
 
 /** From this zoom on the map draws cables, and asks for them. */
@@ -73,7 +74,7 @@ export class CablesModel {
 				if (mine !== this.#asking) return;
 				// Asked again at the next rest of the map.
 				this.#asked = undefined;
-				this.problem = error instanceof Error ? error.message : String(error);
+				this.problem = messageOf(error);
 			}
 		);
 	}

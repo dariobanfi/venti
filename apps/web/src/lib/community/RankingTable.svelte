@@ -8,6 +8,7 @@
 	What another pilot wrote, a name, is set as text.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { pilotHref, publicFlightHref } from '#lib/app/routes.ts';
 	import type { RankedPilot } from '#lib/core/index.ts';
 	import { flightFormat, format } from '#lib/design/format.ts';
@@ -25,6 +26,8 @@
 	}
 
 	let { label, pilots }: Props = $props();
+
+	const app = getApp();
 
 	const text = format();
 
@@ -73,7 +76,7 @@
 				{#each counts as i (i)}
 					{@const flight = pilot.flights[i]}
 					{#if flight}
-						{@const triangle = shape(flight)}
+						{@const triangle = shape(flight, app.said?.routeKinds)}
 						<td class="counted number">
 							<a href={publicFlightHref(flight.id)}>
 								<span class="visually-hidden">Points</span>

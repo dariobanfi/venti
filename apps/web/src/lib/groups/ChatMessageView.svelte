@@ -23,7 +23,6 @@
 		canModerate: boolean;
 		groups: GroupsModel | undefined;
 		myName: string | undefined;
-		imInWord?: string;
 		onremove: () => void;
 		/** Reports the message, or with an index the picture at it. */
 		onreport: (picture?: number) => void;
@@ -31,8 +30,7 @@
 		onchanged: () => void;
 	}
 
-	let { message, canModerate, groups, myName, imInWord, onremove, onreport, onchanged }: Props =
-		$props();
+	let { message, canModerate, groups, myName, onremove, onreport, onchanged }: Props = $props();
 
 	const text = format();
 	const when = $derived(postedWords(message.postedAt, new Date()));
@@ -89,7 +87,7 @@
 				</div>
 			{/if}
 			{#each message.cards as card, index (`${card.kind}:${card.id}:${index}`)}
-				<MessageCard {card} {imInWord} />
+				<MessageCard {card} />
 			{/each}
 			{#if message.plan && groups}
 				<ul class="plan">

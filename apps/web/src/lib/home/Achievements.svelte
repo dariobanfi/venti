@@ -55,7 +55,7 @@
 		{:else}
 			<ul>
 				{#each shown.value as { title, flight } (flight.id)}
-					{@const triangle = shape(flight)}
+					{@const triangle = shape(flight, app.said?.routeKinds)}
 					<li class="card">
 						<span class="drawing"><TrackThumbnail outline={flight.outline} fill /></span>
 						<span class="words">

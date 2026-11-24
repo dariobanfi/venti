@@ -17,7 +17,7 @@ import type { AccountModel } from '#lib/account/model.svelte.ts';
 import {
 	type Coordinate,
 	type CoreClient,
-	isInWords,
+	inWordsOr,
 	type OpenPlanDraft,
 	type OpenPlans,
 	type OpenPlanView,
@@ -162,9 +162,8 @@ export class OpenPlansModel {
 
 /** Why something about open plans did not work, for the pilot. */
 export function words(error: unknown): string {
-	const said = error instanceof Error ? error.message : String(error);
 	// The core's refusals and a server out of reach are worded already.
-	return isInWords(error) ? said : `The open plans could not be reached. ${said}`;
+	return inWordsOr('The open plans could not be reached.', error);
 }
 
 /** Does something and, when it fails, throws why in words for the pilot. */

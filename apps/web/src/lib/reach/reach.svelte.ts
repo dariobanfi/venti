@@ -11,6 +11,7 @@
  * height as the ground, a start from a summit; the wind as none.
  */
 
+import { messageOf } from '#lib/core/index.ts';
 import type { Coordinate, GlideReach, GlideReachSetting } from '#lib/core/index.ts';
 import { keptSetting } from '#lib/route/weather.svelte.ts';
 
@@ -103,7 +104,7 @@ export class GlideReachModel {
 		} catch (error) {
 			if (mine !== this.#asked) return;
 			this.reach = undefined;
-			this.problem = error instanceof Error ? error.message : String(error);
+			this.problem = messageOf(error);
 		} finally {
 			if (mine === this.#asked) this.asking = false;
 		}

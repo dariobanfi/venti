@@ -1,6 +1,6 @@
 <!--
 	One plan for a flying day: everything it says, who is in, and the pilot's
-	own word on it, "I am in" or "I am out". Its author changes it; its author
+	own word on it, the core's "I'm in" or "I'm out". Its author changes it; its author
 	and the keeper of its group delete it. Which plan is in the address:
 	`?id=`. The iPhone app's `PlanScreen` is its twin.
 
@@ -9,6 +9,7 @@
 	there, and the screen says so.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import { browser } from '$app/env';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -56,7 +57,7 @@
 			await work();
 			if (thenLeave) await goto(communityHref());
 		} catch (error) {
-			problem = error instanceof Error ? error.message : String(error);
+			problem = messageOf(error);
 		} finally {
 			working = false;
 		}
@@ -164,7 +165,7 @@
 							disabled={working}
 							onclick={() => act(() => groups.setIn(plan, !plan.amIn))}
 						>
-							{plan.amIn ? 'I am out' : 'I am in'}
+							{plan.amIn ? app.said?.community.imOut : app.said?.community.imIn}
 							<Icon name={plan.amIn ? 'close' : 'check'} />
 						</button>
 					</div>

@@ -94,7 +94,7 @@
 			{app.said?.common.cancel}
 		</button>
 		<button class="button-prominent" type="submit" disabled={account.working || handle === ''}>
-			{account.working ? 'Working…' : words.createAccount}
+			{account.working ? app.said?.common.working : words.createAccount}
 		</button>
 	</div>
 </form>

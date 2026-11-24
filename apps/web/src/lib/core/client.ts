@@ -1009,6 +1009,11 @@ export class CoreClient {
 		return this.#call('screenWords', undefined);
 	}
 
+	/** What a list says when nothing in it matches the text searched for. */
+	nothingFound(searched: string) {
+		return this.#call('nothingFound', searched);
+	}
+
 	/** What a report can say, and what the pilot is told before sending one. */
 	reportForm(subject: ReportSubject) {
 		return this.#call('reportForm', subject);
@@ -1065,11 +1070,6 @@ export class CoreClient {
 	}
 
 	// Groups as communities with a chat (docs/api.md).
-
-	/** The words of the groups' screens. */
-	communityWords() {
-		return this.#call('communityWords', undefined);
-	}
 
 	/** The pilot's groups, each with its unread messages and its last message. */
 	communities() {

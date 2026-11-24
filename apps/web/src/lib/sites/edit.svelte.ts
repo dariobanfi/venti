@@ -11,6 +11,7 @@
  * of its own about who may do what.
  */
 
+import { messageOf } from '#lib/core/index.ts';
 import type {
 	Coordinate,
 	CoreClient,
@@ -33,11 +34,6 @@ import type {
 	SiteWords,
 	SiteWritten
 } from '#lib/core/index.ts';
-
-/** Why something about a site did not work, in the words it came with. */
-export function said(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
 
 export class SiteEditsModel {
 	/** The form in the core's words, once it was asked for. */
@@ -331,7 +327,7 @@ export class SiteDraft {
 			if (sent.changedMeanwhile && draft.siteId) await this.#rebase(draft.siteId, draft);
 			return undefined;
 		} catch (error) {
-			this.refusal = { words: said(error) };
+			this.refusal = { words: messageOf(error) };
 			return undefined;
 		} finally {
 			this.sending = false;

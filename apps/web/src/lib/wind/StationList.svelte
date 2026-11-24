@@ -7,6 +7,8 @@
 <script lang="ts">
 	import type { WindStation } from '#lib/core/index.ts';
 	import { compassPoint } from '#lib/design/format.ts';
+	import EmptyList from '#lib/design/EmptyList.svelte';
+	import NothingFound from '#lib/design/NothingFound.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import { spoken } from './mark';
 	import type { WindState } from './watch';
@@ -47,10 +49,10 @@
 
 <Sheet {open} title="Wind stations" {onclose}>
 	{#if wind.stations.length === 0}
-		<div class="nothing">
-			<h3>No stations here</h3>
-			<p>{wind.problem ?? 'Move the map to an area with wind stations.'}</p>
-		</div>
+		<EmptyList
+			title="No stations here"
+			line={wind.problem ?? 'Move the map to an area with wind stations.'}
+		/>
 	{:else}
 		<input
 			class="text-field"
@@ -61,10 +63,7 @@
 			bind:value={search}
 		/>
 		{#if shown.length === 0}
-			<div class="nothing">
-				<h3>No results for “{search.trim()}”</h3>
-				<p>Check the spelling or try a new search.</p>
-			</div>
+			<NothingFound searched={search} />
 		{:else}
 			<ul class="card" aria-label="Wind stations">
 				{#each shown as station (station.id)}
@@ -165,24 +164,6 @@
 		font-size: var(--body);
 		font-weight: 600;
 		color: var(--text);
-	}
-
-	.nothing {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 0.375rem;
-		padding: 3rem 1.5rem;
-		text-align: center;
-	}
-
-	.nothing h3 {
-		font-size: var(--title);
-		font-weight: 600;
-	}
-
-	.nothing p {
-		color: var(--text-secondary);
 	}
 
 	.footnote {

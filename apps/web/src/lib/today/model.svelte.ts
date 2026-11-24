@@ -20,7 +20,7 @@ import type {
 	TodayOrder,
 	TodayTakeoff
 } from '#lib/core/index.ts';
-import { isInWords } from '#lib/core/index.ts';
+import { inWordsOr, messageOf } from '#lib/core/index.ts';
 import { standings } from './order.ts';
 
 /** The middle of the first region, around the Tegernsee and the Brauneck. */
@@ -152,7 +152,7 @@ export class TodayModel {
 			this.foehn = {
 				phase: 'failed',
 				view: undefined,
-				problem: error instanceof Error ? error.message : String(error)
+				problem: messageOf(error)
 			};
 		}
 	}
@@ -231,6 +231,5 @@ export class TodayModel {
 }
 
 function words(error: unknown): string {
-	const said = error instanceof Error ? error.message : String(error);
-	return isInWords(error) ? said : `The forecast could not be read. ${said}`;
+	return inWordsOr('The forecast could not be read.', error);
 }

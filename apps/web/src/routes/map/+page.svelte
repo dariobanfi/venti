@@ -13,17 +13,18 @@
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { CablesModel } from '#lib/cables/model.svelte.ts';
 	import { accountHref, mapAroundIn, placeHref } from '#lib/app/routes.ts';
-	import type {
-		Bounds,
-		CandidateOffer,
-		MapLayersWords,
-		Coordinate,
-		Credit,
-		SiteCandidateView,
-		SiteOutlook,
-		SiteView,
-		SiteWritten,
-		WindStation
+	import {
+		type Bounds,
+		type CandidateOffer,
+		type Coordinate,
+		type Credit,
+		type MapLayersWords,
+		messageOf,
+		type SiteCandidateView,
+		type SiteOutlook,
+		type SiteView,
+		type SiteWritten,
+		type WindStation
 	} from '#lib/core/index.ts';
 	import ChipTick from '#lib/design/ChipTick.svelte';
 	import { format } from '#lib/design/format.ts';
@@ -96,7 +97,7 @@
 	import { RouteWeatherModel } from '#lib/route/weather.svelte.ts';
 	import GlideReachCard from '#lib/reach/GlideReachCard.svelte';
 	import { GlideReachModel } from '#lib/reach/reach.svelte.ts';
-	import { said as whyNot, type SiteDraft } from '#lib/sites/edit.svelte.ts';
+	import type { SiteDraft } from '#lib/sites/edit.svelte.ts';
 	import { measuredNow } from '#lib/sites/filter.ts';
 	import { countIn, flownFrom } from '#lib/sites/mark.ts';
 	import SiteEditForm from '#lib/sites/SiteEditForm.svelte';
@@ -1041,7 +1042,7 @@
 		try {
 			editing = await edits.draftAt(place);
 		} catch (error) {
-			app.notice = { title: adding.title, lines: [whyNot(error)] };
+			app.notice = { title: adding.title, lines: [messageOf(error)] };
 		}
 	}
 
@@ -1081,7 +1082,7 @@
 			else editing = await edits.draftAt(place);
 			placing = false;
 		} catch (error) {
-			placingProblem = whyNot(error);
+			placingProblem = messageOf(error);
 		}
 	}
 
@@ -1101,7 +1102,7 @@
 			closeOthers();
 			editing = draft;
 		} catch (error) {
-			app.notice = { title: siteForm?.titleCorrect ?? '', lines: [whyNot(error)] };
+			app.notice = { title: siteForm?.titleCorrect ?? '', lines: [messageOf(error)] };
 		}
 	}
 
@@ -1164,7 +1165,7 @@
 			editing = undefined;
 			showWritten(page.site);
 		} catch (error) {
-			app.notice = { title: 'Flying site', lines: [whyNot(error)] };
+			app.notice = { title: 'Flying site', lines: [messageOf(error)] };
 		}
 	}
 
@@ -1181,7 +1182,7 @@
 			// Its history stays, and is where it can be brought back.
 			historyOf = { id, said: words };
 		} catch (error) {
-			removeRefusal = whyNot(error);
+			removeRefusal = messageOf(error);
 		} finally {
 			removingNow = false;
 		}
@@ -1617,7 +1618,7 @@
 		{#if (planner.open || reach.place || (sites && filtering) || sitesFiltered) && wide.current}
 			<div class="panes">
 				{#if reach.place}
-					<aside class="forecast-pane" aria-label="What a glide reaches">
+					<aside class="forecast-pane" aria-label={app.said?.glideReachCard.title}>
 						<GlideReachCard {reach} />
 					</aside>
 				{/if}
@@ -1795,7 +1796,7 @@
 				{/if}
 				<div class="group-card here">
 					<button class="group-row" type="button" onclick={() => reachFrom(place)}>
-						What a glide reaches from here
+						{app.said?.glideReachCard.entry}
 					</button>
 					{#if adding}
 						<!-- The core's entry for the tier this pilot adds to; for

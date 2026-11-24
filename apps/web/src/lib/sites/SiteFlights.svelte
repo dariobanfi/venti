@@ -19,9 +19,8 @@
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { publicFlightHref } from '#lib/app/routes.ts';
-	import type { SiteFlights } from '#lib/core/index.ts';
+	import { messageOf, type SiteFlights } from '#lib/core/index.ts';
 	import MonthBars from '#lib/design/MonthBars.svelte';
-	import { said } from './edit.svelte';
 
 	const app = getApp();
 
@@ -52,7 +51,7 @@
 				if (current) flights = answer;
 			},
 			(error) => {
-				if (current) problem = said(error);
+				if (current) problem = messageOf(error);
 			}
 		);
 		return () => {

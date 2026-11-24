@@ -1,7 +1,7 @@
 <!--
 	One plan as a card of Community: its day and time at the top, the place
 	with the pack's site sign, its group, the faces of who is in, and the
-	pilot's own word on it, "I am in", a button that stays pressed while
+	pilot's own word on it, the core's "I'm in", a button that stays pressed while
 	the pilot is in. The place leads to the plan's page, where everything
 	else is. Who is in is the core's sentence, under the faces.
 
@@ -10,6 +10,8 @@
 	What another pilot wrote, a place or a group's name, is set as text.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { planHref } from '#lib/app/routes.ts';
 	import type { PlanView } from '#lib/core/index.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -29,6 +31,8 @@
 
 	let { plan, day, groups, myName, onchanged }: Props = $props();
 
+	const app = getApp();
+
 	const shown = $derived(facesOf(plan.pilotsIn, plan.amIn, myName));
 	let busy = $state(false);
 	/** Why the pilot's word did not go through, in words. */
@@ -41,7 +45,7 @@
 			await groups.setIn(plan, !plan.amIn);
 			onchanged?.();
 		} catch (error) {
-			problem = error instanceof Error ? error.message : String(error);
+			problem = messageOf(error);
 		} finally {
 			busy = false;
 		}
@@ -87,7 +91,7 @@
 		onclick={toggle}
 	>
 		{#if plan.amIn}<Icon name="check" />{/if}
-		<span>I am in</span>
+		<span>{app.said?.community.imIn}</span>
 	</button>
 	{#if problem}
 		<p class="problem" role="alert">{problem}</p>
@@ -227,7 +231,7 @@
 		overflow-wrap: anywhere;
 	}
 
-	/* "I am in": an outline pill, filled while the pilot is in. */
+	/* "I'm in": an outline pill, filled while the pilot is in. */
 	.in {
 		position: relative;
 		z-index: 1;

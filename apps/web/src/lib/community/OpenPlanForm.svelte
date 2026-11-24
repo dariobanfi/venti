@@ -11,6 +11,7 @@
 	changes the plan.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import { untrack } from 'svelte';
 	import type { Coordinate, OpenPlanDraft, OpenPlanView, TodayTakeoff } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
@@ -126,7 +127,7 @@
 			onclose();
 			onsaved?.(saved);
 		} catch (error) {
-			problem = error instanceof Error ? error.message : String(error);
+			problem = messageOf(error);
 		} finally {
 			saving = false;
 		}

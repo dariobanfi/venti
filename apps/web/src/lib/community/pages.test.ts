@@ -13,7 +13,7 @@ import {
 	withDay,
 	words
 } from './pages';
-import { detail, distance, nothingListed, shape } from './words';
+import { detail, distance, kindOf, nothingListed, shape } from './words';
 
 /** A public flight; `given` replaces what a test cares about. */
 function flight(given: Partial<PublicFlight> = {}): PublicFlight {
@@ -267,10 +267,12 @@ describe('a row of the list', () => {
 	it('marks a triangle, and says which kind', () => {
 		const scored = (kind: 'freeFlight' | 'freeTriangle' | 'faiTriangle') =>
 			flight({ score: { kind, closed: true, distanceM: 30_000, points: 42 } });
-		expect(shape(scored('freeFlight'))).toBeUndefined();
-		expect(shape(scored('freeTriangle'))).toBe('Triangle');
-		expect(shape(scored('faiTriangle'))).toBe('FAI triangle');
-		expect(shape(flight({ score: undefined }))).toBeUndefined();
+		const kinds = { freeFlight: 'Free', freeTriangle: 'Flat', faiTriangle: 'FAI' };
+		expect(shape(scored('freeFlight'), kinds)).toBeUndefined();
+		expect(shape(scored('freeTriangle'), kinds)).toBe('Flat');
+		expect(shape(scored('faiTriangle'), kinds)).toBe('FAI');
+		expect(shape(flight({ score: undefined }), kinds)).toBeUndefined();
+		expect(kindOf(scored('freeFlight'), kinds)).toBe('Free');
 	});
 
 	it('says why a list is empty', () => {

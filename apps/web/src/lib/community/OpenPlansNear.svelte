@@ -60,7 +60,7 @@
 {:else if model.problem}
 	<p class="quiet" role="alert">{model.problem}</p>
 	<button class="button-plain again" type="button" onclick={() => model.load()}>
-		{app.said?.common.tryAgain ?? 'Try again'}
+		{app.said?.common.tryAgain}
 	</button>
 {:else}
 	<p class="quiet" role="status">Loading…</p>

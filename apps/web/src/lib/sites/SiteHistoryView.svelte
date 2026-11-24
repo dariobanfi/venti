@@ -17,9 +17,14 @@
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import type { SiteHistory, SiteHistoryOffers, SiteWritten } from '#lib/core/index.ts';
+	import {
+		messageOf,
+		type SiteHistory,
+		type SiteHistoryOffers,
+		type SiteWritten
+	} from '#lib/core/index.ts';
 	import PromptDialog from '#lib/design/PromptDialog.svelte';
-	import { said, type SiteEditsModel } from './edit.svelte';
+	import type { SiteEditsModel } from './edit.svelte';
 
 	const app = getApp();
 
@@ -52,7 +57,7 @@
 				if (mine === asked) phase = { is: 'ready', history };
 			},
 			(error) => {
-				if (mine === asked) phase = { is: 'failed', why: said(error) };
+				if (mine === asked) phase = { is: 'failed', why: messageOf(error) };
 			}
 		);
 	}
@@ -111,7 +116,7 @@
 			onwritten(written);
 			load(id);
 		} catch (error) {
-			refusal = said(error);
+			refusal = messageOf(error);
 		} finally {
 			working = false;
 		}

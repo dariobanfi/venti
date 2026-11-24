@@ -92,7 +92,7 @@
 			<span class="symbol"><Icon name="person" /></span>
 			<h2>Sign in to see your flights</h2>
 			<div class="actions">
-				<a class="button-prominent" href={accountHref()}>Sign in</a>
+				<a class="button-prominent" href={accountHref()}>{app.said?.common.signIn}</a>
 			</div>
 		</div>
 	{:else if flights.phase.is === 'failed'}
@@ -102,7 +102,7 @@
 			<p>{flights.phase.message}</p>
 			<div class="actions">
 				<button class="button-plain" type="button" onclick={() => flights.reload()}>
-					{app.said?.common.tryAgain ?? 'Try again'}
+					{app.said?.common.tryAgain}
 				</button>
 			</div>
 		</div>

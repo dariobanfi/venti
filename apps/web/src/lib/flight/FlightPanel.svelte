@@ -8,6 +8,7 @@
 	to the totals.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import PilotFace from '#lib/community/PilotFace.svelte';
 	import type { FlightScore, FlightView, GroundUnderFlight } from '#lib/core/index.ts';
 	import { flightFormat } from '#lib/design/format.ts';
@@ -60,16 +61,14 @@
 		chart = true
 	}: Props = $props();
 
+	const app = getApp();
+
 	/** What kind of flight it was, by its score, and the day: "FAI triangle, Sat, 4 Jul 2026". */
 	const kindAndDay = $derived.by(() => {
 		const day = text.date(flight.startUnixS);
 		if (!score) return day;
-		const kind = {
-			freeFlight: 'Free flight',
-			freeTriangle: score.closed ? 'Closed triangle' : 'Triangle',
-			faiTriangle: score.closed ? 'Closed FAI triangle' : 'FAI triangle'
-		}[score.kind];
-		return `${kind} · ${day}`;
+		const kind = app.said?.scoreKinds[score.kind];
+		return `${score.closed ? kind?.closed : kind?.open} · ${day}`;
 	});
 
 	/** The replay's speeds in words. */

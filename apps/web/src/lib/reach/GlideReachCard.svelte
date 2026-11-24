@@ -6,7 +6,8 @@
 	the core again; the core's note of what it does not know at the foot,
 	and "Clear", which takes the area off the map. A card at the map's side
 	on a wide screen, over the map's foot on a narrow one, as the route
-	planner's. Every sentence about the glide is the core's.
+	planner's. Every word of the card and every sentence about the glide
+	is the core's (`glideReachCardWords`); the units are the card's.
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
@@ -20,6 +21,8 @@
 	}
 
 	let { reach }: Props = $props();
+
+	const said = $derived(app.said?.glideReachCard);
 
 	const answer = $derived(reach.reach);
 	/** The start height shown: the one set, or the ground's, to the step. */
@@ -41,7 +44,7 @@
 
 <section class="reach" aria-labelledby="reach-title">
 	<header>
-		<h2 id="reach-title">What a glide reaches</h2>
+		<h2 id="reach-title">{said?.title}</h2>
 		<button
 			type="button"
 			aria-label={app.said?.common.close}
@@ -57,12 +60,12 @@
 	{:else if answer}
 		<p class="words" role="status" data-reach-words>{answer.words}</p>
 	{:else if reach.asking}
-		<p class="lesser" role="status">Loading…</p>
+		<p class="lesser" role="status">{said?.working}</p>
 	{/if}
 
 	<div class="settings">
 		<label class="setting">
-			<span>Glide</span>
+			<span>{said?.glide}</span>
 			<input
 				type="number"
 				inputmode="decimal"
@@ -74,7 +77,7 @@
 			/>
 		</label>
 		<div class="setting">
-			<label for="reach-start">Start, m</label>
+			<label for="reach-start">{said?.start}, m</label>
 			<span class="row">
 				<input
 					id="reach-start"
@@ -95,13 +98,13 @@
 							void reach.show();
 						}}
 					>
-						On the ground
+						{said?.onTheGround}
 					</button>
 				{/if}
 			</span>
 		</div>
 		<label class="setting toggle">
-			<span>Wind</span>
+			<span>{said?.wind}</span>
 			<input
 				type="checkbox"
 				checked={reach.windOn}
@@ -113,7 +116,7 @@
 		</label>
 		{#if reach.windOn}
 			<label class="setting">
-				<span>From, °</span>
+				<span>{said?.windFrom}, °</span>
 				<input
 					type="number"
 					inputmode="numeric"
@@ -125,7 +128,7 @@
 				/>
 			</label>
 			<label class="setting">
-				<span>Speed, km/h</span>
+				<span>{said?.windSpeed}, km/h</span>
 				<input
 					type="number"
 					inputmode="numeric"
@@ -146,7 +149,7 @@
 	<div class="acts">
 		<button class="button-plain clear" type="button" onclick={() => reach.clear()}>
 			<Icon name="trash" />
-			Clear
+			{said?.clear}
 		</button>
 	</div>
 </section>

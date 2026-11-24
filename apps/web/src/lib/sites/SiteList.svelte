@@ -13,7 +13,9 @@
 <script lang="ts">
 	import type { SiteView } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
+	import EmptyList from '#lib/design/EmptyList.svelte';
 	import Icon from '#lib/design/Icon.svelte';
+	import NothingFound from '#lib/design/NothingFound.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import { listed } from './mark';
 	import type { SitesModel } from './model.svelte';
@@ -100,10 +102,7 @@
 
 <Sheet {open} title="Flying sites" {onclose}>
 	{#if sites.sites.length === 0}
-		<div class="nothing">
-			<h3>No flying sites here</h3>
-			<p>{nothingListed(sites)}</p>
-		</div>
+		<EmptyList title="No flying sites here" line={nothingListed(sites)} />
 		<!-- The filter is in reach here too: its switches decide what the map asks for. -->
 		{#if model && left}
 			{@render filterRow(model, left)}
@@ -121,10 +120,7 @@
 			{@render filterRow(model, left)}
 		{/if}
 		{#if shown.length === 0 && apart.length === 0 && search.trim() !== ''}
-			<div class="nothing">
-				<h3>No results for “{search.trim()}”</h3>
-				<p>Check the spelling or try a new search.</p>
-			</div>
+			<NothingFound searched={search} />
 		{:else}
 			{#if shown.length > 0}
 				<ul class="card" aria-label="Flying sites">
@@ -267,24 +263,6 @@
 
 	.lesser {
 		font-size: var(--footnote);
-		color: var(--text-secondary);
-	}
-
-	.nothing {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 0.375rem;
-		padding: 3rem 1.5rem;
-		text-align: center;
-	}
-
-	.nothing h3 {
-		font-size: var(--title);
-		font-weight: 600;
-	}
-
-	.nothing p {
 		color: var(--text-secondary);
 	}
 

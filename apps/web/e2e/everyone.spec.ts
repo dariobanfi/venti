@@ -174,7 +174,6 @@ test('another pilot’s flight opens like one’s own, from its file, and is kep
 	page,
 	mapDrawn,
 	keep,
-	wide,
 	problems
 }) => {
 	await page.goto('/flights/');

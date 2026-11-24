@@ -12,7 +12,7 @@ import { IdbStore } from './idb-store';
 import { type ServerRequest, sitesMap } from './pkg/venti_core_wasm.js';
 import { UNREACHABLE, unreachable as unreachableError } from './protocol';
 import { CoreSession } from './session';
-import { sampleFlight, sampleFlightOn, startCore } from './testing';
+import { sampleFlight, startCore } from './testing';
 
 beforeAll(startCore);
 
@@ -33,9 +33,6 @@ const SERVER = 'https://venti.example';
 
 /** 18 November 2026, 19:05 UTC, in milliseconds. */
 const NOW = 1_795_028_700_000;
-
-/** The sample flight as the server's list of changes describes it. */
-const SAMPLE_THERE = JSON.parse(text(recorded('flight_changes.json'))).flights[1];
 
 /** A list of changes with nothing after it. */
 function changes(given: { flights?: unknown[]; deleted?: unknown[] } = {}): ServerAnswer {

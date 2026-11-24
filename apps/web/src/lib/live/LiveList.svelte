@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
 	import type { LiveGlider } from '#lib/core/index.ts';
+	import EmptyList from '#lib/design/EmptyList.svelte';
 	import { format } from '#lib/design/format.ts';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import GliderGlyph from './GliderGlyph.svelte';
@@ -35,10 +36,7 @@
 
 <Sheet {open} title="In the air" {onclose}>
 	{#if shown.length === 0}
-		<div class="nothing">
-			<h3>{nobody.title}</h3>
-			<p>{nobody.says}</p>
-		</div>
+		<EmptyList title={nobody.title} line={nobody.says} />
 	{:else}
 		<ul class="card" aria-label="In the air">
 			{#each shown as glider (glider.id)}
@@ -113,24 +111,6 @@
 
 	.lesser {
 		font-size: var(--footnote);
-		color: var(--text-secondary);
-	}
-
-	.nothing {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 0.375rem;
-		padding: 3rem 1.5rem;
-		text-align: center;
-	}
-
-	.nothing h3 {
-		font-size: var(--title);
-		font-weight: 600;
-	}
-
-	.nothing p {
 		color: var(--text-secondary);
 	}
 

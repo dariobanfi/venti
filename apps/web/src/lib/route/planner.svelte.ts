@@ -5,6 +5,7 @@
  * that has changed since is dropped.
  */
 
+import { messageOf } from '#lib/core/index.ts';
 import type { Coordinate, RoutePlan } from '#lib/core/index.ts';
 import { type KeptRoute, keepRoute, keptRoute, type RoutePlace } from './kept';
 
@@ -154,7 +155,7 @@ export class RoutePlanner {
 			this.problem = undefined;
 		} catch (error) {
 			if (mine !== this.#asked) return;
-			this.problem = error instanceof Error ? error.message : String(error);
+			this.problem = messageOf(error);
 		}
 	}
 }

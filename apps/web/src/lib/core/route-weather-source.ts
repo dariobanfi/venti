@@ -22,7 +22,7 @@ import {
 	routeWeatherPath,
 	Terrain
 } from './pkg/venti_core_wasm.js';
-import { unreachable } from './protocol';
+import { messageOf, unreachable } from './protocol';
 import { fetchTiles, type GetTile, getTile } from './terrain-source';
 import { type Get, getFromThisOrigin } from './wind-source';
 
@@ -104,7 +104,7 @@ export class RouteWeatherSource {
 			try {
 				forecast = await this.#forecastFor(setting.places, date);
 			} catch (error) {
-				problem = error instanceof Error ? error.message : String(error);
+				problem = messageOf(error);
 			}
 		}
 		// An answer for a route asked about since: the page drops it, and

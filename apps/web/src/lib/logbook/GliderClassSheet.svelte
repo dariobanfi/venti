@@ -25,7 +25,7 @@
 	const app = getApp();
 	const id = $props.id();
 	const classes = $derived(app.said?.gliderClasses ?? []);
-	const title = $derived(app.said?.glider.classTitle ?? 'Glider class');
+	const title = $derived(app.said?.glider.classTitle ?? '');
 
 	let working = $state(false);
 	/** Why the class was not set, in words. */

@@ -9,9 +9,10 @@
 	public group is read by every pilot signed in and joined with one
 	button; a private one answers "not found" to all but its members and
 	invited pilots. "New plan" posts a plan into the group, where it shows
-	as a post with "I am in".
+	as a post with "I'm in".
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import { untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { getApp } from '#lib/app/app.svelte.ts';
@@ -35,7 +36,7 @@
 	const signedIn = $derived(app.account?.signedIn ?? false);
 	const myName = $derived(app.account?.account?.displayName);
 	const groupId = $derived(decodeURIComponent(page.params.id ?? ''));
-	const said = $derived(communities?.words);
+	const said = $derived(app.said?.community);
 
 	let detail = $state.raw<CommunityDetail>();
 	let problem = $state<string>();
@@ -50,7 +51,7 @@
 			detail = found;
 			problem = undefined;
 		} catch (error) {
-			if (asking === asked) problem = error instanceof Error ? error.message : String(error);
+			if (asking === asked) problem = messageOf(error);
 		}
 	}
 
@@ -88,7 +89,7 @@
 			await communities.join(groupId);
 			await load();
 		} catch (error) {
-			problem = error instanceof Error ? error.message : String(error);
+			problem = messageOf(error);
 		} finally {
 			joining = false;
 		}
@@ -168,7 +169,7 @@
 			files = [];
 			atBottom = true;
 		} catch (error) {
-			sendProblem = error instanceof Error ? error.message : String(error);
+			sendProblem = messageOf(error);
 		} finally {
 			sending = false;
 		}
@@ -190,7 +191,7 @@
 		try {
 			await chat?.remove(message);
 		} catch (error) {
-			sendProblem = error instanceof Error ? error.message : String(error);
+			sendProblem = messageOf(error);
 		}
 	}
 
@@ -229,8 +230,8 @@
 		<p class="quiet" role="status">Opening…</p>
 	{:else if !signedIn}
 		<div class="group-card words">
-			<p>Groups are shared on Venti with an account. Sign in under Settings, Account.</p>
-			<a class="button-plain" href={accountHref()}>Sign in</a>
+			<p>{said?.signedOut}</p>
+			<a class="button-plain" href={accountHref()}>{app.said?.common.signIn}</a>
 		</div>
 	{:else if !detail}
 		{#if problem}
@@ -255,7 +256,7 @@
 				<div class="actions">
 					{#if detail.canJoin}
 						<button class="button-prominent" type="button" disabled={joining} onclick={join}>
-							{said?.join ?? 'Join'}
+							{said?.join}
 						</button>
 					{/if}
 					{#if detail.canPost}
@@ -305,7 +306,7 @@
 						{#if !chat.loaded}
 							<p class="quiet" role="status">{chat.problem ?? 'Loading…'}</p>
 						{:else if chat.messages.length === 0}
-							<p class="quiet empty">{said?.emptyChat ?? 'No messages yet.'}</p>
+							<p class="quiet empty">{said?.emptyChat}</p>
 						{:else}
 							<ul class="messages" aria-label="Messages">
 								{#each chat.messages as message (message.id)}
@@ -314,7 +315,6 @@
 										canModerate={detail.canModerate}
 										groups={app.groups}
 										{myName}
-										imInWord={said?.imIn}
 										onremove={() => (removing = message)}
 										onreport={(picture) => report(message, picture)}
 										onchanged={() => chat?.refresh()}
@@ -359,8 +359,8 @@
 								</label>
 								<textarea
 									rows="1"
-									aria-label={said?.messagePlaceholder ?? 'Message'}
-									placeholder={said?.messagePlaceholder ?? 'Message'}
+									aria-label={said?.messagePlaceholder}
+									placeholder={said?.messagePlaceholder}
 									bind:value={draft}
 									onkeydown={keydown}
 									oninput={() => (sendProblem = undefined)}></textarea>
@@ -369,7 +369,7 @@
 									type="submit"
 									disabled={sending || (draft.trim() === '' && files.length === 0)}
 								>
-									{said?.send ?? 'Send'}
+									{said?.send}
 								</button>
 							</div>
 							{#if sendProblem}

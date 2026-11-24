@@ -10,6 +10,7 @@
 	unread badge. What another pilot wrote is set as text.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import { groupHref } from '#lib/app/routes.ts';
 	import PilotFace from '#lib/community/PilotFace.svelte';
 	import type { CommunityView } from '#lib/core/index.ts';
@@ -36,7 +37,7 @@
 		try {
 			await onjoin();
 		} catch (error) {
-			problem = error instanceof Error ? error.message : String(error);
+			problem = messageOf(error);
 		} finally {
 			joining = false;
 		}

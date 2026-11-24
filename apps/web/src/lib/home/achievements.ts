@@ -6,7 +6,7 @@
  */
 
 import type { PublicFlight } from '#lib/core/index.ts';
-import { shape } from '#lib/community/words.ts';
+import { isTriangle } from '#lib/community/words.ts';
 
 /** How far back "the last days" reach. */
 export const RECENT_DAYS = 14;
@@ -48,7 +48,7 @@ export function achievements(
 		undefined
 	);
 	add(of('Longest flight'), longest);
-	add(of('Best triangle'), unshown(seasonBest.filter((flight) => shape(flight))));
+	add(of('Best triangle'), unshown(seasonBest.filter(isTriangle)));
 	const recent = unshown(recentBest);
 	if (recent) add(`Best of the last ${RECENT_DAYS} days`, recent);
 	else add('Newest flight', unshown(newest));

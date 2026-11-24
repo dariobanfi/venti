@@ -89,7 +89,7 @@
 		onclick={() => (open = !open)}
 	>
 		<Icon name="filter" />
-		{app.said?.pages.filter ?? 'Filter'}
+		{app.said?.pages.filter}
 	</button>
 	{@render chips?.()}
 	{#each shown as chip (chip.part)}

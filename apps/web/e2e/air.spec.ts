@@ -24,7 +24,6 @@ test('the flight flies over the terrain in 3D, with its thermals, and the camera
 	page,
 	mapDrawn,
 	keep,
-	wide,
 	problems
 }) => {
 	await addSampleFlight(page);

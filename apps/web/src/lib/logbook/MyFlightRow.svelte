@@ -29,9 +29,10 @@
 	const row = $derived(flight.row);
 	// The clock and the date of the place it was flown.
 	const text = $derived(flightFormat(row));
-	const triangle = $derived(shape(row));
+	const app = getApp();
+	const triangle = $derived(shape(row, app.said?.routeKinds));
 	/** The class of its glider, in the core's name ("EN B"). */
-	const gliderClass = $derived(className(row.gliderClass, getApp().said?.gliderClasses));
+	const gliderClass = $derived(className(row.gliderClass, app.said?.gliderClasses));
 	const where = $derived(
 		row.takeoffName ?? (row.takeoff ? text.place(row.takeoff.lat, row.takeoff.lon) : undefined)
 	);

@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
 	import {
-		isInWords,
+		inWordsOr,
 		type StationAir,
 		type StationDay,
 		type StationDays,
@@ -53,10 +53,9 @@
 			},
 			(error) => {
 				if (mine !== asked) return;
-				const said = error instanceof Error ? error.message : String(error);
 				phase = {
 					is: 'failed',
-					why: isInWords(error) ? said : `The history could not be loaded. ${said}`
+					why: inWordsOr('The history could not be loaded.', error)
 				};
 			}
 		);
@@ -105,10 +104,9 @@
 			},
 			(error) => {
 				if (mine !== dayAsked) return;
-				const said = error instanceof Error ? error.message : String(error);
 				dayPhase = {
 					is: 'failed',
-					why: isInWords(error) ? said : `The day could not be loaded. ${said}`
+					why: inWordsOr('The day could not be loaded.', error)
 				};
 			}
 		);

@@ -17,7 +17,6 @@ import {
 	type GliderClassKind,
 	type GoogleSignUp,
 	type GoogleWords,
-	isInWords,
 	type NewAccount,
 	type NewGoogleAccount,
 	type ProgramView,
@@ -269,7 +268,7 @@ export class AccountModel {
 			this.allFlights = await this.#core.setAllFlights(visibility);
 			return undefined;
 		} catch (error) {
-			return words(error);
+			return reasonFor(error);
 		} finally {
 			this.working = false;
 		}
@@ -289,7 +288,7 @@ export class AccountModel {
 				this.account = (await ask()) ?? this.account;
 				return undefined;
 			} catch (error) {
-				return words(error);
+				return reasonFor(error);
 			} finally {
 				this.changing -= 1;
 			}
@@ -312,7 +311,7 @@ export class AccountModel {
 			await this.#runSync();
 			return undefined;
 		} catch (error) {
-			return words(error);
+			return reasonFor(error);
 		} finally {
 			this.working = false;
 		}
@@ -342,7 +341,7 @@ export class AccountModel {
 		try {
 			return await this.#core.report(subject, reason, text);
 		} catch (error) {
-			throw new Error(words(error));
+			throw new Error(reasonFor(error));
 		}
 	}
 
@@ -365,7 +364,7 @@ export class AccountModel {
 			await this.#core.signOut();
 			this.#forget();
 		} catch (error) {
-			this.problem = words(error);
+			this.problem = reasonFor(error);
 		} finally {
 			this.working = false;
 		}
@@ -383,7 +382,7 @@ export class AccountModel {
 			this.#forget();
 			return undefined;
 		} catch (error) {
-			return words(error);
+			return reasonFor(error);
 		} finally {
 			this.working = false;
 		}
@@ -398,7 +397,7 @@ export class AccountModel {
 			this.#forget();
 			return undefined;
 		} catch (error) {
-			return words(error);
+			return reasonFor(error);
 		} finally {
 			this.working = false;
 		}
@@ -515,13 +514,6 @@ async function inWords<T>(asked: Promise<T>): Promise<T> {
 	try {
 		return await asked;
 	} catch (error) {
-		throw new Error(words(error), { cause: error });
+		throw new Error(reasonFor(error), { cause: error });
 	}
-}
-
-/** Why something about the account did not work, for the pilot. */
-function words(error: unknown): string {
-	// The core's refusals and a server out of reach are worded already.
-	if (isInWords(error)) return (error as Error).message;
-	return reasonFor(error);
 }

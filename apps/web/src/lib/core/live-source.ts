@@ -35,7 +35,7 @@ import {
 	type LiveOthersNetwork,
 	liveOthersPath
 } from './pkg/venti_core_wasm.js';
-import { unreachable } from './protocol';
+import { messageOf, unreachable } from './protocol';
 
 /** What a request brought back, with the validator the server gave the answer. */
 export interface LiveFetched {
@@ -267,7 +267,7 @@ export class LiveSource {
 			return answer;
 		} catch (error) {
 			if (!follow.isOver()) throw error;
-			return { gone: error instanceof Error ? error.message : String(error) };
+			return { gone: messageOf(error) };
 		}
 	}
 

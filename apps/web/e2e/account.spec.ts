@@ -378,7 +378,7 @@ test('the pilot’s country and glider class are the account’s, and shown with
 	keep,
 	problems
 }) => {
-	const handle = await signUp(page);
+	await signUp(page);
 	await page.goto('/settings/account/');
 	const profile = page.getByRole('region', { name: 'Shown with your flights' });
 	const country = profile.getByRole('combobox', { name: 'Country' });

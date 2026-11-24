@@ -6,6 +6,7 @@
 	The whole card opens the flight; the pilot's name opens their page.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { pilotHref, publicFlightHref } from '#lib/app/routes.ts';
 	import Flag from '#lib/community/Flag.svelte';
 	import PilotFace from '#lib/community/PilotFace.svelte';
@@ -17,10 +18,12 @@
 
 	let { row }: { row: FeedRow } = $props();
 
+	const app = getApp();
+
 	// The clock and the date of the place it was flown.
 	const text = $derived(flightFormat(row.flight));
 	const flight = $derived(row.flight);
-	const triangle = $derived(shape(flight));
+	const triangle = $derived(shape(flight, app.said?.routeKinds));
 	const where = $derived(
 		flight.takeoffName ??
 			(flight.takeoff ? text.place(flight.takeoff.lat, flight.takeoff.lon) : undefined)

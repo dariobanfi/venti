@@ -7,6 +7,7 @@
 	(`followList`, `followAnswer`).
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import FaceStack from '#lib/community/FaceStack.svelte';
 	import type { FollowList } from '#lib/core/index.ts';
@@ -70,7 +71,7 @@
 			// The feed is of other pilots now.
 			social.againFeed();
 		} catch (error) {
-			problem = error instanceof Error ? error.message : String(error);
+			problem = messageOf(error);
 		} finally {
 			working = false;
 		}

@@ -5,9 +5,11 @@
 	what their season adds up to, each to the pilot's page. Every word of a
 	card is the core's (`pilotsNear`), and the empty list says the core's
 	sentence. Which place is Community's (`near-place.svelte.ts`), the same
-	as the open plans near.
+	as the open plans near; where it is the browser's position, the core's
+	words say "around you" after a " · ", as on the phones.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { pilotHref } from '#lib/app/routes.ts';
 	import type { Coordinate, PilotsNear } from '#lib/core/index.ts';
@@ -18,9 +20,11 @@
 		labelledby: string;
 		/** Where the list is for. */
 		place: Coordinate;
+		/** Whether the place is the browser's position. */
+		aroundYou?: boolean;
 	}
 
-	let { labelledby, place }: Props = $props();
+	let { labelledby, place, aroundYou = false }: Props = $props();
 
 	const app = getApp();
 	const everyone = $derived(app.everyone);
@@ -42,7 +46,7 @@
 				if (current) near = answer;
 			},
 			(error) => {
-				if (current) problem = error instanceof Error ? error.message : String(error);
+				if (current) problem = messageOf(error);
 			}
 		);
 		return () => {
@@ -52,7 +56,9 @@
 </script>
 
 {#if near}
-	<p class="said">{near.words}</p>
+	<p class="said">
+		{aroundYou ? `${near.words} · ${app.said?.picture.nearAroundYou}` : near.words}
+	</p>
 	{#if near.pilots.length === 0}
 		<p class="quiet">{near.empty}</p>
 	{:else}
@@ -87,7 +93,7 @@
 {:else if problem}
 	<p class="quiet" role="alert">{problem}</p>
 	<button class="button-plain again" type="button" onclick={() => (again += 1)}>
-		{app.said?.common.tryAgain ?? 'Try again'}
+		{app.said?.common.tryAgain}
 	</button>
 {:else if everyone}
 	<p class="quiet" role="status">Loading…</p>

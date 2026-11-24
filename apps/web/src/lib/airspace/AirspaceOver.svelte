@@ -10,7 +10,7 @@
 		type AirspaceOverPlace,
 		type AirspacePolicy,
 		type Coordinate,
-		isInWords
+		inWordsOr
 	} from '#lib/core/index.ts';
 	import Segmented from '#lib/design/Segmented.svelte';
 	import StatusChip from '#lib/today/StatusChip.svelte';
@@ -40,10 +40,9 @@
 			},
 			(error) => {
 				if (mine !== asked) return;
-				const said = error instanceof Error ? error.message : String(error);
 				phase = {
 					is: 'failed',
-					why: isInWords(error) ? said : `The airspace could not be read. ${said}`
+					why: inWordsOr('The airspace could not be read.', error)
 				};
 			}
 		);

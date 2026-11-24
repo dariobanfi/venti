@@ -71,7 +71,7 @@ import {
 	SEARCH_PARTS,
 	type SearchPart
 } from '#lib/community/flight-search.ts';
-import { unreachable } from './protocol';
+import { messageOf, unreachable } from './protocol';
 import type { Get } from './wind-source';
 
 /** How long a request may take before the server counts as out of reach, in milliseconds. */
@@ -147,7 +147,7 @@ export function searchRefused(search: FlightSearch): string | undefined {
 		publicFlightsSearchPath('newest', undefined, undefined, undefined, search);
 		return undefined;
 	} catch (error) {
-		return error instanceof Error ? error.message : String(error);
+		return messageOf(error);
 	}
 }
 

@@ -16,7 +16,7 @@
  * Nothing here draws: `model.svelte.ts` hands the screens what this holds.
  */
 
-import { isInWords, type PlanBoard } from '#lib/core/index.ts';
+import { inWordsOr, type PlanBoard } from '#lib/core/index.ts';
 import { dayOf } from './days';
 
 /** What a screen shows of the board. */
@@ -98,7 +98,6 @@ export class BoardWatch {
 
 /** Why something about groups and plans did not work, for the pilot. */
 export function words(error: unknown): string {
-	const said = error instanceof Error ? error.message : String(error);
 	// The core's refusals and a server out of reach are worded already.
-	return isInWords(error) ? said : `The groups and their plans could not be reached. ${said}`;
+	return inWordsOr('The groups and their plans could not be reached.', error);
 }

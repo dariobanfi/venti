@@ -17,7 +17,7 @@ import type {
 	ThermalMapWind,
 	ThermalStripDay
 } from '#lib/core/index.ts';
-import { isInWords } from '#lib/core/index.ts';
+import { inWordsOr } from '#lib/core/index.ts';
 import { forecastChoice, keepForecastChoice } from '#lib/map/layers.ts';
 import {
 	dayOf,
@@ -171,8 +171,7 @@ export class ThermalMapModel {
 			this.hours = { asked, view };
 		} catch (error) {
 			if (mine !== this.#hoursAsked) return;
-			const said = error instanceof Error ? error.message : String(error);
-			this.hoursProblem = isInWords(error) ? said : `${WORDS.hoursUnreachable} ${said}`;
+			this.hoursProblem = inWordsOr(WORDS.hoursUnreachable, error);
 		} finally {
 			if (mine === this.#hoursAsked) this.hoursAsking = false;
 		}
@@ -302,8 +301,7 @@ export class ThermalMapModel {
 				this.problem = WORDS.noServer;
 			}
 		} catch (error) {
-			const said = error instanceof Error ? error.message : String(error);
-			this.problem = isInWords(error) ? said : `${UNREACHABLE} ${said}`;
+			this.problem = inWordsOr(UNREACHABLE, error);
 		} finally {
 			this.asking = false;
 		}

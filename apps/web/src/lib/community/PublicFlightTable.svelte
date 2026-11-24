@@ -33,7 +33,7 @@
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import Flag from './Flag.svelte';
 	import PilotFace from './PilotFace.svelte';
-	import { distance, gliderLine, kindOf, shape } from './words';
+	import { distance, gliderLine, isTriangle, kindOf } from './words';
 
 	interface Props {
 		/** What the table is called, for a screen reader. */
@@ -52,8 +52,10 @@
 	let { label, flights, named, said }: Props = $props();
 
 	const text = format();
-	/** The glider classes in the core's names. */
-	const classes = $derived(getApp().said?.gliderClasses);
+	const app = getApp();
+	/** The glider classes and the kinds of route in the core's names. */
+	const classes = $derived(app.said?.gliderClasses);
+	const kinds = $derived(app.said?.routeKinds);
 
 	type Key =
 		'date' | 'pilot' | 'glider' | 'kind' | 'distance' | 'airtime' | 'points' | 'highest' | 'climb';
@@ -64,7 +66,7 @@
 		date: (flight) => flight.startUnixS,
 		pilot: (flight) => flight.pilot,
 		glider: (flight) => gliderLine(flight, classes) ?? '',
-		kind: (flight) => kindOf(flight),
+		kind: (flight) => kindOf(flight, kinds),
 		distance: (flight) => flight.score?.distanceM ?? flight.trackLengthM,
 		airtime: (flight) => flight.airtimeS,
 		points: (flight) => flight.score?.points ?? 0,
@@ -104,7 +106,6 @@
 	</thead>
 	<tbody>
 		{#each rows as flight (flight.id)}
-			{@const triangle = shape(flight)}
 			<tr onclick={(event) => open(event, flight)}>
 				{#if named}
 					<td class="words">
@@ -130,12 +131,12 @@
 				</td>
 				<td class="words">{gliderLine(flight, classes) ?? ''}</td>
 				<td class="number">
-					{#if triangle}
+					{#if isTriangle(flight)}
 						<span class="shape" aria-hidden="true"><Icon name="triangle" /></span>
 					{/if}
 					{distance(flight, text)} km
 				</td>
-				<td class="lesser">{kindOf(flight)}</td>
+				<td class="lesser">{kindOf(flight, kinds)}</td>
 				<td class="number strong">{flight.score ? text.points(flight.score.points) : '–'}</td>
 				<td class="number">{text.hoursMinutes(flight.airtimeS)} h</td>
 				<td class="number">{text.metres(flight.maxAltitudeM)} m</td>

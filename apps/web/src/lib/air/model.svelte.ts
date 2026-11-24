@@ -7,6 +7,7 @@
  * Every word is the core's.
  */
 
+import { messageOf } from '#lib/core/index.ts';
 import type {
 	Bounds,
 	ClimbView,
@@ -18,8 +19,6 @@ import { airKey } from './on-map';
 
 /** How often the climbs are asked for again while their layer is on. */
 export const CLIMBS_EVERY_MS = 30_000;
-
-const said = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 export class ClimbsModel {
 	/** What the core made of the server's last answer. */
@@ -75,7 +74,7 @@ export class ClimbsModel {
 			},
 			(error: unknown) => {
 				if (mine !== this.#asking) return;
-				this.problem = said(error);
+				this.problem = messageOf(error);
 			}
 		);
 	}
@@ -114,7 +113,7 @@ export class FlownModel {
 			},
 			(error: unknown) => {
 				if (mine !== this.#asking) return;
-				this.problem = said(error);
+				this.problem = messageOf(error);
 			}
 		);
 	}

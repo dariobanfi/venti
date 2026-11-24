@@ -9,6 +9,7 @@
 	no link is made of it.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import FaceStack from '#lib/community/FaceStack.svelte';
 	import PilotFace from '#lib/community/PilotFace.svelte';
@@ -53,7 +54,7 @@
 	/** How many pages of comments are read at once: a flight has few. */
 	const PAGES_AT_MOST = 5;
 
-	const told = (error: unknown) => (error instanceof Error ? error.message : String(error));
+	const told = (error: unknown) => messageOf(error);
 
 	async function read(core: NonNullable<typeof social>['core'], current: () => boolean) {
 		try {

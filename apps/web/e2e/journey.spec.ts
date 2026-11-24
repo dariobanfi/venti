@@ -133,7 +133,7 @@ test('a pilot brings the sample flight in, inspects it and deletes it', async ({
 	// What the core worked out about the flight. Which numbers come out is
 	// the core's business and tested there; here they have to be on screen.
 	await expect(metric(details, 'Scored as')).toHaveText(
-		/^(Free flight|Free triangle|FAI triangle)/
+		/^(Free flight|(Closed )?(FAI )?[Tt]riangle)$/
 	);
 	await expect(metric(details, 'Distance')).toHaveText(/^\d+\.\d km$/);
 	await expect(metric(details, 'Points')).toHaveText(/^\d+\.\d\d$/);

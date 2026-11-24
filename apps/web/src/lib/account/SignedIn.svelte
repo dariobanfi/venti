@@ -243,7 +243,7 @@
 			</span>
 		</label>
 		<label class="group-row setting">
-			<span>{app.said?.glider.classTitle ?? 'Glider class'}</span>
+			<span>{app.said?.glider.classTitle}</span>
 			<select
 				value={signedIn.gliderClass ?? ''}
 				disabled={account.busy || signedIn.needsSignIn}

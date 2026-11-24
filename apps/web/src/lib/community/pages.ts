@@ -10,7 +10,7 @@
  */
 
 import type { FlightSearch, PublicFlight, PublicFlightsOrder } from '#lib/core/index.ts';
-import { isInWords } from '#lib/core/index.ts';
+import { inWordsOr } from '#lib/core/index.ts';
 import { isSearching, sameSearch, searchIn, searchParams } from './flight-search';
 
 /** One page of a list, as the worker hands it on. */
@@ -110,8 +110,7 @@ export class PagedFlights {
 
 /** Why flights could not be fetched, for the pilot. */
 export function words(error: unknown): string {
-	const said = error instanceof Error ? error.message : String(error);
-	return isInWords(error) ? said : `Other pilots’ flights could not be fetched. ${said}`;
+	return inWordsOr('Other pilots’ flights could not be fetched.', error);
 }
 
 /**

@@ -67,7 +67,7 @@ import {
 	siteWritten,
 	type SiteWritten
 } from './pkg/venti_core_wasm.js';
-import { unreachable } from './protocol';
+import { messageOf, unreachable } from './protocol';
 import type { CoreSession } from './session';
 import type { Get } from './wind-source';
 
@@ -347,7 +347,7 @@ export class SiteEditSource {
 			const inTheWay = siteInTheWay(answer.status, answer.body);
 			return {
 				kind: 'refused',
-				words: error instanceof Error ? error.message : String(error),
+				words: messageOf(error),
 				inTheWay,
 				changedMeanwhile: siteWasChanged(answer.status, answer.body)
 			};

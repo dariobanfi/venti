@@ -7,6 +7,7 @@
 	on, and copies the link.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { accountHref } from '#lib/app/routes.ts';
 	import type { CommentsSwitch, FlightSharing, FlightVisibility } from '#lib/core/index.ts';
@@ -83,7 +84,7 @@
 		try {
 			commenting = await social.core.setCommentsOpen(serverId, on);
 		} catch (error) {
-			commentingRefusal = error instanceof Error ? error.message : String(error);
+			commentingRefusal = messageOf(error);
 			// The switch goes back to what holds.
 			commenting = commenting && { ...commenting };
 		}
@@ -102,7 +103,7 @@
 		try {
 			sharing = await flights.share(flight, visibility);
 		} catch (error) {
-			refusal = error instanceof Error ? error.message : String(error);
+			refusal = messageOf(error);
 		} finally {
 			working = false;
 		}

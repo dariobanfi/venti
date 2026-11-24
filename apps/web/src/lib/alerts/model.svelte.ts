@@ -23,7 +23,6 @@ import type {
 	SiteView,
 	WindStation
 } from '#lib/core/index.ts';
-import { isInWords } from '#lib/core/index.ts';
 import { reasonFor } from '#lib/logbook/model.svelte.ts';
 
 /** How often the alarms are fetched while a page of the site is open, in milliseconds. */
@@ -201,7 +200,7 @@ export class AlertsModel {
 				this.#tell(synced.newLines);
 			}
 		} catch (error) {
-			this.problem = words(error);
+			this.problem = reasonFor(error);
 		}
 		await this.reread();
 	}
@@ -222,7 +221,7 @@ export class AlertsModel {
 			if (id) await this.#core.changeAlert(id, plain);
 			else await this.#core.addAlert(plain);
 		} catch (error) {
-			throw new Error(words(error), { cause: error });
+			throw new Error(reasonFor(error), { cause: error });
 		}
 		if (first && !id) void this.#notifier.ask();
 		await this.#syncAgain();
@@ -239,7 +238,7 @@ export class AlertsModel {
 		try {
 			await this.#core.removeAlert(id);
 		} catch (error) {
-			throw new Error(words(error), { cause: error });
+			throw new Error(reasonFor(error), { cause: error });
 		}
 		await this.#syncAgain();
 	}
@@ -249,9 +248,4 @@ export class AlertsModel {
 		await this.#syncing;
 		await this.sync();
 	}
-}
-
-function words(error: unknown): string {
-	if (isInWords(error)) return (error as Error).message;
-	return reasonFor(error);
 }

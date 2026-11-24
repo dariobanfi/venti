@@ -12,7 +12,7 @@
 
 	The first row of its actions marks the site as one of the pilot's own,
 	and unmarks it: "Keep as my take-off", and "Kept" with a tick once it
-	is, in the manner of a plan's "I am in". The core keeps the site in this
+	is, in the manner of a plan's "I'm in". The core keeps the site in this
 	browser and says whether it is kept; Today lists the kept take-offs first.
 
 	A site of Venti's own two tiers (`byPilots`) says its tier in the core's
@@ -39,13 +39,14 @@
 	import AlertMe from '#lib/alerts/AlertMe.svelte';
 	import { dayDraft } from '#lib/alerts/model.svelte.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import type {
-		Credit,
-		SiteConfirmations,
-		SiteOffers,
-		SiteOutlook,
-		SiteView,
-		SiteWritten
+	import {
+		type Credit,
+		messageOf,
+		type SiteConfirmations,
+		type SiteOffers,
+		type SiteOutlook,
+		type SiteView,
+		type SiteWritten
 	} from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import FoldRow from '#lib/design/FoldRow.svelte';
@@ -56,7 +57,7 @@
 	import AirChart from '#lib/today/AirChart.svelte';
 	import NearbyLine from '#lib/today/NearbyLine.svelte';
 	import ThermalLine from '#lib/today/ThermalLine.svelte';
-	import { said as whyNot, type SiteEditsModel } from './edit.svelte';
+	import type { SiteEditsModel } from './edit.svelte';
 	import SiteConfirmSheet from './SiteConfirmSheet.svelte';
 	import SiteFlights from './SiteFlights.svelte';
 	import { flownFrom } from './mark';
@@ -142,7 +143,7 @@
 				if (current) confirmations = list;
 			},
 			(error) => {
-				if (current) confirmationsProblem = whyNot(error);
+				if (current) confirmationsProblem = messageOf(error);
 			}
 		);
 		return () => {
@@ -197,7 +198,7 @@
 			const page = await edits.page(site.id);
 			can?.onchanged({ site: page.site, words: line });
 		} catch (error) {
-			withdrawProblem = whyNot(error);
+			withdrawProblem = messageOf(error);
 		}
 	}
 
@@ -284,7 +285,7 @@
 			else
 				await own.keep($state.snapshot(site), credit ? [$state.snapshot(credit)] : [], asOfUnixS);
 		} catch (error) {
-			keepProblem = error instanceof Error ? error.message : String(error);
+			keepProblem = messageOf(error);
 		} finally {
 			keeping = false;
 		}

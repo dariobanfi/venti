@@ -8,7 +8,7 @@
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { accountHref } from '#lib/app/routes.ts';
 	import type { GroupsModel } from './model.svelte';
-	import { NEEDS_ACCOUNT, NO_SERVER } from './words';
+	import { NO_SERVER } from './words';
 
 	let { children }: { children: Snippet<[GroupsModel]> } = $props();
 
@@ -26,8 +26,8 @@
 		{@render children(groups)}
 	{:else}
 		<div class="group-card words">
-			<p>{NEEDS_ACCOUNT}</p>
-			<a class="button-plain" href={accountHref()}>Account</a>
+			<p>{app.said?.community.plansSignedOut}</p>
+			<a class="button-plain" href={accountHref()}>{app.said?.common.signIn}</a>
 		</div>
 	{/if}
 {:else}

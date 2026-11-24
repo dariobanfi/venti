@@ -79,7 +79,7 @@
 		My flights
 	</a>
 	<header class="page-head">
-		<h1>Statistics</h1>
+		<h1>{app.said?.statistics.title}</h1>
 		{#if handle}
 			<div class="actions">
 				<a class="button-plain" href={pilotHref(handle)}>Your public page</a>
@@ -91,14 +91,14 @@
 		<PilotTotals statistics={phase.statistics} flightHref={myFlightHref} whole />
 		<!-- What the flights say about how the pilot flies, on a page of its own. -->
 		<a class="group-card group-row how" href={howYouFlyHref()}>
-			<span>How you fly</span>
+			<span>{app.said?.statistics.howYouFly}</span>
 			<span class="chevron"><Icon name="forward" /></span>
 		</a>
 	{:else if phase.is === 'signedOut'}
 		<div class="unavailable">
 			<span class="symbol"><Icon name="person" /></span>
 			<h2>Sign in to see your statistics</h2>
-			<a class="button-prominent" href={accountHref()}>Sign in</a>
+			<a class="button-prominent" href={accountHref()}>{app.said?.common.signIn}</a>
 		</div>
 	{:else if phase.is === 'failed'}
 		<div class="unavailable">
@@ -106,7 +106,7 @@
 			<h2>Your statistics could not be fetched</h2>
 			<p>{phase.message}</p>
 			<button class="button-plain" type="button" onclick={() => (again += 1)}>
-				{app.said?.common.tryAgain ?? 'Try again'}
+				{app.said?.common.tryAgain}
 			</button>
 		</div>
 	{:else}

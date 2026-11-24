@@ -1,10 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { ThermalMap, ThermalMapCell, ThermalMapDay } from '#lib/core/index.ts';
 import { format } from '#lib/design/format.ts';
 import { keyColor, NOT_FLYABLE_ON_MAP, THERMAL_ON_MAP } from '#lib/design/palette.ts';
 import style from '../../../../../map/style.json';
 import { hourFill, layerAbove, thermalLayer } from './thermal-layer';
-import { ThermalMapModel } from './thermal-map.svelte';
 import {
 	creditLine,
 	dayOf,

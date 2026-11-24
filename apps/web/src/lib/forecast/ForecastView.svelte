@@ -10,7 +10,7 @@
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { type Coordinate, type ForecastView, isInWords } from '#lib/core/index.ts';
+	import { type Coordinate, type ForecastView, inWordsOr } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Segmented from '#lib/design/Segmented.svelte';
 	import ForecastTable from './ForecastTable.svelte';
@@ -79,10 +79,9 @@
 			},
 			(error) => {
 				if (mine !== asked) return;
-				const said = error instanceof Error ? error.message : String(error);
 				phase = {
 					is: 'failed',
-					why: isInWords(error) ? said : `The forecast could not be loaded. ${said}`
+					why: inWordsOr('The forecast could not be loaded.', error)
 				};
 			}
 		);

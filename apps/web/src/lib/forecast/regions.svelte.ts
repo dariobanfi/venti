@@ -5,6 +5,7 @@
  * what is drawn of them.
  */
 
+import { messageOf } from '#lib/core/index.ts';
 import type { CoreClient, RegionDay, RegionOutlines } from '#lib/core/index.ts';
 
 type Core = Pick<CoreClient, 'regionOutlines' | 'regionDay'>;
@@ -43,7 +44,7 @@ export class RegionForecastModel {
 			this.days = new Map([...this.days, [date, day]]);
 			this.problem = undefined;
 		} catch (error) {
-			this.problem = error instanceof Error ? error.message : String(error);
+			this.problem = messageOf(error);
 		} finally {
 			this.#asking.delete(date);
 		}

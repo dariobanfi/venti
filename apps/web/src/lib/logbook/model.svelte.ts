@@ -14,13 +14,14 @@ import {
 	type FlightAirspace,
 	type FlightVisibility,
 	type GliderClassKind,
-	type LeagueHandover,
-	type PilotStatistics,
-	type Tendencies,
 	isCoreError,
 	isInWords,
+	type LeagueHandover,
+	messageOf,
 	type OpenedOwnFlight,
-	type OwnFlight
+	type OwnFlight,
+	type PilotStatistics,
+	type Tendencies
 } from '#lib/core/index.ts';
 import { emptyReport, type ImportReport } from './import-report';
 
@@ -203,15 +204,11 @@ export class MyFlightsModel {
 /** What a pilot who is not signed in is told. */
 export const SIGN_IN = 'Sign in to see and bring in your flights.';
 
-function message(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
-
 /** Why something could not be done to a flight, in words for the pilot. */
 export function reasonFor(error: unknown): string {
-	if (isInWords(error)) return message(error);
+	if (isInWords(error)) return messageOf(error);
 	if (error instanceof Error && error.name === 'QuotaExceededError') {
 		return 'This browser has no room left for this site.';
 	}
-	return `This did not work. ${message(error)}`;
+	return `This did not work. ${messageOf(error)}`;
 }

@@ -163,11 +163,6 @@ export function groupHref(id: string): string {
 	return `${resolve('/community/groups/[id]', { id: encodeURIComponent(id) })}/`;
 }
 
-/** A site's page: the place of its position, about the site. */
-export function siteHref(id: string, at: { lat: number; lon: number }): string {
-	return placeHref(at, id);
-}
-
 /** One of the pilot's own flights, by its address on the server. */
 export function myFlightHref(id: string): string {
 	return `${resolve('/settings/account/flights/flight')}?id=${encodeURIComponent(id)}`;

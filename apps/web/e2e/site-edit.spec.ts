@@ -30,8 +30,7 @@ import {
 	mapTool,
 	openLayers,
 	openSitesFilter,
-	toolRow,
-	closeLayers
+	toolRow
 } from './helpers';
 
 /** The development mode's made-up take-off of a partner, with two confirmations. */

@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { boxAround, GlideReachSource, REACH_BOXES_KM } from './glide-reach-source';
+import { boxAround, GlideReachSource } from './glide-reach-source';
 import { startCore, tileServer } from './testing';
 
 beforeAll(startCore);

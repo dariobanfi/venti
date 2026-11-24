@@ -99,7 +99,7 @@
 		{ label: 'Share with a link', icon: 'link', onselect: () => (sharing = true) },
 		{ label: 'Lay another flight beside it', icon: 'track', onselect: () => (choosing = true) },
 		{
-			label: app.said?.glider.classTitle ?? 'Glider class',
+			label: app.said?.glider.classTitle ?? '',
 			icon: 'glider',
 			onselect: () => (classing = true)
 		},
@@ -268,7 +268,7 @@
 	<div class="unavailable">
 		<span class="symbol"><Icon name="person" /></span>
 		<h1>Sign in to see this flight</h1>
-		<a class="button-prominent" href={accountHref()}>Sign in</a>
+		<a class="button-prominent" href={accountHref()}>{app.said?.common.signIn}</a>
 	</div>
 {:else if phase.is === 'failed'}
 	<div class="unavailable">

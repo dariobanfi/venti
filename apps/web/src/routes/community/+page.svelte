@@ -2,7 +2,7 @@
 	Community: pilots among each other, in one place (docs/plan.md, after
 	the owner's testing session of 2026-11-22, item 7). In this order: the
 	plans of the pilot's groups for the coming days, each a card with its
-	day, its place, the faces of who is in and "I am in"; the pilot's
+	day, its place, the faces of who is in and "I'm in"; the pilot's
 	groups as cards, their invites and the groups near or found
 	(`CommunityGroups.svelte`, owner decision 26); the flights of
 	the pilots they follow, each a card with the track's shape and the
@@ -25,6 +25,7 @@
 	itself leads here.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import PilotFace from '#lib/community/PilotFace.svelte';
 	import PilotsNear from '#lib/community/PilotsNear.svelte';
 	import { NearPlace } from '#lib/community/near-place.svelte.ts';
@@ -113,7 +114,7 @@
 				if (answer) void app.unread?.seen({ notifications: answer.cursor });
 			},
 			(error) => {
-				const why = error instanceof Error ? error.message : String(error);
+				const why = messageOf(error);
 				if (current) toldProblem = [said?.notificationsFailed, why].filter(Boolean).join(' ');
 			}
 		);
@@ -220,7 +221,7 @@
 					{:else if groups?.problem}
 						<p class="quiet" role="alert">{groups.problem}</p>
 						<button class="button-plain again" type="button" onclick={() => groups?.load()}>
-							{app.said?.common.tryAgain ?? 'Try again'}
+							{app.said?.common.tryAgain}
 						</button>
 					{:else}
 						<p class="quiet" role="status">Loading…</p>
@@ -248,7 +249,7 @@
 								{[said?.feedFailed, feed.problem].filter(Boolean).join(' ')}
 							</p>
 							<button class="button-plain again" type="button" onclick={() => social?.againFeed()}>
-								{app.said?.common.tryAgain ?? 'Try again'}
+								{app.said?.common.tryAgain}
 							</button>
 						{:else if !feed.known}
 							<p class="quiet" role="status">Loading…</p>
@@ -273,7 +274,7 @@
 							With an account you plan flying days with your groups, follow pilots and see what they
 							fly, and hear who cheered your flights.
 						</p>
-						<a class="button-prominent" href={accountHref()}>Sign in</a>
+						<a class="button-prominent" href={accountHref()}>{app.said?.common.signIn}</a>
 					</div>
 				</section>
 			{/if}
@@ -325,7 +326,7 @@
 						{#if toldProblem}
 							<p class="quiet" role="alert">{toldProblem}</p>
 							<button class="button-plain again" type="button" onclick={() => (askedTold += 1)}>
-								{app.said?.common.tryAgain ?? 'Try again'}
+								{app.said?.common.tryAgain}
 							</button>
 						{:else if !told}
 							<p class="quiet" role="status">Loading…</p>
@@ -357,8 +358,8 @@
 
 			<!-- The pilots who fly near the pilot, for everyone. -->
 			<section class="part span-12" aria-labelledby="{id}-near">
-				<header><h2 id="{id}-near">{app.said?.picture.nearTitle ?? 'Pilots near'}</h2></header>
-				<PilotsNear labelledby="{id}-near" place={near.place} />
+				<header><h2 id="{id}-near">{app.said?.picture.nearTitle}</h2></header>
+				<PilotsNear labelledby="{id}-near" place={near.place} aroundYou={near.isPosition} />
 			</section>
 		</div>
 	{/if}

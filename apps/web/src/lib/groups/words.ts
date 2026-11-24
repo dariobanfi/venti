@@ -7,11 +7,7 @@
  * "your server".
  */
 
-import type { CommunityMember } from '#lib/core/index.ts';
-
-/** What the board says to a pilot who is signed out. */
-export const NEEDS_ACCOUNT =
-	'Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, then make a group or join one.';
+import type { CommunityMember, CommunityWords } from '#lib/core/index.ts';
 
 /** What the screens say on a site that has no server. */
 export const NO_SERVER =
@@ -43,18 +39,26 @@ export type Asking =
 	| { about: 'remove'; member: Pick<CommunityMember, 'name' | 'handle'> }
 	| { about: 'handOn'; member: Pick<CommunityMember, 'name' | 'handle'> };
 
-/** The question, what saying yes means, and the words on the button that says yes. */
-export function question(asking: Asking): { title: string; message: string; confirm: string } {
+/**
+ * The question, what saying yes means, and the words on the button that
+ * says yes. Leaving a group is asked in the core's words, once they are
+ * there.
+ */
+export function question(
+	asking: Asking,
+	said?: CommunityWords
+): { title: string; message: string; confirm: string } {
 	switch (asking.about) {
 		case 'leave':
 			return {
-				title: 'Leave this group?',
-				message: asking.asOwner
-					? 'The member who has been in longest becomes its owner; if you are the last, the group is deleted.'
-					: asking.isPublic
-						? 'You can join it again at any time.'
-						: 'You come back in only when invited again.',
-				confirm: 'Leave the group'
+				title: said?.leaveQuestion ?? '',
+				message:
+					(asking.asOwner
+						? said?.leaveMeansOwner
+						: asking.isPublic
+							? said?.leaveMeansPublic
+							: said?.leaveMeansPrivate) ?? '',
+				confirm: said?.leaveConfirm ?? ''
 			};
 		case 'delete':
 			return {

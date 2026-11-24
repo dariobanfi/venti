@@ -6,6 +6,7 @@
 	what is gone. The card opens the thing. The lines are the core's.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { openPlanHref, pilotHref, placeHref, publicFlightHref } from '#lib/app/routes.ts';
 	import PilotFace from '#lib/community/PilotFace.svelte';
@@ -15,11 +16,9 @@
 
 	interface Props {
 		card: CardView;
-		/** The core's "I'm in". */
-		imInWord?: string;
 	}
 
-	let { card, imInWord = "I'm in" }: Props = $props();
+	let { card }: Props = $props();
 
 	const app = getApp();
 
@@ -53,7 +52,7 @@
 			const plan = await plans.setIn(card.id, !isIn);
 			amIn = plan.amIn;
 		} catch (error) {
-			problem = error instanceof Error ? error.message : String(error);
+			problem = messageOf(error);
 		} finally {
 			busy = false;
 		}
@@ -83,7 +82,7 @@
 	{#if card.kind === 'open_plan' && app.account?.signedIn}
 		<button class="in" type="button" aria-pressed={isIn} disabled={busy} onclick={toggle}>
 			{#if isIn}<Icon name="check" />{/if}
-			{imInWord}
+			{app.said?.community.imIn}
 		</button>
 	{/if}
 	{#if problem}

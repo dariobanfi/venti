@@ -3,7 +3,7 @@
  * the list is the iPhone app's, from `CommunityScreens.swift`.
  */
 
-import type { GliderClassKind, PublicFlight } from '#lib/core/index.ts';
+import type { GliderClassKind, PublicFlight, ScreenWords } from '#lib/core/index.ts';
 import type { Format } from '#lib/design/format.ts';
 import type { Asked, ListState } from './pages';
 import { isSearching } from './flight-search';
@@ -47,22 +47,22 @@ export function distance(flight: PublicFlight, text: Format): string {
 	return text.kilometres(flight.score?.distanceM ?? flight.trackLengthM);
 }
 
-/** What a triangle is called, for whoever cannot see its mark. Nothing for a free flight. */
-export function shape(flight: PublicFlight): string | undefined {
-	if (!flight.score || flight.score.kind === 'freeFlight') return undefined;
-	return flight.score.kind === 'faiTriangle' ? 'FAI triangle' : 'Triangle';
+/** The core's names of the kinds of route: "Triangle". */
+type RouteKinds = ScreenWords['routeKinds'] | undefined;
+
+/** Whether a flight scored as a triangle of either kind. */
+export function isTriangle(flight: PublicFlight): boolean {
+	return flight.score !== undefined && flight.score.kind !== 'freeFlight';
 }
 
-/** What a route is called, as a flight's details name it. The rules that tell them apart are the core's. */
-const ROUTES = {
-	freeFlight: 'Free flight',
-	freeTriangle: 'Free triangle',
-	faiTriangle: 'FAI triangle'
-} as const;
+/** What a triangle is called, for whoever cannot see its mark. Nothing for a free flight. */
+export function shape(flight: PublicFlight, kinds: RouteKinds): string | undefined {
+	return isTriangle(flight) ? kindOf(flight, kinds) : undefined;
+}
 
 /** What kind of flight it scored as: "FAI triangle". Nothing for a flight too short to score. */
-export function kindOf(flight: PublicFlight): string {
-	return flight.score ? ROUTES[flight.score.kind] : '';
+export function kindOf(flight: PublicFlight, kinds: RouteKinds): string {
+	return (flight.score && kinds?.[flight.score.kind]) ?? '';
 }
 
 /** A place in a row of counted flights: "1st", "2nd", "3rd", "4th". */

@@ -18,7 +18,7 @@ import type {
 	SiteCandidateView,
 	SiteView
 } from '#lib/core/index.ts';
-import { isInWords } from '#lib/core/index.ts';
+import { inWordsOr } from '#lib/core/index.ts';
 import { span } from '#lib/community/pages.ts';
 import { asked, NO_CHOICE } from '#lib/sites/filter.ts';
 import type { SeasonRanking } from '#lib/core/community-source.ts';
@@ -206,6 +206,5 @@ export class HomeModel {
 }
 
 function words(error: unknown): string {
-	const said = error instanceof Error ? error.message : String(error);
-	return isInWords(error) ? said : `Venti could not be reached. ${said}`;
+	return inWordsOr('Venti could not be reached.', error);
 }

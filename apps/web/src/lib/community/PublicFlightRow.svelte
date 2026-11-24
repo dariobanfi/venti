@@ -27,11 +27,13 @@
 
 	let { flight, named, under = '' }: Props = $props();
 
+	const app = getApp();
+
 	// The clock and the date of the place it was flown.
 	const text = $derived(flightFormat(flight));
-	const triangle = $derived(shape(flight));
+	const triangle = $derived(shape(flight, app.said?.routeKinds));
 	/** The glider classes in the core's names. */
-	const classes = $derived(getApp().said?.gliderClasses);
+	const classes = $derived(app.said?.gliderClasses);
 	const glider = $derived(gliderLine(flight, classes));
 </script>
 

@@ -45,7 +45,7 @@ test('a click near the Wallberg offers what a glide reaches from there, and draw
 
 	// A start 2000 m high and a better glide each ask the core again,
 	// without the server: a wider area.
-	const start = card.getByLabel('Start, m');
+	const start = card.getByLabel('Start height, m');
 	await start.fill('2000');
 	await start.press('Enter');
 	await expect(words).toHaveText(/^From 2000 m at a glide of 8 you reach/);

@@ -11,6 +11,7 @@
 	card covers no more of the map than it must.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import type { Snippet } from 'svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
@@ -95,7 +96,7 @@
 			if (planner.places.length > 0) waiting = read;
 			else takeFromFile(read);
 		} catch (error) {
-			fromFile = { words: error instanceof Error ? error.message : String(error), refused: true };
+			fromFile = { words: messageOf(error), refused: true };
 		}
 	}
 
@@ -131,8 +132,8 @@
 			<button
 				class="close"
 				type="button"
-				aria-label={said?.common.close ?? 'Close'}
-				title={said?.common.close ?? 'Close'}
+				aria-label={said?.common.close}
+				title={said?.common.close}
 				onclick={onclose}
 			>
 				<Icon name="close" />

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { PlanBoard } from '#lib/core/index.ts';
+import type { CommunityWords, PlanBoard } from '#lib/core/index.ts';
 import { UNREACHABLE } from '#lib/core/protocol.ts';
 import { createFormat } from '#lib/design/format.ts';
 import { type BoardState, BoardWatch, words } from './board';
@@ -219,12 +219,19 @@ describe('what is asked before something is done to a group', () => {
 		});
 	});
 
-	it('tells who leaves whether they come back, and an owner what becomes of the group', () => {
+	it('tells who leaves whether they come back, and an owner what becomes of the group, in the core’s words', () => {
+		const said = {
+			leaveMeansOwner: 'owner',
+			leaveMeansPublic: 'public',
+			leaveMeansPrivate: 'private'
+		} as CommunityWords;
 		const leaving = (asOwner: boolean, isPublic: boolean) =>
-			question({ about: 'leave', asOwner, isPublic }).message;
-		expect(leaving(false, true)).toBe('You can join it again at any time.');
-		expect(leaving(false, false)).toBe('You come back in only when invited again.');
-		expect(leaving(true, false)).toContain('The member who has been in longest becomes its owner');
+			question({ about: 'leave', asOwner, isPublic }, said).message;
+		expect([leaving(false, true), leaving(false, false), leaving(true, false)]).toEqual([
+			'public',
+			'private',
+			'owner'
+		]);
 	});
 
 	it('marks the pilot among the members', () => {

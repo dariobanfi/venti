@@ -56,7 +56,7 @@
 	const picture = $derived(pilot?.statistics?.picturePath ?? list.flights[0]?.pilotPicture);
 	/** Which form of report is open: about the pilot's page, or their picture. */
 	let reporting = $state<'pilot' | 'picture'>();
-	const pictureReport = $derived(app.said?.picture.report ?? 'Report picture');
+	const pictureReport = $derived(app.said?.picture.report ?? '');
 
 	// The pilot's place in the newest season, for the head.
 	$effect(() => everyone?.showRanking(''));

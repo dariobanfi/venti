@@ -10,7 +10,9 @@
 	server's rule and the core's word (`canModerate`, each member's role).
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import { goto } from '$app/navigation';
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { groupsHref } from '#lib/app/routes.ts';
 	import { pictureToSend, PICTURE_KINDS } from '#lib/account/picture.ts';
 	import type { CommunityDetail, CommunityDraft, CommunityMember } from '#lib/core/index.ts';
@@ -33,11 +35,13 @@
 
 	let { open, detail, model, onchanged, onclose }: Props = $props();
 
+	const app = getApp();
+
 	const id = $props.id();
 	const core = $derived(model.core);
 	const group = $derived(detail.group);
 	const isOwner = $derived(group.myRole === 'owner');
-	const said = $derived(model.words);
+	const said = $derived(app.said?.community);
 
 	let problem = $state<string>();
 	let working = $state(false);
@@ -47,9 +51,9 @@
 
 	let asked = $state.raw<Asking>({ about: 'delete' });
 	let confirming = $state(false);
-	const asking = $derived(question(asked));
+	const asking = $derived(question(asked, said));
 
-	const said_ = (error: unknown) => (error instanceof Error ? error.message : String(error));
+	const said_ = (error: unknown) => messageOf(error);
 
 	/** Does one thing; afterwards the group is asked for as it now is. */
 	async function act(work: () => Promise<unknown>, thenLeave = false) {
@@ -201,7 +205,7 @@
 						bind:value={handle}
 					/>
 					<button class="button-plain" type="submit" disabled={working || handle.trim() === ''}>
-						{said?.invite ?? 'Invite'}
+						{said?.invite}
 					</button>
 				</form>
 				<p class="group-note" role={invited ? 'status' : undefined}>
@@ -229,7 +233,7 @@
 					{/if}
 					{#if isOwner}
 						<label class="group-row toggle">
-							<span>{said?.public ?? 'Public'}</span>
+							<span>{said?.public}</span>
 							<input
 								type="checkbox"
 								role="switch"
@@ -254,7 +258,7 @@
 		<section class="group">
 			<div class="group-card">
 				<label class="group-row toggle">
-					<span>{said?.mute ?? 'Mute'}</span>
+					<span>{said?.mute}</span>
 					<input
 						type="checkbox"
 						role="switch"
@@ -282,7 +286,7 @@
 					type="button"
 					onclick={() => ask({ about: 'leave', asOwner: isOwner, isPublic: group.isPublic })}
 				>
-					{said?.leave ?? 'Leave'}
+					{said?.leave}
 				</button>
 				{#if isOwner}
 					<button

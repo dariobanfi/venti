@@ -58,11 +58,9 @@ import type {
 	SiteFlightsWords,
 	Credit,
 	FlightAirspace,
-	FlightAnalysis,
 	FlightSharing,
 	GliderClassKind,
 	LeagueHandover,
-	FlightView,
 	FlightVisibility,
 	ForecastView,
 	GroundUnderFlight,
@@ -163,7 +161,11 @@ import type {
 	PictureWords,
 	PilotsNear,
 	Tendencies,
-	FlightSearch
+	FlightSearch,
+	GlideReachCardWords,
+	LogbookStatisticsWords,
+	NothingFoundWords,
+	RouteKind
 } from './pkg/venti_core_wasm.js';
 import {
 	allFlightsQuestion,
@@ -172,7 +174,10 @@ import {
 	flightVisibilityWords,
 	gliderClassName,
 	gliderWords,
+	glideReachCardWords,
 	leagueHandoverFromFile,
+	logbookStatisticsWords,
+	nothingFoundWords,
 	messageReportForm,
 	pagesWords,
 	pictureWords,
@@ -180,7 +185,9 @@ import {
 	pilotsWords,
 	plannerWords,
 	routeFromGpx,
+	routeKindWords,
 	routeToGpx,
+	scoreKindWords,
 	siteSheetWords,
 	stationSheetWords,
 	todayWords,
@@ -728,6 +735,8 @@ export interface Calls {
 	routeFromGpx: { given: string; answer: RouteFromFile };
 	/** The core's words for the screens that no answer carries, asked once when the app starts. */
 	screenWords: { given: undefined; answer: ScreenWords };
+	/** What a list says when nothing in it matches the text searched for. */
+	nothingFound: { given: string; answer: NothingFoundWords };
 	/** Given a flight's address on the server: changes who may see it. */
 	shareFlight: { given: { id: string; visibility: FlightVisibility }; answer: FlightSharing };
 	/** What a report can say, and what the pilot is told before sending one. */
@@ -761,11 +770,10 @@ export interface Calls {
 	/** Says that the pilot is in on a plan, or takes that back. */
 	planIn: { given: { group: string; plan: string; isIn: boolean }; answer: PlanView };
 	/**
-	 * Groups as communities with a chat (docs/api.md): the words of their
-	 * screens, then the calls down to `reportMessage`, sent from the
-	 * pilot's account and failing in the core's words.
+	 * Groups as communities with a chat (docs/api.md), down to
+	 * `reportMessage`, sent from the pilot's account and failing in the
+	 * core's words. Their screens' words are `ScreenWords.community`.
 	 */
-	communityWords: { given: undefined; answer: CommunityWords };
 	communities: { given: undefined; answer: CommunityView[] };
 	findCommunities: {
 		given: { near: Coordinate | undefined; text: string };
@@ -851,8 +859,18 @@ export interface Request<Name extends CallName = CallName> {
  * three apps (`crates/core/src/screen_words.rs`).
  */
 export interface ScreenWords {
-	/** "Done", "Back", "More", "OK", "Cancel", "Try again", "Close". */
+	/** "Done", "Back", "More", "OK", "Cancel", "Try again", "Close", "Working…", "Sign in". */
 	common: CommonWords;
+	/** The words of the groups' screens and their plans: "I'm in", leaving a group, signed out. */
+	community: CommunityWords;
+	/** The headings of the pilot's statistics. */
+	statistics: LogbookStatisticsWords;
+	/** The words of the card of what a glide reaches. */
+	glideReachCard: GlideReachCardWords;
+	/** A kind of route by its name, wherever it is named without a score: "Triangle". */
+	routeKinds: Record<RouteKind, string>;
+	/** What a flight is scored as, by its kind, open and closed: "Closed FAI triangle". */
+	scoreKinds: Record<RouteKind, { open: string; closed: string }>;
 	pages: PagesWords;
 	/** What the alarm for pilots in the air starts at and may be. */
 	pilotsAlarm: PilotsAlarmNumbers;
@@ -885,6 +903,15 @@ export interface WhoSees {
 
 /** Every glider class, in the order a menu lists them. */
 const GLIDER_CLASSES: GliderClassKind[] = ['a', 'b', 'c', 'd', 'ccc'];
+
+/** Something for each kind of route. */
+function byRouteKind<T>(of: (kind: RouteKind) => T): Record<RouteKind, T> {
+	return {
+		freeFlight: of('freeFlight'),
+		freeTriangle: of('freeTriangle'),
+		faiTriangle: of('faiTriangle')
+	};
+}
 
 /** What comes back from the core. */
 export type Reply =
@@ -1132,8 +1159,17 @@ export async function answer<Name extends CallName>(
 			community.pilotFlights(handle, fromUnixS, toUnixS, after, search),
 		routeToGpx: (latLon) => routeToGpx(new Float64Array(latLon)),
 		routeFromGpx: (text) => routeFromGpx(text),
+		nothingFound: (searched) => nothingFoundWords(searched),
 		screenWords: () => ({
 			common: commonWords(),
+			community: communityWords(),
+			statistics: logbookStatisticsWords(),
+			glideReachCard: glideReachCardWords(),
+			routeKinds: byRouteKind((kind) => routeKindWords(kind)),
+			scoreKinds: byRouteKind((kind) => ({
+				open: scoreKindWords(kind, false),
+				closed: scoreKindWords(kind, true)
+			})),
 			pages: pagesWords(),
 			pilotsAlarm: pilotsAlarmNumbers(),
 			planner: plannerWords(),
@@ -1173,7 +1209,6 @@ export async function answer<Name extends CallName>(
 		changePlan: ({ group, plan, draft }) => groups.changePlan(group, plan, draft),
 		deletePlan: ({ group, plan }) => groups.deletePlan(group, plan),
 		planIn: ({ group, plan, isIn }) => groups.setIn(group, plan, isIn),
-		communityWords: () => communityWords(),
 		communities: () => groups.communities(),
 		findCommunities: ({ near, text }) => groups.find(near, text),
 		communityInvites: () => groups.invites(),
@@ -1229,6 +1264,11 @@ export function unreachable(message: string): Error {
 	const error = new Error(message);
 	error.name = UNREACHABLE;
 	return error;
+}
+
+/** What went wrong, in the words it came with: an error's message, or what was thrown as text. */
+export function messageOf(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }
 
 /** An error as it is sent to the page. */

@@ -95,7 +95,7 @@
 	{#if weather.problem}
 		<p class="problem" role="alert">{weather.problem}</p>
 		<button class="button-plain again" type="button" onclick={() => weather.again()}>
-			{app.said?.common.tryAgain ?? 'Try again'}
+			{app.said?.common.tryAgain}
 		</button>
 	{:else if weather.asking && !along}
 		<p class="lesser" role="status">Asking Venti for the weather along the route.</p>

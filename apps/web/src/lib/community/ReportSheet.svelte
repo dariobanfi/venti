@@ -11,6 +11,7 @@
 	on, so there is no "another server" to tell the pilot about.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { accountHref } from '#lib/app/routes.ts';
 	import type { ReportForm, ReportReason, ReportSubject } from '#lib/core/index.ts';
@@ -71,7 +72,7 @@
 				: subject && account?.reportForm(subject);
 		void asked?.then(
 			(known) => (form = known),
-			(error) => (problem = error instanceof Error ? error.message : String(error))
+			(error) => (problem = messageOf(error))
 		);
 	});
 
@@ -94,7 +95,7 @@
 				outcome = await account.report(subject, reason, words);
 			}
 		} catch (error) {
-			problem = error instanceof Error ? error.message : String(error);
+			problem = messageOf(error);
 		} finally {
 			sending = false;
 		}

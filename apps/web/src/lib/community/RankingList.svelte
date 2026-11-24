@@ -7,6 +7,7 @@
 	one line; nothing of it is ever read as markup.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { pilotHref, publicFlightHref } from '#lib/app/routes.ts';
 	import type { RankedPilot } from '#lib/core/index.ts';
 	import { flightFormat, format } from '#lib/design/format.ts';
@@ -22,6 +23,8 @@
 	}
 
 	let { label, pilots }: Props = $props();
+
+	const app = getApp();
 
 	const text = format();
 </script>
@@ -50,7 +53,7 @@
 				</div>
 				<ul class="flights" aria-label="The flights of {pilot.name} that count">
 					{#each pilot.flights as flight (flight.id)}
-						{@const triangle = shape(flight)}
+						{@const triangle = shape(flight, app.said?.routeKinds)}
 						<li>
 							<a href={publicFlightHref(flight.id)}>
 								<span class="day">{flightFormat(flight).date(flight.startUnixS)}</span>

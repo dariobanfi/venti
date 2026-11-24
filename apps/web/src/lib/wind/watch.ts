@@ -9,7 +9,7 @@
  */
 
 import type { Bounds, Credit, WindMap, WindStation } from '#lib/core/index.ts';
-import { isInWords } from '#lib/core/index.ts';
+import { inWordsOr } from '#lib/core/index.ts';
 
 /** What the screens are shown. */
 export interface WindState {
@@ -166,8 +166,7 @@ export class WindWatch {
 
 /** Why the wind could not be fetched, for the pilot. */
 function words(error: unknown): string {
-	const said = error instanceof Error ? error.message : String(error);
-	return isInWords(error) ? said : `The wind could not be shown. ${said}`;
+	return inWordsOr('The wind could not be shown.', error);
 }
 
 /** What the pilot should know about the wind on the map, if anything. */

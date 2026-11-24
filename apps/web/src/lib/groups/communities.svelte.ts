@@ -15,7 +15,6 @@ import type {
 	CommunityDraft,
 	CommunityInvite,
 	CommunityView,
-	CommunityWords,
 	Coordinate,
 	CoreClient,
 	FoundCommunity,
@@ -30,8 +29,6 @@ export class CommunitiesModel {
 	invites = $state.raw<CommunityInvite[]>([]);
 	/** Why the groups are not there or not current, in words. */
 	problem = $state<string>();
-	/** The words of the groups' screens, the core's. */
-	words = $state.raw<CommunityWords>();
 
 	#core: CoreClient;
 	#account: AccountModel;
@@ -44,10 +41,6 @@ export class CommunitiesModel {
 		this.#core = core;
 		this.#account = account;
 		this.#changed = changed;
-		void core.communityWords().then(
-			(said) => (this.words = said),
-			() => {}
-		);
 	}
 
 	/** The core, for a group's chat. */

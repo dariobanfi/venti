@@ -24,7 +24,7 @@ const MUSTERGRUPPE = {
 const PASSWORD = 'correct horse battery staple';
 
 const NEEDS_ACCOUNT =
-	'Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, then make a group or join one.';
+	'Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, then join a group near you or make one.';
 
 const field = (page: Page, name: string) => page.getByRole('textbox', { name });
 
@@ -74,7 +74,7 @@ const plansOf = (page: Page, day: string): Locator =>
 		.filter({ has: page.locator('.day').getByText(day, { exact: true }) });
 
 /** The pilot's word on a plan of the board, a button that stays pressed while the pilot is in. */
-const imIn = (plan: Locator): Locator => plan.getByRole('button', { name: 'I am in' });
+const imIn = (plan: Locator): Locator => plan.getByRole('button', { name: "I'm in" });
 
 /** Fills the form for a plan and saves it. */
 async function savePlan(
@@ -204,7 +204,7 @@ test('signed out, Community finds a pilot and asks to sign in for the rest', asy
 	await expect(page.getByText(NEEDS_ACCOUNT)).toBeVisible();
 
 	// The way to an account is one click.
-	await page.getByRole('main').getByRole('link', { name: 'Account' }).click();
+	await page.getByRole('main').getByRole('link', { name: 'Sign in' }).click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Account' })).toBeVisible();
 	expect(problems).toEqual([]);
 });
@@ -335,9 +335,9 @@ test('a pilot makes a private group, invites a pilot by handle, and plans a flyi
 	// One's own is not reported.
 	await expect(page.getByRole('button', { name: 'Report this plan' })).toBeHidden();
 	await keep('79-plan');
-	await page.getByRole('button', { name: 'I am out' }).click();
+	await page.getByRole('button', { name: "I'm out" }).click();
 	await expect(whoIsIn).toHaveText(['Nobody yet']);
-	await page.getByRole('button', { name: 'I am in' }).click();
+	await page.getByRole('button', { name: "I'm in" }).click();
 	await expect(whoIsIn).toHaveText(['You']);
 
 	// Its author changes it: the form starts from the plan as it is.
@@ -349,14 +349,14 @@ test('a pilot makes a private group, invites a pilot by handle, and plans a flyi
 	await expect(metric(page, 'Where')).toHaveText('Musterberg Süd');
 	await expect(metric(page, 'Time')).toHaveText('10:30');
 
-	// Another member's plan: the pilot says "I am in"; changing it is its
+	// Another member's plan: the pilot says "I'm in"; changing it is its
 	// author's alone, deleting it also the keeper's.
 	await backToTheBoard(page).click();
 	await plansOf(page, 'Today').filter({ hasText: 'Beispielwiese' }).getByRole('link').click();
 	await expect(metric(page, 'Posted by')).toHaveText('Mira Member');
 	await expect(page.getByRole('button', { name: 'Change the plan' })).toBeHidden();
 	await expect(page.getByRole('button', { name: 'Delete the plan' })).toBeVisible();
-	await page.getByRole('button', { name: 'I am in' }).click();
+	await page.getByRole('button', { name: "I'm in" }).click();
 	await expect(whoIsIn).toHaveText(['You', 'Mira Member']);
 	await backToTheBoard(page).click();
 	const theirs = plansOf(page, 'Today').filter({ hasText: 'Beispielwiese' });
@@ -536,7 +536,7 @@ test('a board of several days, and a plan that says where its place is', async (
 	await first.getByRole('link').click();
 	await expect(metric(page, 'Posted by')).toHaveText('Demo Pilot');
 	await expect(page.getByText('At the lift at half past ten, in the air by noon.')).toBeVisible();
-	await expect(page.getByRole('button', { name: 'I am in' })).toBeVisible();
+	await expect(page.getByRole('button', { name: "I'm in" })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Change the plan' })).toBeHidden();
 	await expect(page.getByRole('button', { name: 'Delete the plan' })).toBeHidden();
 

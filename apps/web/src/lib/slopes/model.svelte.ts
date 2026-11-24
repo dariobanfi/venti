@@ -6,6 +6,7 @@
  * until the next one is there.
  */
 
+import { messageOf } from '#lib/core/index.ts';
 import type { Bounds, SlopesAnswer, SlopesAsked } from '#lib/core/index.ts';
 import { cornersOf, gridFor, slopeCounts, slopePixels, SLOPES_MIN_ZOOM } from './grid';
 
@@ -100,7 +101,7 @@ export class SlopesModel {
 			this.problem = undefined;
 		} catch (error) {
 			if (asking !== this.#asking) return;
-			this.problem = error instanceof Error ? error.message : String(error);
+			this.problem = messageOf(error);
 		}
 	}
 }

@@ -10,6 +10,7 @@
 	pilot changes the plan.
 -->
 <script lang="ts">
+	import { messageOf } from '#lib/core/index.ts';
 	import { untrack } from 'svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import type { Coordinate, PlanDraft, PlanView } from '#lib/core/index.ts';
@@ -94,7 +95,7 @@
 			onsaved?.();
 			onclose();
 		} catch (error) {
-			problem = error instanceof Error ? error.message : String(error);
+			problem = messageOf(error);
 		} finally {
 			saving = false;
 		}

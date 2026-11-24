@@ -6,6 +6,7 @@
  * hour until the pilot says otherwise.
  */
 
+import { messageOf } from '#lib/core/index.ts';
 import type { RouteAlong, RouteWeatherAnswer, RouteWeatherAsked } from '#lib/core/index.ts';
 import type { RoutePlace } from './kept';
 
@@ -127,7 +128,7 @@ export class RouteWeatherModel {
 		} catch (error) {
 			if (mine !== this.#asked) return;
 			this.along = undefined;
-			this.problem = error instanceof Error ? error.message : String(error);
+			this.problem = messageOf(error);
 		} finally {
 			if (mine === this.#asked) this.asking = false;
 		}

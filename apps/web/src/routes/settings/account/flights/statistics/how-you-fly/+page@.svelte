@@ -72,10 +72,10 @@
 <div class="desk page">
 	<a class="back-link" href={myStatisticsHref()}>
 		<Icon name="back" />
-		Statistics
+		{app.said?.statistics.title}
 	</a>
 	<header class="page-head">
-		<h1>How you fly</h1>
+		<h1>{app.said?.statistics.howYouFly}</h1>
 	</header>
 
 	{#if phase.is === 'loaded'}
@@ -116,7 +116,7 @@
 		<div class="unavailable">
 			<span class="symbol"><Icon name="person" /></span>
 			<h2>Sign in to see how you fly</h2>
-			<a class="button-prominent" href={accountHref()}>Sign in</a>
+			<a class="button-prominent" href={accountHref()}>{app.said?.common.signIn}</a>
 		</div>
 	{:else if phase.is === 'failed'}
 		<div class="unavailable">
@@ -124,7 +124,7 @@
 			<h2>Your flights could not be read</h2>
 			<p>{phase.message}</p>
 			<button class="button-plain" type="button" onclick={() => (again += 1)}>
-				{app.said?.common.tryAgain ?? 'Try again'}
+				{app.said?.common.tryAgain}
 			</button>
 		</div>
 	{:else}

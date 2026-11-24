@@ -22,29 +22,31 @@ import { CommunityModel } from '#lib/community/model.svelte.ts';
 import { OpenPlansModel } from '#lib/community/open-plans.svelte.ts';
 import { ConnectModel } from '#lib/connect/model.svelte.ts';
 import {
-	canRunWebAssembly,
-	type Coordinate,
-	CoreClient,
-	NO_WEBASSEMBLY,
-	type FlightView,
-	type ForecastView,
 	type Bounds,
 	type CablesMap,
+	canRunWebAssembly,
 	type ClimbsAnswer,
+	type Coordinate,
+	CoreClient,
+	type FlightView,
 	type FlownAnswer,
-	type MapLayersWords,
-	type SiteAirAsked,
-	type SlopesAnswer,
-	type SlopesAsked,
+	type ForecastView,
 	type GlideReach,
 	type GlideReachSetting,
 	type GroundUnderFlight,
+	type MapLayersWords,
+	messageOf,
+	NO_WEBASSEMBLY,
+	type NothingFoundWords,
 	type RoutePlan,
-	type ScreenWords,
 	type RouteWeatherAnswer,
 	type RouteWeatherAsked,
+	type ScreenWords,
+	type SiteAirAsked,
 	type SiteOutlook,
-	type SiteView
+	type SiteView,
+	type SlopesAnswer,
+	type SlopesAsked
 } from '#lib/core/index.ts';
 import { format } from '#lib/design/format.ts';
 import { ThermalMapModel } from '#lib/forecast/thermal-map.svelte.ts';
@@ -242,7 +244,7 @@ export class App {
 					this.withoutWebAssembly = true;
 					return;
 				}
-				this.failure = error instanceof Error ? error.message : String(error);
+				this.failure = messageOf(error);
 			});
 		return this.#started;
 	}
@@ -351,6 +353,12 @@ export class App {
 		if (!browser) return undefined;
 		await this.start();
 		return this.#core?.mapLayersWords();
+	}
+
+	/** What a list says when nothing in it matches `searched`; nothing if the core could not start. */
+	async nothingFound(searched: string): Promise<NothingFoundWords | undefined> {
+		await this.#started;
+		return this.#core?.nothingFound(searched);
 	}
 
 	/** The core's line of who flies at a site now; empty when nobody does. */

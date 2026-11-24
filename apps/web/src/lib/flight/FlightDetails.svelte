@@ -12,6 +12,7 @@
 -->
 <script lang="ts">
 	import { AIRSPACE_COLORS } from '#lib/airspace/layers.ts';
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { checkCaveat, crossingLines, nothingEntered } from '#lib/airspace/words.ts';
 	import type {
 		FlightAirspace,
@@ -44,6 +45,8 @@
 	}
 
 	let { flight, analysis, airspace, onselect, fromHere, takeoffName }: Props = $props();
+
+	const app = getApp();
 
 	// The clock and the date of the place it was flown.
 	const text = $derived(flightFormat(flight));
@@ -80,16 +83,10 @@
 		['Track length', `${text.kilometres(flight.trackLengthM)} km`]
 	]);
 
-	/** What a route is called. The rules that tell them apart are the core's. */
-	const ROUTES = {
-		freeFlight: 'Free flight',
-		freeTriangle: 'Free triangle',
-		faiTriangle: 'FAI triangle'
-	} as const;
-
 	function scoreRows(score: FlightScore): string[][] {
+		const kind = app.said?.scoreKinds[score.kind];
 		return [
-			['Scored as', score.closed ? `${ROUTES[score.kind]}, closed` : ROUTES[score.kind]],
+			['Scored as', (score.closed ? kind?.closed : kind?.open) ?? ''],
 			['Distance', `${text.kilometres(score.distanceM)} km`],
 			['Points', text.points(score.points)],
 			[

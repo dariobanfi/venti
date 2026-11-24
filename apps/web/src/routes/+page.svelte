@@ -307,7 +307,7 @@
 							<tbody>
 								{#each followed as row (row.flight.id)}
 									{@const flight = row.flight}
-									{@const triangle = shape(flight)}
+									{@const triangle = shape(flight, app.said?.routeKinds)}
 									<tr>
 										<th scope="row" class="name">
 											<span class="named">
@@ -390,7 +390,7 @@
 							</thead>
 							<tbody>
 								{#each flights.flights as flight (flight.id)}
-									{@const triangle = shape(flight)}
+									{@const triangle = shape(flight, app.said?.routeKinds)}
 									<tr>
 										<th scope="row" class="name">
 											<span class="named">

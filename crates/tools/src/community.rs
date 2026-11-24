@@ -32,8 +32,8 @@ use venti_domain::{BoundingBox, GeoPoint, Site, SiteUse};
 
 use crate::sites::{is_plain_address, sector_words, use_word};
 use crate::wind::{
-    MAX_CREDIT_CHARS, MAX_ID_CHARS, MAX_LAYERS, MAX_LICENCE_CHARS, MAX_NOTICE_CHARS, compass,
-    refusal as wind_refusal, tenth,
+    MAX_CREDIT_CHARS, MAX_ID_CHARS, MAX_LAYERS, MAX_LICENCE_CHARS, MAX_NOTICE_CHARS, POINTS,
+    bearing_deg, compass, refusal as wind_refusal, tenth,
 };
 use crate::{Tool, ToolError, source_text};
 
@@ -59,12 +59,6 @@ pub const MAX_REVISIONS: usize = 100;
 pub const MAX_DAYS: i64 = 366;
 /// The longest cursor passed back to the server.
 pub const MAX_CURSOR_CHARS: usize = 200;
-
-/// The sixteen compass points, north first, each 22.5 degrees on.
-const POINTS: [&str; 16] = [
-    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW",
-    "NNW",
-];
 
 /// What every result that holds sites says about the text in it.
 pub const SITES_TEXT: &str = "The fields `name`, `description`, `fee` and `no_flight_time` of \
@@ -1134,12 +1128,15 @@ pub fn takeoff_candidates(answer: &SiteCandidatesResponse) -> Value {
     Value::Object(result)
 }
 
-/// A public flight as a row of `public_flights`, or whole for
-/// `public_flight`.
-fn flight_fields(flight: &Flight, now: DateTime<Utc>, whole: bool) -> Map<String, Value> {
-    let mut fields = Map::new();
-    fields.insert("flight_id".to_owned(), json!(flight.id.as_str()));
-    fields.insert("pilot".to_owned(), flight_pilot(&flight.pilot));
+/// What a row of public flights says of a flight beside who flew it and
+/// where it took off: when, how long, how far and how high, with the
+/// glider's name cut to `name_chars`.
+pub(crate) fn flight_facts(
+    fields: &mut Map<String, Value>,
+    flight: &Flight,
+    now: DateTime<Utc>,
+    name_chars: usize,
+) {
     fields.insert(
         "date".to_owned(),
         json!(flight.start.format("%Y-%m-%d").to_string()),
@@ -1174,11 +1171,20 @@ fn flight_fields(flight: &Flight, now: DateTime<Utc>, whole: bool) -> Map<String
     if let Some(glider) = flight
         .glider
         .as_deref()
-        .map(|glider| source_text(glider, MAX_NAME_CHARS))
+        .map(|glider| source_text(glider, name_chars))
         .filter(|glider| !glider.is_empty())
     {
         fields.insert("glider".to_owned(), json!(glider));
     }
+}
+
+/// A public flight as a row of `public_flights`, or whole for
+/// `public_flight`.
+fn flight_fields(flight: &Flight, now: DateTime<Utc>, whole: bool) -> Map<String, Value> {
+    let mut fields = Map::new();
+    fields.insert("flight_id".to_owned(), json!(flight.id.as_str()));
+    fields.insert("pilot".to_owned(), flight_pilot(&flight.pilot));
+    flight_facts(&mut fields, flight, now, MAX_NAME_CHARS);
     if let Some(takeoff) = flight.takeoff {
         let mut place = Map::new();
         place.insert("position".to_owned(), position(takeoff.position));
@@ -1203,7 +1209,7 @@ fn flight_fields(flight: &Flight, now: DateTime<Utc>, whole: bool) -> Map<String
                     "altitude_m": landing.altitude_m,
                     "time_utc": day_time(landing.time),
                     "from_takeoff_direction": flight.takeoff.map(|takeoff| compass(
-                        crate::wind::bearing_deg(takeoff.position, landing.position))),
+                        bearing_deg(takeoff.position, landing.position))),
                 }),
             );
         }

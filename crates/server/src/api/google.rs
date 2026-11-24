@@ -18,16 +18,14 @@ use venti_api_types::v1::{
     AccountResponse, CreateGoogleAccountRequest, DevGoogleIdTokenResponse, ErrorCode,
     GoogleSignInRequest, GoogleSignUpResponse, Handle, LinkGoogleRequest, parse_display_name,
 };
-use venti_store::{Account, AccountCreation, GoogleLink, GoogleLinking, NewGoogleAccount, Store};
+use venti_store::{AccountCreation, GoogleLink, GoogleLinking, NewGoogleAccount, Store};
 
-use super::account::invalid_invite;
+use super::account::{handle_taken, invalid_invite, new_account};
 use super::auth::{Client, OwnSession};
 use super::error::ApiError;
 use super::{Api, body, cache, wire};
-use crate::accounts::client::counting_keys;
 use crate::accounts::google::{GoogleSignIn, Identity, Refusal, handle_from};
-use crate::accounts::secret::{InviteCode, random_id};
-use crate::accounts::{Registration, is_reserved};
+use crate::accounts::is_reserved;
 
 impl<S: Store> Api<S> {
     /// Signing in with Google, or why the server does not offer it.
@@ -151,25 +149,7 @@ pub(crate) async fn create<S: Store>(
     let now = api.clock.now();
     body::must_say_json(&headers)?;
     let google = api.google()?;
-    let address = counting_keys(client);
-    let by_address = address.counted(
-        api.limits.registrations_per_address,
-        api.limits.registrations_per_network,
-    );
-    api.registrations
-        .attempt(&by_address, now)
-        .map_err(|refused| {
-            ApiError::rate_limited(
-                refused,
-                "too many accounts were asked for from this address",
-            )
-        })?;
-    if api.registration == Registration::Closed {
-        return Err(ApiError::forbidden(
-            ErrorCode::RegistrationClosed,
-            "this server takes no new accounts",
-        ));
-    }
+    api.count_registration(client, now)?;
 
     let request: CreateGoogleAccountRequest = body::json(&headers, &body)?;
     let identity = google.read_signup(&request.signup, now).ok_or_else(|| {
@@ -183,38 +163,8 @@ pub(crate) async fn create<S: Store>(
         .map_err(|e| ApiError::bad_request(ErrorCode::InvalidHandle, e.to_string()))?;
     let display_name = parse_display_name(&request.display_name)
         .map_err(|e| ApiError::bad_request(ErrorCode::InvalidDisplayName, e.to_string()))?;
-    let invite = match api.registration {
-        Registration::Invite => {
-            let code = request.invite.as_deref().and_then(InviteCode::parse);
-            Some(code.ok_or_else(invalid_invite)?.hash())
-        }
-        Registration::Open | Registration::Closed => None,
-    };
-    let taken = || {
-        ApiError::new(
-            StatusCode::CONFLICT,
-            ErrorCode::HandleTaken,
-            "this handle is not available",
-        )
-    };
-    if is_reserved(&handle) {
-        return Err(taken());
-    }
-
-    let account = Account {
-        id: random_id()?,
-        handle: handle.as_str().to_owned(),
-        display_name,
-        created_at: now,
-        publishing_suspended_at: None,
-        edits_sites_since: None,
-        // As for an account with a password (owner decision 21).
-        new_flights_public: true,
-        country: None,
-        glider_class: None,
-        picture: None,
-        shown_near_places: true,
-    };
+    let invite = api.invite_of(request.invite.as_deref())?;
+    let account = new_account(&handle, display_name, now)?;
     let new = NewGoogleAccount {
         account: account.clone(),
         google: link_of(&identity, now),
@@ -223,7 +173,7 @@ pub(crate) async fn create<S: Store>(
     match api.store.create_google_account(&new).await? {
         AccountCreation::Created => {}
         AccountCreation::InviteRefused => return Err(invalid_invite()),
-        AccountCreation::HandleTaken => return Err(taken()),
+        AccountCreation::HandleTaken => return Err(handle_taken()),
         AccountCreation::GoogleTaken => return Err(google_taken()),
     }
     tracing::info!(account = %account.handle, "account created with Google");

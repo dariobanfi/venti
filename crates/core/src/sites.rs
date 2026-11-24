@@ -939,12 +939,14 @@ pub(crate) fn wind_spans_in_words(spans: &[WindSpan]) -> String {
     wind_in_words(&sectors)
 }
 
+/// The sixteen points of the compass, short, from the north clockwise.
+pub(crate) const POINTS: [&str; 16] = [
+    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW",
+    "NNW",
+];
+
 /// One of sixteen compass points: sites are tagged that finely.
 pub(crate) fn compass(degrees: f64) -> &'static str {
-    const POINTS: [&str; 16] = [
-        "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW",
-        "NW", "NNW",
-    ];
     POINTS[((degrees.rem_euclid(360.0) + 11.25) / 22.5) as usize % 16]
 }
 

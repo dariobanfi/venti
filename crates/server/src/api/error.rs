@@ -1,7 +1,8 @@
 use axum::Json;
 use axum::http::{HeaderValue, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
-use venti_api_types::v1::{ErrorCode, ErrorResponse, ErrorSite, Scope};
+use venti_api_types::v1::{ErrorCode, ErrorResponse, ErrorSite, Scope, parse_bbox};
+use venti_domain::BoundingBox;
 use venti_store::StoreError;
 
 use super::log::Sparse;
@@ -216,6 +217,19 @@ impl From<NoRandomness> for ApiError {
 /// The path is repeated as the log would hold it: a path under a live
 /// track is repeated without the track's identifier, because an error
 /// message travels further than the request that caused it.
+/// The box a request names in its `bbox` parameter, which it must have.
+/// `help` says how to write one, with an example for the endpoint.
+pub(crate) fn bbox_asked(bbox: Option<&str>, help: &str) -> Result<BoundingBox, ApiError> {
+    let bbox = bbox.ok_or_else(|| {
+        ApiError::bad_request(
+            ErrorCode::InvalidBbox,
+            format!("the bbox parameter is missing; {help}"),
+        )
+    })?;
+    parse_bbox(bbox)
+        .map_err(|error| ApiError::bad_request(ErrorCode::InvalidBbox, format!("{error}; {help}")))
+}
+
 pub(crate) async fn not_found(uri: Uri) -> ApiError {
     ApiError::missing(
         ErrorCode::NotFound,

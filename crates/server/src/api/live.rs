@@ -22,14 +22,14 @@ use serde::Deserialize;
 use venti_api_types::v1::{
     ErrorCode, LIVE_OTHERS_LISTED_MINUTES, LiveOthersResponse, LivePositionsRequest,
     LivePositionsResponse, LiveTrackId, LiveTrackResponse, LiveTracksResponse, MAX_LIVE_FIXES,
-    MAX_LIVE_OTHERS_BOX_DEG, MAX_LIVE_TRACKS, live_page_path, parse_bbox, parse_time,
+    MAX_LIVE_OTHERS_BOX_DEG, MAX_LIVE_TRACKS, live_page_path, parse_time,
 };
 use venti_domain::Timestamp;
 use venti_store::{LiveBatch, LiveRemoval, LiveRoom, LiveSaved, LiveTrack, LiveVisibility, Store};
 
 use super::auth::{May, WriteLive};
 use super::cache::Keeper;
-use super::error::ApiError;
+use super::error::{ApiError, bbox_asked};
 use super::{Api, body, cache, wire};
 use crate::accounts::throttle::{Counted, Throttle};
 use crate::live::air::Sample;
@@ -269,15 +269,7 @@ pub(crate) async fn list<S: Store>(
     headers: HeaderMap,
     Query(params): Query<ListParams>,
 ) -> Result<Response, ApiError> {
-    let bbox = params.bbox.ok_or_else(|| {
-        ApiError::bad_request(
-            ErrorCode::InvalidBbox,
-            format!("the bbox parameter is missing; {BBOX_HELP}"),
-        )
-    })?;
-    let area = parse_bbox(&bbox).map_err(|error| {
-        ApiError::bad_request(ErrorCode::InvalidBbox, format!("{error}; {BBOX_HELP}"))
-    })?;
+    let area = bbox_asked(params.bbox.as_deref(), BBOX_HELP)?;
 
     let now = api.clock.now();
     let limits = &api.live.limits;
@@ -323,15 +315,7 @@ pub(crate) async fn others<S: Store>(
     headers: HeaderMap,
     Query(params): Query<ListParams>,
 ) -> Result<Response, ApiError> {
-    let bbox = params.bbox.ok_or_else(|| {
-        ApiError::bad_request(
-            ErrorCode::InvalidBbox,
-            format!("the bbox parameter is missing; {BBOX_HELP}"),
-        )
-    })?;
-    let area = parse_bbox(&bbox).map_err(|error| {
-        ApiError::bad_request(ErrorCode::InvalidBbox, format!("{error}; {BBOX_HELP}"))
-    })?;
+    let area = bbox_asked(params.bbox.as_deref(), BBOX_HELP)?;
     if area.east() - area.west() > MAX_LIVE_OTHERS_BOX_DEG
         || area.north() - area.south() > MAX_LIVE_OTHERS_BOX_DEG
     {

@@ -26,6 +26,7 @@ use venti_domain::GeoPoint;
 
 use crate::account::{Halt, asked_to_wait, failed, fetched, json_request, settled};
 use crate::server::{answer, refusal};
+use crate::sites::POINTS;
 use crate::{Core, CoreError, ServerRequest, SyncStep, SyncSummary};
 
 /// The file the device keeps the account's alarms and what fired in.
@@ -33,12 +34,6 @@ const FILE: &str = "alerts-account.json";
 
 /// How many of what fired the device keeps: the newest.
 const FIRED_HELD: usize = 200;
-
-/// The sixteen points of the compass, short, from the north clockwise.
-const POINTS: [&str; 16] = [
-    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW",
-    "NNW",
-];
 
 /// What an alarm waits for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]

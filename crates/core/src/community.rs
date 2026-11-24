@@ -228,21 +228,6 @@ pub fn area_around(lat: f64, lon: f64, radius_m: f64) -> Result<Bounds, CoreErro
     })
 }
 
-/// The path and query to `GET` for the public flights that took off near a
-/// place, the newest first: what was flown from a site. The server is
-/// asked for the square around the place, `radius_m` to each side, at
-/// most fifty kilometres.
-#[uniffi::export]
-pub fn public_flights_near_path(lat: f64, lon: f64, radius_m: f64) -> Result<String, CoreError> {
-    public_flights_path(
-        PublicFlightsOrder::Newest,
-        Some(area_around(lat, lon, radius_m)?),
-        None,
-        None,
-        None,
-    )
-}
-
 /// The path and query to `GET` for the public flights that began at a
 /// site: those that took off within 500 m of it, as the site's page counts
 /// them, in `order`. A site that is no take-off has none. `after` is the
@@ -1048,26 +1033,22 @@ mod tests {
     #[test]
     fn the_flights_from_a_place_are_asked_for_as_the_square_around_it() {
         // A kilometre and a half around the Wallberg's take-off.
-        let path = public_flights_near_path(47.6642, 11.7967, 1500.0).unwrap();
-        let bbox = path.strip_prefix("/v1/flights/public?bbox=").unwrap();
-        let edges: Vec<f64> = bbox.split(',').map(|edge| edge.parse().unwrap()).collect();
-        let (west, south, east, north) = (edges[0], edges[1], edges[2], edges[3]);
+        let Bounds {
+            south,
+            west,
+            north,
+            east,
+        } = area_around(47.6642, 11.7967, 1500.0).unwrap();
         assert!((north - south - 2.0 * 1500.0 / 111_320.0).abs() < 1e-6);
         // Degrees of longitude are shorter there: the square is wider in them.
         assert!((east - west) > (north - south) * 1.4);
         assert!(west < 11.7967 && east > 11.7967 && south < 47.6642 && north > 47.6642);
         // No farther than fifty kilometres, whatever is asked, and what is
         // no place is not asked for.
-        let far = public_flights_near_path(47.6642, 11.7967, 1e9).unwrap();
-        let wide: Vec<f64> = far
-            .strip_prefix("/v1/flights/public?bbox=")
-            .unwrap()
-            .split(',')
-            .map(|edge| edge.parse().unwrap())
-            .collect();
-        assert!((wide[3] - wide[1] - 2.0 * 50_000.0 / 111_320.0).abs() < 1e-6);
-        assert!(public_flights_near_path(f64::NAN, 11.8, 1500.0).is_err());
-        assert!(public_flights_near_path(89.9, 11.8, 1500.0).is_err());
+        let wide = area_around(47.6642, 11.7967, 1e9).unwrap();
+        assert!((wide.north - wide.south - 2.0 * 50_000.0 / 111_320.0).abs() < 1e-6);
+        assert!(area_around(f64::NAN, 11.8, 1500.0).is_err());
+        assert!(area_around(89.9, 11.8, 1500.0).is_err());
     }
 
     #[test]

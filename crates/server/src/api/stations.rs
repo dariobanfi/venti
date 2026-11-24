@@ -4,13 +4,11 @@ use axum::extract::{Query, State};
 use axum::http::HeaderMap;
 use axum::response::Response;
 use serde::Deserialize;
-use venti_api_types::v1::{
-    ErrorCode, MAX_STATIONS, Reading, Station, StationWithLatest, StationsResponse, parse_bbox,
-};
+use venti_api_types::v1::{MAX_STATIONS, Reading, Station, StationWithLatest, StationsResponse};
 use venti_domain::{BoundingBox, SourceId};
 use venti_store::Store;
 
-use super::error::ApiError;
+use super::error::{ApiError, bbox_asked};
 use super::{Api, cache, health, same_place};
 
 const BBOX_HELP: &str =
@@ -28,15 +26,7 @@ pub(crate) async fn stations<S: Store>(
     headers: HeaderMap,
     Query(params): Query<Params>,
 ) -> Result<Response, ApiError> {
-    let bbox = params.bbox.ok_or_else(|| {
-        ApiError::bad_request(
-            ErrorCode::InvalidBbox,
-            format!("the bbox parameter is missing; {BBOX_HELP}"),
-        )
-    })?;
-    let area = parse_bbox(&bbox).map_err(|error| {
-        ApiError::bad_request(ErrorCode::InvalidBbox, format!("{error}; {BBOX_HELP}"))
-    })?;
+    let area = bbox_asked(params.bbox.as_deref(), BBOX_HELP)?;
 
     let answer = api.stations_in(&area).await?;
     Ok(cache::json(&headers, &answer))

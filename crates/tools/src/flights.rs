@@ -11,7 +11,7 @@
 use chrono::{DateTime, Days, NaiveDate, Utc};
 use serde_json::{Map, Value, json};
 use venti_api_types::v1::{
-    Flight, FlightFilters, FlightSort, FlightsResponse, PublicFlightsRequest, RouteKind,
+    Flight, FlightFilters, FlightSort, FlightsResponse, PublicFlightsRequest,
 };
 use venti_domain::GeoPoint;
 
@@ -223,51 +223,7 @@ fn flights_near(answer: &FlightsResponse, asked: &Asked, now: DateTime<Utc>) -> 
                 json!(source_text(&flight.pilot.display_name, MAX_NAME_CHARS)),
             );
             fields.insert("handle".to_owned(), json!(flight.pilot.handle.to_string()));
-            fields.insert(
-                "date".to_owned(),
-                json!(flight.start.format("%Y-%m-%d").to_string()),
-            );
-            fields.insert(
-                "started_utc".to_owned(),
-                json!(flight.start.format("%H:%M").to_string()),
-            );
-            fields.insert(
-                "days_ago".to_owned(),
-                json!((now - flight.start).num_days().max(0)),
-            );
-            fields.insert(
-                "airtime_min".to_owned(),
-                json!((flight.airtime_s.max(0) + 30) / 60),
-            );
-            if let Some(score) = flight.score {
-                fields.insert(
-                    "distance_km".to_owned(),
-                    json!(tenth(score.distance_m / 1000.0)),
-                );
-                fields.insert("points".to_owned(), json!(tenth(score.points)));
-                let scored_as = match score.kind {
-                    RouteKind::FreeFlight => Some("free flight"),
-                    RouteKind::FreeTriangle => Some("triangle"),
-                    RouteKind::FaiTriangle => Some("FAI triangle"),
-                    RouteKind::Unknown => None,
-                };
-                if let Some(scored_as) = scored_as {
-                    fields.insert("scored_as".to_owned(), json!(scored_as));
-                }
-            }
-            fields.insert("highest_m".to_owned(), json!(flight.max_altitude_m));
-            fields.insert(
-                "best_climb_ms".to_owned(),
-                json!(tenth(flight.max_climb_ms)),
-            );
-            if let Some(glider) = flight
-                .glider
-                .as_deref()
-                .map(|glider| source_text(glider, MAX_NAME_CHARS))
-                .filter(|glider| !glider.is_empty())
-            {
-                fields.insert("glider".to_owned(), json!(glider));
-            }
+            crate::community::flight_facts(&mut fields, flight, now, MAX_NAME_CHARS);
             fields.insert(
                 "takeoff".to_owned(),
                 json!({

@@ -48,7 +48,7 @@ use venti_api_types::v1::{
     self, CANDIDATE_CELL_DEG, CANDIDATE_CLEAR_OF_SITES_M, CANDIDATE_MIN_PILOTS, ErrorCode,
     FlightSite, FlightTerms, MAX_CANDIDATE_BOX_DEG, MAX_SITE_CANDIDATES, SITE_BEST_FLIGHTS,
     SITE_FLIGHTS_WITHIN_M, SiteBestFlight, SiteCandidate, SiteCandidatesResponse,
-    SiteFlightsResponse, TAKEOFF_SITE_WITHIN_M, parse_bbox,
+    SiteFlightsResponse, TAKEOFF_SITE_WITHIN_M,
 };
 use venti_domain::{BoundingBox, GeoPoint, Site, SiteId, SourceId};
 use venti_sources::Kind;
@@ -56,7 +56,7 @@ use venti_store::{CandidateRule, Flight, FlightsFrom, Near, Store, Visibility, s
 
 use super::budget::Reader;
 use super::cache::Keeper;
-use super::error::ApiError;
+use super::error::{ApiError, bbox_asked};
 use super::log::Sparse;
 use super::{Api, cache, wire};
 
@@ -277,15 +277,7 @@ pub(crate) async fn candidates<S: Store>(
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     api.count_public_read(&reader)?;
-    let bbox = params.bbox.ok_or_else(|| {
-        ApiError::bad_request(
-            ErrorCode::InvalidBbox,
-            format!("the bbox parameter is missing; {BBOX_HELP}"),
-        )
-    })?;
-    let area = parse_bbox(&bbox).map_err(|error| {
-        ApiError::bad_request(ErrorCode::InvalidBbox, format!("{error}; {BBOX_HELP}"))
-    })?;
+    let area = bbox_asked(params.bbox.as_deref(), BBOX_HELP)?;
     let answer = api.candidates_in(&area).await?;
     Ok(cache::json(&headers, &answer))
 }

@@ -53,18 +53,6 @@ impl SlopeClass {
             _ => Self::Under25,
         }
     }
-
-    /// The steepness the class begins at, degrees.
-    #[must_use]
-    pub fn from_deg(self) -> f64 {
-        match self {
-            Self::Under25 => 0.0,
-            Self::From25 => 25.0,
-            Self::From30 => 30.0,
-            Self::From35 => 35.0,
-            Self::From40 => 40.0,
-        }
-    }
 }
 
 /// How steep the ground is at a place, degrees from level. `None` where
@@ -77,34 +65,6 @@ pub fn slope_deg(terrain: &Terrain, at: GeoPoint) -> Option<f64> {
     let (north, east, south, west) = (height(0.0)?, height(90.0)?, height(180.0)?, height(270.0)?);
     let rise = ((east - west) / SLOPE_BASE_M).hypot((north - south) / SLOPE_BASE_M);
     Some(rise.atan().to_degrees())
-}
-
-/// The steepness over a box, for a picture of it: `columns` × `rows`
-/// cells, row after row from the north-west, each read at its middle,
-/// evenly in latitude and longitude between the two corners. `None` for a
-/// cell whose ground is not held. Empty for no cells.
-#[must_use]
-pub fn slope_grid(
-    terrain: &Terrain,
-    north_west: GeoPoint,
-    south_east: GeoPoint,
-    columns: usize,
-    rows: usize,
-) -> Vec<Option<f64>> {
-    let (height, width) = (
-        north_west.lat() - south_east.lat(),
-        south_east.lon() - north_west.lon(),
-    );
-    (0..rows)
-        .flat_map(|row| (0..columns).map(move |column| (row, column)))
-        .map(|(row, column)| {
-            let lat = north_west.lat() - height * (row as f64 + 0.5) / rows as f64;
-            let lon = north_west.lon() + width * (column as f64 + 0.5) / columns as f64;
-            GeoPoint::new(lat, lon)
-                .ok()
-                .and_then(|place| slope_deg(terrain, place))
-        })
-        .collect()
 }
 
 #[cfg(test)]
@@ -164,27 +124,5 @@ mod tests {
         assert_eq!(SlopeClass::of(35.0), SlopeClass::From35);
         assert_eq!(SlopeClass::of(55.0), SlopeClass::From40);
         assert_eq!(SlopeClass::of(f64::NAN), SlopeClass::Under25);
-        assert_eq!(SlopeClass::From30.from_deg(), 30.0);
-    }
-
-    #[test]
-    fn a_box_is_read_cell_by_cell_from_the_north_west() {
-        let (terrain, at) = plane(0.6, 0.0);
-        let north_west = GeoPoint::new(at.lat() + 0.002, at.lon() - 0.003).unwrap();
-        let south_east = GeoPoint::new(at.lat() - 0.002, at.lon() + 0.003).unwrap();
-        let grid = slope_grid(&terrain, north_west, south_east, 4, 3);
-        assert_eq!(grid.len(), 12);
-        let expected = 0.6f64.atan().to_degrees();
-        assert!(
-            grid.iter()
-                .all(|slope| (slope.unwrap() - expected).abs() < 1.0),
-            "{grid:?}"
-        );
-        // A box reaching off the tile has cells without ground.
-        let far = GeoPoint::new(at.lat() - 0.1, at.lon() + 0.1).unwrap();
-        let grid = slope_grid(&terrain, north_west, far, 5, 5);
-        assert!(grid.first().unwrap().is_some());
-        assert!(grid.last().unwrap().is_none());
-        assert!(slope_grid(&terrain, north_west, south_east, 0, 3).is_empty());
     }
 }

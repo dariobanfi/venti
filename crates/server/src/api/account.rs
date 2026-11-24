@@ -22,8 +22,9 @@ use venti_api_types::v1::{
     Password, Scope, SessionsResponse, SignInRequest, SignInResponse, UpdateAccountRequest,
     parse_display_name, parse_token_name,
 };
+use venti_domain::Timestamp;
 use venti_store::{
-    AccessToken, Account, AccountCreation, AccountSettings, NewAccount, Session, Store,
+    AccessToken, Account, AccountCreation, AccountSettings, NewAccount, SecretHash, Session, Store,
 };
 
 use super::auth::{Client, May, OwnSession, ReadAccount, WriteFlights};
@@ -265,28 +266,7 @@ pub(crate) async fn create<S: Store>(
     // say it is JSON, which is what a page elsewhere can make a visitor's
     // browser send.
     body::must_say_json(&headers)?;
-    // Every attempt counts, whatever becomes of it, and before anything
-    // else is done with it, the password's hashing above all: this is what
-    // makes trying out invite codes or handles slow.
-    let address = counting_keys(client);
-    let by_address = address.counted(
-        api.limits.registrations_per_address,
-        api.limits.registrations_per_network,
-    );
-    api.registrations
-        .attempt(&by_address, now)
-        .map_err(|refused| {
-            ApiError::rate_limited(
-                refused,
-                "too many accounts were asked for from this address",
-            )
-        })?;
-    if api.registration == Registration::Closed {
-        return Err(ApiError::forbidden(
-            ErrorCode::RegistrationClosed,
-            "this server takes no new accounts",
-        ));
-    }
+    api.count_registration(client, now)?;
 
     let request: CreateAccountRequest = body::json(&headers, &body)?;
     let handle = Handle::new(&request.handle)
@@ -296,26 +276,89 @@ pub(crate) async fn create<S: Store>(
     password::check_new(&request.password, &handle)
         .map_err(|e| ApiError::bad_request(ErrorCode::InvalidPassword, e.to_string()))?;
 
-    let invite = match api.registration {
-        Registration::Invite => {
-            let code = request.invite.as_deref().and_then(InviteCode::parse);
-            Some(code.ok_or_else(invalid_invite)?.hash())
+    let invite = api.invite_of(request.invite.as_deref())?;
+    let account = new_account(&handle, display_name, now)?;
+    let new = NewAccount {
+        account: account.clone(),
+        password_hash: api.hasher.hash(&request.password).await?,
+        invite,
+    };
+    // With invites, whether a handle is free is said only to someone who
+    // holds a good one: the store checks the invite first.
+    match api.store.create_account(&new).await? {
+        AccountCreation::Created => {}
+        AccountCreation::InviteRefused => return Err(invalid_invite()),
+        AccountCreation::HandleTaken => return Err(handle_taken()),
+        // An account with a password links no Google account as it is
+        // made.
+        AccountCreation::GoogleTaken => return Err(ApiError::internal()),
+    }
+    tracing::info!(account = %account.handle, "account created");
+
+    let signed_in = api
+        .open_session(&account, request.device.as_deref())
+        .await?;
+    Ok(cache::private_json(StatusCode::CREATED, &signed_in))
+}
+
+impl<S: Store> Api<S> {
+    /// Counts an attempt at a new account against the address it came
+    /// from, and refuses it on a server that takes no new accounts. Every
+    /// attempt counts, whatever becomes of it, and before anything else is
+    /// done with it, the password's hashing above all: this is what makes
+    /// trying out invite codes or handles slow.
+    pub(super) fn count_registration(
+        &self,
+        client: IpAddr,
+        now: Timestamp,
+    ) -> Result<(), ApiError> {
+        let address = counting_keys(client);
+        let by_address = address.counted(
+            self.limits.registrations_per_address,
+            self.limits.registrations_per_network,
+        );
+        self.registrations
+            .attempt(&by_address, now)
+            .map_err(|refused| {
+                ApiError::rate_limited(
+                    refused,
+                    "too many accounts were asked for from this address",
+                )
+            })?;
+        if self.registration == Registration::Closed {
+            return Err(ApiError::forbidden(
+                ErrorCode::RegistrationClosed,
+                "this server takes no new accounts",
+            ));
         }
-        Registration::Open | Registration::Closed => None,
-    };
-    let taken = || {
-        ApiError::new(
-            StatusCode::CONFLICT,
-            ErrorCode::HandleTaken,
-            "this handle is not available",
-        )
-    };
-    // Which handles are kept back is no secret: the list is in the source.
-    if is_reserved(&handle) {
-        return Err(taken());
+        Ok(())
     }
 
-    let account = Account {
+    /// The invite a new account is made with: none on a server open to
+    /// all, and on one that takes new accounts by invite the code asked
+    /// with, which must read as one.
+    pub(super) fn invite_of(&self, code: Option<&str>) -> Result<Option<SecretHash>, ApiError> {
+        match self.registration {
+            Registration::Invite => {
+                let code = code.and_then(InviteCode::parse);
+                Ok(Some(code.ok_or_else(invalid_invite)?.hash()))
+            }
+            Registration::Open | Registration::Closed => Ok(None),
+        }
+    }
+}
+
+/// A new account as it is made, with a password or with Google. Which
+/// handles are kept back is no secret: the list is in the source.
+pub(super) fn new_account(
+    handle: &Handle,
+    display_name: String,
+    now: Timestamp,
+) -> Result<Account, ApiError> {
+    if is_reserved(handle) {
+        return Err(handle_taken());
+    }
+    Ok(Account {
         id: random_id()?,
         handle: handle.as_str().to_owned(),
         display_name,
@@ -329,28 +372,15 @@ pub(crate) async fn create<S: Store>(
         glider_class: None,
         picture: None,
         shown_near_places: true,
-    };
-    let new = NewAccount {
-        account: account.clone(),
-        password_hash: api.hasher.hash(&request.password).await?,
-        invite,
-    };
-    // With invites, whether a handle is free is said only to someone who
-    // holds a good one: the store checks the invite first.
-    match api.store.create_account(&new).await? {
-        AccountCreation::Created => {}
-        AccountCreation::InviteRefused => return Err(invalid_invite()),
-        AccountCreation::HandleTaken => return Err(taken()),
-        // An account with a password links no Google account as it is
-        // made.
-        AccountCreation::GoogleTaken => return Err(ApiError::internal()),
-    }
-    tracing::info!(account = %account.handle, "account created");
+    })
+}
 
-    let signed_in = api
-        .open_session(&account, request.device.as_deref())
-        .await?;
-    Ok(cache::private_json(StatusCode::CREATED, &signed_in))
+pub(super) fn handle_taken() -> ApiError {
+    ApiError::new(
+        StatusCode::CONFLICT,
+        ErrorCode::HandleTaken,
+        "this handle is not available",
+    )
 }
 
 pub(super) fn invalid_invite() -> ApiError {

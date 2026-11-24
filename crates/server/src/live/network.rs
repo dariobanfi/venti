@@ -510,31 +510,11 @@ async fn fetch_directory<F: Fetch>(
 #[cfg(test)]
 mod tests {
     use venti_sources::DeviceChoice;
+    use venti_sources_ogn::fixtures;
 
     use super::*;
     use crate::adapters;
     use crate::clock::FixedClock;
-
-    /// The made-up lines and directory, by the names of what this file is
-    /// about.
-    mod fixtures {
-        use venti_domain::{BoundingBox, Timestamp};
-
-        use crate::adapters;
-
-        pub fn feed_at() -> Timestamp {
-            adapters::live_feed_at()
-        }
-        pub fn area() -> BoundingBox {
-            BoundingBox::new(46.3, 9.4, 48.5, 17.2).unwrap()
-        }
-        pub fn made_up() -> &'static str {
-            adapters::made_up_live_lines()
-        }
-        pub fn directory() -> &'static [u8] {
-            adapters::made_up_live_directory()
-        }
-    }
 
     fn network(now: Timestamp) -> (Network, Arc<dyn LiveSource>) {
         let source = adapters::live_sources().remove(0);
@@ -546,7 +526,7 @@ mod tests {
     fn nobody_is_listed_before_the_owners_choices_are_known() {
         let now = fixtures::feed_at();
         let (network, ogn) = network(now);
-        feed(&network, ogn.as_ref(), fixtures::made_up(), now);
+        feed(&network, ogn.as_ref(), fixtures::feed(), now);
         assert!(network.layer(&fixtures::area(), now).aircraft.is_empty());
 
         let directory = ogn.parse_directory(fixtures::directory()).unwrap();
@@ -562,7 +542,7 @@ mod tests {
     fn an_opt_out_is_honoured_and_nothing_old_is_kept() {
         let now = fixtures::feed_at();
         let (network, ogn) = network(now);
-        feed(&network, ogn.as_ref(), fixtures::made_up(), now);
+        feed(&network, ogn.as_ref(), fixtures::feed(), now);
         let mut directory = ogn.parse_directory(fixtures::directory()).unwrap();
         // The made-up paraglider E00002, unknown to the directory, opts out.
         directory.devices.insert(
@@ -608,12 +588,12 @@ mod tests {
             ogn.manifest(),
             Arc::new(FixedClock(now + Duration::hours(25))),
         );
-        feed(&later, ogn.as_ref(), fixtures::made_up(), now);
+        feed(&later, ogn.as_ref(), fixtures::feed(), now);
         assert_eq!(later.held(), 0);
     }
 
     fn layer_position(ogn: &Arc<dyn LiveSource>, now: Timestamp) -> LivePosition {
-        let line = fixtures::made_up().lines().nth(2).unwrap();
+        let line = fixtures::feed().lines().nth(2).unwrap();
         match ogn.parse_line(line, now) {
             LiveLine::Position(position) => position,
             other => panic!("{other:?}"),
@@ -624,7 +604,7 @@ mod tests {
     fn nothing_is_derived_from_a_device_that_must_not_be_shown() {
         let now = fixtures::feed_at();
         let (network, ogn) = network(now);
-        feed(&network, ogn.as_ref(), fixtures::made_up(), now);
+        feed(&network, ogn.as_ref(), fixtures::feed(), now);
         let heard = network.trails.held();
         assert!(heard > 0);
         // Without the owners' choices nothing is derived either.

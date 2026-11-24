@@ -38,7 +38,7 @@ use venti_api_types::v1::{
     MAX_SITE_CONFIRMATIONS, MAX_SITES, RemoveSiteRequest, RestoreSiteRequest, SiteChangesResponse,
     SiteConfirmation, SiteConfirmationsResponse, SiteConfirmed, SiteDraft, SiteHistoryResponse,
     SiteLayer, SitePilot, SiteRecord, SiteRemoval, SiteResponse, SiteRevision, SiteRevisionKind,
-    SiteStanding, SiteVia, SitesResponse, parse_bbox, parse_site_comment,
+    SiteStanding, SiteVia, SitesResponse, parse_site_comment,
 };
 use venti_domain::{BoundingBox, Site, SiteId, SourceId, Timestamp};
 use venti_sources::Kind;
@@ -49,7 +49,7 @@ use venti_store::{
 
 use super::auth::{May, Signed, WriteSites};
 use super::budget::Reader;
-use super::error::ApiError;
+use super::error::{ApiError, bbox_asked};
 use super::site_places;
 use super::{Api, body, cache};
 use crate::accounts::secret;
@@ -78,15 +78,7 @@ pub(crate) async fn sites<S: Store>(
     headers: HeaderMap,
     Query(params): Query<Params>,
 ) -> Result<Response, ApiError> {
-    let bbox = params.bbox.ok_or_else(|| {
-        ApiError::bad_request(
-            ErrorCode::InvalidBbox,
-            format!("the bbox parameter is missing; {BBOX_HELP}"),
-        )
-    })?;
-    let area = parse_bbox(&bbox).map_err(|error| {
-        ApiError::bad_request(ErrorCode::InvalidBbox, format!("{error}; {BBOX_HELP}"))
-    })?;
+    let area = bbox_asked(params.bbox.as_deref(), BBOX_HELP)?;
 
     let answer = api.sites_in(&area, params.layers.as_deref()).await?;
     // A source's set changes once a day at most, and its answer may be

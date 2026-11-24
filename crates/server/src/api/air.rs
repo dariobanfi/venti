@@ -25,13 +25,13 @@ use venti_api_types::v1::{
     Attribution, DEFAULT_SITE_LAYERS, ErrorCode, FLOWN_CELL_DEG, FLOWN_MIN_PILOTS, FlightTerms,
     FlownThermalsResponse, LIVE_CLIMB_CELL_DEG, LIVE_CLIMB_MINUTES, LiveClimbsResponse,
     LiveSitesResponse, MAX_FLOWN_BOX_DEG, MAX_LIVE_OTHERS_BOX_DEG, SITE_AIR_WITHIN_M,
-    SITE_TAKEOFF_MINUTES, VENTI_LIVE_SOURCE, parse_bbox, parse_flown_hours,
+    SITE_TAKEOFF_MINUTES, VENTI_LIVE_SOURCE, parse_flown_hours,
 };
 use venti_domain::{BoundingBox, Timestamp};
 use venti_store::Store;
 
 use super::budget::Reader;
-use super::error::ApiError;
+use super::error::{ApiError, bbox_asked};
 use super::{Api, cache, takeoffs};
 use crate::live::air::{self, Flyer, Place};
 use crate::pilot_sites::Layer;
@@ -46,15 +46,7 @@ pub(crate) struct BoxParams {
 
 /// The box a request names, at most `widest` degrees each way.
 fn boxed(bbox: Option<&str>, widest: f64) -> Result<BoundingBox, ApiError> {
-    let bbox = bbox.ok_or_else(|| {
-        ApiError::bad_request(
-            ErrorCode::InvalidBbox,
-            format!("the bbox parameter is missing; {BBOX_HELP}"),
-        )
-    })?;
-    let area = parse_bbox(bbox).map_err(|error| {
-        ApiError::bad_request(ErrorCode::InvalidBbox, format!("{error}; {BBOX_HELP}"))
-    })?;
+    let area = bbox_asked(bbox, BBOX_HELP)?;
     if area.east() - area.west() > widest || area.north() - area.south() > widest {
         return Err(ApiError::bad_request(
             ErrorCode::InvalidBbox,

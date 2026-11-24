@@ -650,21 +650,16 @@ pub(crate) fn box_around(place: GeoPoint, radius_km: f64) -> BoundingBox {
     .expect("a box around a valid point, clamped to the globe, is valid")
 }
 
-/// The direction from one point to another, degrees clockwise from north.
-pub(crate) fn bearing_deg(from: GeoPoint, to: GeoPoint) -> f64 {
-    let (lat1, lat2) = (from.lat().to_radians(), to.lat().to_radians());
-    let along = (to.lon() - from.lon()).to_radians();
-    let east = along.sin() * lat2.cos();
-    let north = lat1.cos() * lat2.sin() - lat1.sin() * lat2.cos() * along.cos();
-    east.atan2(north).to_degrees().rem_euclid(360.0)
-}
+pub(crate) use venti_flight::live::navigation::bearing_deg;
+
+/// The sixteen compass points, north first, each 22.5 degrees on.
+pub(crate) const POINTS: [&str; 16] = [
+    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW",
+    "NNW",
+];
 
 /// A direction as one of sixteen compass points.
 pub(crate) fn compass(degrees: f64) -> &'static str {
-    const POINTS: [&str; 16] = [
-        "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW",
-        "NW", "NNW",
-    ];
     POINTS[((degrees.rem_euclid(360.0) + 11.25) / 22.5) as usize % 16]
 }
 

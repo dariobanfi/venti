@@ -42,10 +42,30 @@ final class UnreadModel {
         self.init(send: { try await account.answer(to: $0) }, isSignedIn: { account.isSignedIn })
     }
 
-    /// What the badge says: "3", "99+"; `nil` for none.
-    var badge: String? { unread?.badge }
+    /// What the badge says: "3", "99+"; `nil` for none. The groups' unread
+    /// messages are a marker beside the notifications' (`groups`, not in
+    /// `total`), and the tab has one badge: the two together.
+    var badge: String? {
+        guard let unread else { return nil }
+        guard unread.groups > 0 else { return unread.badge }
+        return Self.badge(of: unread.total + unread.groups)
+    }
+
     /// What VoiceOver says of it: "3 new".
-    var label: String? { unread?.label }
+    var label: String? {
+        guard let unread else { return nil }
+        guard unread.groups > 0 else { return unread.label }
+        return badge.map { "\($0) new" }
+    }
+
+    /// The core's form of a badge: the count, "99+" over 99, none for 0.
+    nonisolated static func badge(of count: UInt32) -> String? {
+        switch count {
+        case 0: nil
+        case 1...99: String(count)
+        default: "99+"
+        }
+    }
 
     /// Reads the count anew; signed out there is none.
     func read() async {

@@ -100,55 +100,171 @@ final class GroupsModel {
         }
     }
 
-    // MARK: Groups
+    // MARK: Groups as communities (owner decision 26)
 
-    func make(_ name: String) async throws -> GroupMade {
-        let core = core
-        let made = try await send({ try core.createGroupRequest(name: name) }) {
-            try core.groupMade(status: $0, body: $1)
+    /// The pilot's groups as the groups' section shows them, each with its
+    /// unread messages and its last message. `nil` until Venti answered.
+    private(set) var chats: [CommunityView]?
+    /// Why the pilot's groups are not there, in words for the pilot.
+    private(set) var chatsProblem: String?
+    /// The pilot's invites into private groups.
+    private(set) var invites: [CommunityInvite] = []
+
+    /// The words of the groups' screens that no answer carries.
+    let words = communityWords()
+
+    /// Asks for the pilot's groups and their invites.
+    func loadChats() async {
+        guard account.isSignedIn else {
+            chats = nil
+            invites = []
+            chatsProblem = nil
+            return
         }
-        await load()
-        return made
+        let core = core
+        do {
+            chats = try await send({ try core.groupsRequest() }) { try core.communities(status: $0, body: $1) }
+            chatsProblem = nil
+        } catch is CancellationError {
+        } catch {
+            if (error as? URLError)?.code == .cancelled { return }
+            chatsProblem = AccountModel.words(for: error)
+        }
+        if let invites = try? await send({ try core.groupInvitesRequest() }, read: {
+            try core.groupInvites(status: $0, body: $1)
+        }) {
+            self.invites = invites
+        }
     }
 
-    func join(_ code: String) async throws -> GroupJoined {
+    /// The public groups near a place, by name or place, or both.
+    func find(near place: Coordinate?, text: String) async throws -> [FoundCommunity] {
         let core = core
-        let joined = try await send({ try core.joinGroupRequest(code: code) }) {
+        return try await send({ try core.findGroupsRequest(near: place, text: text) }) {
+            try core.foundGroups(status: $0, body: $1)
+        }
+    }
+
+    /// Both lists anew after the pilot's standing in a group changed.
+    private func reloadAll() async {
+        async let board: Void = load()
+        async let chats: Void = loadChats()
+        _ = await (board, chats)
+    }
+
+    func detail(_ id: String) async throws -> CommunityDetail {
+        let core = core
+        return try await send({ try core.groupRequest(id: id) }) { try core.community(status: $0, body: $1) }
+    }
+
+    /// Makes a group with the pilot as its owner, with its picture if one
+    /// was chosen (a JPEG).
+    func create(_ draft: CommunityDraft, isPublic: Bool, picture: Data?) async throws -> CommunityDetail {
+        let core = core
+        // The answer is the group as it was made, without its members: the
+        // same as before decision 26, so the core's `groupMade` reads it.
+        let made = try await send({ try core.createCommunityRequest(draft: draft, public: isPublic) }) {
+            try core.groupMade(status: $0, body: $1)
+        }
+        let id = made.group.id
+        let shown = if let picture {
+            try await setPicture(id, picture)
+        } else {
+            try await self.detail(id)
+        }
+        await reloadAll()
+        return shown
+    }
+
+    /// Changes a group's name, description and home.
+    func change(_ id: String, to draft: CommunityDraft) async throws -> CommunityDetail {
+        let core = core
+        let changed = try await send({ try core.changeCommunityRequest(id: id, draft: draft) }) {
+            try core.community(status: $0, body: $1)
+        }
+        await reloadAll()
+        return changed
+    }
+
+    /// Makes a group public or private: its owner's.
+    func setPublic(_ id: String, _ isPublic: Bool) async throws -> CommunityDetail {
+        let core = core
+        let changed = try await send({ try core.groupPublicRequest(id: id, public: isPublic) }) {
+            try core.community(status: $0, body: $1)
+        }
+        await loadChats()
+        return changed
+    }
+
+    /// Gives a group its picture, a JPEG.
+    func setPicture(_ id: String, _ jpeg: Data) async throws -> CommunityDetail {
+        let core = core
+        return try await send({
+            try core.groupOwnPictureRequest(id: id, picture: jpeg, mediaType: PictureUpload.mediaType)
+        }) { try core.community(status: $0, body: $1) }
+    }
+
+    func removePicture(_ id: String) async throws -> CommunityDetail {
+        let core = core
+        return try await send({ try core.removeGroupOwnPictureRequest(id: id) }) {
+            try core.community(status: $0, body: $1)
+        }
+    }
+
+    /// Takes the pilot into a public group, or one they were invited into.
+    @discardableResult
+    func enter(_ id: String) async throws -> GroupJoined {
+        let core = core
+        let joined = try await send({ try core.enterGroupRequest(id: id) }) {
             try core.groupJoined(status: $0, body: $1)
         }
-        await load()
+        await reloadAll()
         return joined
     }
 
-    func detail(_ id: String) async throws -> GroupDetail {
+    /// Declines an invite into a group: the pilot's own handle.
+    func decline(_ id: String) async throws {
         let core = core
-        return try await send({ try core.groupRequest(id: id) }) { try core.group(status: $0, body: $1) }
-    }
-
-    func rename(_ id: String, to name: String) async throws -> GroupDetail {
-        let core = core
-        let detail = try await send({ try core.renameGroupRequest(id: id, name: name) }) {
-            try core.group(status: $0, body: $1)
+        let me = account.account?.handle ?? ""
+        try await send({ try core.dropGroupInviteRequest(id: id, handle: me) }) {
+            try core.groupDone(status: $0, body: $1)
         }
-        await load()
-        return detail
+        await loadChats()
     }
 
-    func handOver(_ id: String, to handle: String) async throws -> GroupDetail {
+    /// Invites a pilot by handle: the core's line of what was done.
+    func invite(_ handle: String, to id: String) async throws -> String {
+        let core = core
+        return try await send({ try core.inviteToGroupRequest(id: id, handle: handle) }) {
+            try core.groupInviteSent(status: $0, body: $1)
+        }
+    }
+
+    /// Makes a member an admin, or an admin a member again: the owner's.
+    func setAdmin(_ handle: String, in id: String, _ isAdmin: Bool) async throws {
+        let core = core
+        try await send({ try core.groupAdminRequest(id: id, handle: handle, admin: isAdmin) }) {
+            try core.groupDone(status: $0, body: $1)
+        }
+    }
+
+    func handOver(_ id: String, to handle: String) async throws -> CommunityDetail {
         let core = core
         let detail = try await send({ try core.handOverGroupRequest(id: id, handle: handle) }) {
-            try core.group(status: $0, body: $1)
+            try core.community(status: $0, body: $1)
         }
-        await load()
+        await reloadAll()
         return detail
     }
 
-    /// A new invite code for a group. The one before it stops working.
-    func newInvite(_ id: String) async throws -> String {
+    /// Mutes a group's pushes, or unmutes them.
+    func mute(_ id: String, _ muted: Bool) async throws -> CommunityStanding {
         let core = core
-        return try await send({ try core.newGroupInviteRequest(id: id) }) {
-            try core.groupInvite(status: $0, body: $1)
+        let standing = try await send({ try core.groupMuteRequest(id: id, muted: muted) }) {
+            try core.groupStanding(status: $0, body: $1)
         }
+        await loadChats()
+        return standing
     }
 
     func remove(_ handle: String, from id: String) async throws {
@@ -156,19 +272,26 @@ final class GroupsModel {
         try await send({ try core.removeGroupMemberRequest(id: id, handle: handle) }) {
             try core.groupDone(status: $0, body: $1)
         }
-        await load()
+        await reloadAll()
     }
 
     func leave(_ id: String) async throws {
         let core = core
         try await send({ try core.leaveGroupRequest(id: id) }) { try core.groupDone(status: $0, body: $1) }
-        await load()
+        await reloadAll()
     }
 
     func delete(group id: String) async throws {
         let core = core
         try await send({ try core.deleteGroupRequest(id: id) }) { try core.groupDone(status: $0, body: $1) }
-        await load()
+        await reloadAll()
+    }
+
+    /// The model of one group's chat, sending with the account's token.
+    func chat(_ id: String) -> ChatModel {
+        let core = core
+        let account = account
+        return ChatModel(group: id, core: core) { try await account.answer(to: $0) }
     }
 
     // MARK: Plans
@@ -208,6 +331,7 @@ final class GroupsModel {
 
     /// Puts a request together, sends it with the account's token and
     /// reads the answer.
+    @discardableResult
     private func send<Value>(
         _ request: () throws -> ServerRequest, read: (UInt16, Data) throws -> Value
     ) async throws -> Value {

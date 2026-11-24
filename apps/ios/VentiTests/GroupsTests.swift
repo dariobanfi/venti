@@ -36,8 +36,6 @@ final class GroupsTests: XCTestCase {
                 return (200, Data(#"{"flights": [], "deleted": [], "cursor": "c1", "more": false, "reset": false}"#.utf8), nil)
             case ("GET", "/v1/groups/plans"):
                 return (200, Data(board.utf8), nil)
-            case ("POST", "/v1/groups/join"):
-                return (403, Data(#"{"error": {"code": "invalid_group_invite", "message": "x"}}"#.utf8), nil)
             case (_, let path) where path.hasSuffix("/in") || path.hasSuffix("/plans"):
                 return (200, Data(GroupAnswers.plan.utf8), nil)
             default:
@@ -104,13 +102,13 @@ final class GroupsTests: XCTestCase {
 
         // A refusal is said in the core's words, and a plan that the
         // server would refuse is refused before anything is sent.
-        do {
-            _ = try await groups.join("0000-0000-0000-0000")
-            XCTFail("A code that is none was taken")
-        } catch {
-            XCTAssertTrue(AccountModel.words(for: error).hasPrefix("This is not a group's invite code"))
-        }
         let count = await sent.requests.count
+        do {
+            _ = try await groups.invite("not a handle!", to: plan.groupId)
+            XCTFail("A handle that is none was sent")
+        } catch {
+            XCTAssertEqual(AccountModel.words(for: error), "Type the pilot's handle, such as @mara.")
+        }
         do {
             try await groups.post(
                 PlanDraft(day: "2026-11-21", place: "  ", position: nil, meetAt: nil, note: ""), to: plan.groupId

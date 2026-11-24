@@ -9,10 +9,23 @@ struct Reported: Identifiable {
     /// The comment under the flight `subject` names, where a comment is
     /// what is reported: the core has a request of its own for it.
     var comment: String?
+    /// A message of a group, or a picture sent with one, where that is
+    /// what is reported: the core has a request of its own for it.
+    var message: Message?
+
+    /// A message of a group, or one of its pictures, by its identifier.
+    struct Message {
+        let group: String
+        let id: String
+        let isPicture: Bool
+    }
 
     var id: String {
         if let comment {
             return "comment \(comment)"
+        }
+        if let message {
+            return "\(message.isPicture ? "picture" : "message") \(message.id)"
         }
         return switch subject {
         case .flight(let id): "flight \(id)"
@@ -67,6 +80,22 @@ struct Reported: Identifiable {
         Reported(subject: .flight(id: flight), title: Social.words.commentReportTitle, comment: id)
     }
 
+    /// A message of a group: its words.
+    static func message(_ id: String, in group: String) -> Reported {
+        Reported(
+            subject: .group(id: group), title: "Report this message",
+            message: Message(group: group, id: id, isPicture: false)
+        )
+    }
+
+    /// A picture sent with a message of a group.
+    static func messagePicture(_ id: String, in group: String) -> Reported {
+        Reported(
+            subject: .group(id: group), title: "Report this picture",
+            message: Message(group: group, id: id, isPicture: true)
+        )
+    }
+
     static func siteRevision(_ id: String, revision: UInt32) -> Reported {
         Reported(subject: .siteRevision(id: id, revision: revision), title: siteWords().reportRevision)
     }
@@ -93,7 +122,10 @@ struct ReportSheet: View {
     @State private var outcome: String?
 
     private var form: ReportForm {
-        reported.comment == nil ? reportFormFor(subject: reported.subject) : commentReportForm()
+        if reported.message != nil {
+            return messageReportForm()
+        }
+        return reported.comment == nil ? reportFormFor(subject: reported.subject) : commentReportForm()
     }
 
     var body: some View {
@@ -213,6 +245,14 @@ struct ReportSheet: View {
         Task {
             defer { isSending = false }
             do {
+                if let message = reported.message {
+                    let request = try messageReportRequest(
+                        groupId: message.group, id: message.id, picture: message.isPicture, reason: reason, text: text
+                    )
+                    let answer = try await account.answer(to: request)
+                    outcome = try reportSent(status: answer.status, body: answer.body)
+                    return
+                }
                 outcome = try await account.report(
                     reported.subject, comment: reported.comment, reason: reason, text: text
                 )

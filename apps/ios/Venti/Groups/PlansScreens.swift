@@ -18,7 +18,7 @@ struct PlansSheet: View {
             VentiList {
                 if !account.isSignedIn {
                     Section {
-                        Text("Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, then make a group or join one with the code its keeper gives you.")
+                        Text("Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, then make a group or join one.")
                             .foregroundStyle(.secondary)
                             .accessibilityIdentifier("plans-signed-out")
                     }
@@ -55,7 +55,7 @@ struct PlansSheet: View {
                     }
                     Section {
                         NavigationLink {
-                            GroupsList()
+                            GroupsScreen()
                         } label: {
                             Label(board.groups.isEmpty ? "Make or join a group" : "Groups", systemImage: "person.3")
                         }
@@ -299,6 +299,9 @@ struct PlanScreen: View {
 struct PlanForm: View {
     /// The plan to change; `nil` for a new one.
     let editing: PlanView?
+    /// The group a new plan is posted to, where the form was opened from
+    /// its chat; else the pilot chooses.
+    var inGroup: String?
 
     @Environment(GroupsModel.self) private var groups
     @Environment(WaypointsModel.self) private var waypoints
@@ -319,7 +322,7 @@ struct PlanForm: View {
     var body: some View {
         NavigationStack {
             VentiList {
-                if editing == nil, groups.groups.count > 1 {
+                if editing == nil, inGroup == nil, groups.groups.count > 1 {
                     Section {
                         Picker("Group", selection: $group) {
                             ForEach(groups.groups, id: \.id) { group in
@@ -371,7 +374,7 @@ struct PlanForm: View {
                 } header: {
                     Text("Note")
                 } footer: {
-                    Text("The members of the group see the plan, and nobody else. It is removed two days after its day.")
+                    Text("The plan is posted in the group's chat, with \"I'm in\" on its card. It is removed two days after its day.")
                 }
                 if let problem {
                     Section {
@@ -417,6 +420,8 @@ struct PlanForm: View {
                     time = at
                 }
             }
+        } else if let inGroup {
+            group = inGroup
         } else if group.isEmpty {
             group = groups.groups.first?.id ?? ""
         }

@@ -3991,6 +3991,136 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(card.vanishes(timeout: 20))
     }
 
+    /// Groups as communities with a chat (owner decision 26): the public
+    /// groups of the development mode found by place, one joined, its
+    /// flight card read, a message with a link posted and removed, and the
+    /// group's page. Light and dark.
+    func testAPublicGroupIsFoundJoinedAndTalkedIn() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].appears(timeout: 90))
+        signIn(("demo", "demo-pilot-password"), in: app)
+        openTab("Community", in: app)
+        let groups = bring("community-groups", into: app)
+        groups.tap()
+
+        // The groups near the map's middle: the development mode's six lie
+        // around Munich and the mountains south of it.
+        let near = element("found-group", in: app)
+        XCTAssertTrue(near.appears(timeout: 30))
+        usleep(600_000)
+        keepScreenshots(light: "groups-1-near", dark: "groups-dark-1-near")
+
+        // Found by place, and joined.
+        let search = app.searchFields.firstMatch
+        search.tap()
+        search.typeText("Rosenheim")
+        let eagles = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'found-group' AND label CONTAINS 'Rosenheimer Eagles'")).firstMatch
+        XCTAssertTrue(eagles.appears(timeout: 20))
+        let join = app.buttons.matching(NSPredicate(format: "identifier == 'group-join' AND value == 'Rosenheimer Eagles'")).firstMatch
+        XCTAssertTrue(join.appears(timeout: 10))
+        join.tap()
+        XCTAssertTrue(join.vanishes(timeout: 20))
+        usleep(400_000)
+        keepScreenshot("groups-2-found")
+
+        // Its chat: the first message carries mara's flight as a card.
+        eagles.tap()
+        let flight = element("chat-card-flight", in: app)
+        XCTAssertTrue(flight.appears(timeout: 30))
+        XCTAssertTrue(flight.label.contains("Mara Muster"), flight.label)
+        XCTAssertTrue(element("chat-text", in: app).exists)
+        usleep(600_000)
+        keepScreenshots(light: "groups-3-chat", dark: "groups-dark-3-chat")
+        flight.tap()
+        XCTAssertTrue(app.buttons["Flight details"].appears(timeout: 30))
+        app.navigationBars.buttons.firstMatch.tap()
+
+        // A message with a link to a pilot, which shows as a card.
+        let field = element("chat-text", in: app)
+        XCTAssertTrue(field.appears(timeout: 15))
+        field.tap()
+        let words = "Up tomorrow? \(Int.random(in: 100...999)) https://venti.fly/pilots/mara"
+        field.typeText(words)
+        element("chat-send", in: app).tap()
+        let pilot = element("chat-card-pilot", in: app)
+        XCTAssertTrue(pilot.appears(timeout: 20))
+        let mine = labelled(containing: "Up tomorrow?", in: app)
+        XCTAssertTrue(mine.appears(timeout: 10))
+        app.swipeDown()
+        usleep(600_000)
+        keepScreenshots(light: "groups-4-posted", dark: "groups-dark-4-posted")
+
+        // A long press removes it: it keeps its place without its words.
+        mine.press(forDuration: 1.2)
+        let remove = app.buttons["Remove"]
+        XCTAssertTrue(remove.appears(timeout: 10))
+        remove.tap()
+        let confirm = app.buttons.matching(NSPredicate(format: "label == 'Remove'")).firstMatch
+        XCTAssertTrue(confirm.appears(timeout: 10))
+        confirm.tap()
+        XCTAssertTrue(labelled(containing: "Removed by", in: app).appears(timeout: 20))
+
+        // The group's page: its home, members and the mute.
+        element("chat-info", in: app).tap()
+        XCTAssertTrue(element("group-member", in: app).appears(timeout: 20))
+        XCTAssertTrue(element("group-home", in: app).exists)
+        XCTAssertTrue(element("group-mute", in: app).exists)
+        usleep(400_000)
+        keepScreenshots(light: "groups-5-page", dark: "groups-dark-5-page")
+    }
+
+    /// A private group made from the groups' section, and the demo's
+    /// friend invited into it by handle. Light and dark.
+    func testAPrivateGroupIsMadeAndAPilotInvited() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].appears(timeout: 90))
+        signIn(("demo", "demo-pilot-password"), in: app)
+        openTab("Community", in: app)
+        bring("community-groups", into: app).tap()
+        let new = element("groups-new", in: app)
+        XCTAssertTrue(new.appears(timeout: 20))
+        new.tap()
+
+        let name = element("group-form-name", in: app)
+        XCTAssertTrue(name.appears(timeout: 10))
+        name.tap()
+        let title = "Kampenwand \(Int.random(in: 100...999))"
+        name.typeText(title)
+        app.buttons["Private"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["Private"].firstMatch.isSelected)
+        let place = element("group-form-place", in: app)
+        place.tap()
+        place.typeText("Chiemgau")
+        usleep(400_000)
+        keepScreenshots(light: "groups-6-form", dark: "groups-dark-6-form")
+        element("group-form-save", in: app).tap()
+
+        // The new group opens on its empty chat.
+        XCTAssertTrue(element("chat-empty", in: app).appears(timeout: 20))
+        XCTAssertTrue(app.navigationBars[title].exists)
+        element("chat-info", in: app).tap()
+        let invite = element("group-invite", in: app)
+        XCTAssertTrue(invite.appears(timeout: 20))
+        invite.tap()
+        let handle = app.alerts.textFields.firstMatch
+        XCTAssertTrue(handle.appears(timeout: 10))
+        handle.typeText("mara")
+        app.alerts.buttons["Invite"].tap()
+        let outcome = element("group-outcome", in: app)
+        XCTAssertTrue(outcome.appears(timeout: 20))
+        XCTAssertTrue(outcome.label.contains("Invited to"), outcome.label)
+        XCTAssertTrue(labelled(containing: "Private", in: app).exists)
+        usleep(400_000)
+        keepScreenshots(light: "groups-7-invited", dark: "groups-dark-7-invited")
+    }
+
     /// A route of the pilot's own waypoints: tapped in the order to fly
     /// them and kept as the task.
     func testARouteIsPlannedFromWaypoints() {
@@ -4535,27 +4665,24 @@ final class VentiUITests: XCTestCase {
         XCTAssertFalse(element("plan-report", in: app).exists)
         app.navigationBars.buttons.firstMatch.tap()
 
-        // And a group the pilot is in and does not keep: the development
-        // mode's other group, joined with its code. The keeper of a group
-        // deletes it instead.
+        // And a group the pilot does not own: a public group of the
+        // development mode, found by its place and reported from its page.
+        // The owner of a group deletes it instead.
         let groupsLink = element("plans-groups", in: app)
         XCTAssertTrue(groupsLink.appears(timeout: 10))
         groupsLink.tap()
-        let join = app.buttons["Join with a code"]
-        XCTAssertTrue(join.appears(timeout: 10))
-        join.tap()
-        let code = app.alerts.textFields.firstMatch
-        XCTAssertTrue(code.appears(timeout: 10))
-        code.typeText("5555-5555-5555-5555")
-        app.alerts.buttons["Join"].tap()
-        let otherGroup = labelled(containing: "Beispielgruppe", in: app)
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.appears(timeout: 15))
+        search.tap()
+        search.typeText("Rosenheim")
+        let otherGroup = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'found-group' AND label CONTAINS 'Rosenheimer Eagles'")).firstMatch
         XCTAssertTrue(otherGroup.appears(timeout: 20))
         otherGroup.tap()
-        let reportGroup = element("group-report", in: app)
-        for _ in 0..<3 where !reportGroup.exists {
-            app.swipeUp()
-        }
-        XCTAssertTrue(reportGroup.appears(timeout: 15))
+        let info = element("chat-info", in: app)
+        XCTAssertTrue(info.appears(timeout: 15))
+        info.tap()
+        let reportGroup = bring("group-report", into: app)
         reportGroup.tap()
         XCTAssertTrue(element("report-reason", in: app).appears(timeout: 10))
         XCTAssertTrue(app.navigationBars["Report this group"].exists)
@@ -4563,10 +4690,15 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("groups-group-report")
         app.buttons["Cancel"].tap()
         XCTAssertTrue(reportGroup.appears(timeout: 10))
-        // Back to the board.
-        app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(join.appears(timeout: 10))
-        app.navigationBars.buttons.firstMatch.tap()
+        // Back to the board: the page, the chat, the search, the groups.
+        for _ in 0..<6 where !element("plans-groups", in: app).exists {
+            if app.buttons["Cancel"].exists {
+                app.buttons["Cancel"].tap()
+            } else {
+                app.navigationBars.buttons.firstMatch.tap()
+            }
+            usleep(800_000)
+        }
 
         // The map marks the plan where it is, and says so.
         XCTAssertTrue(element("plans-groups", in: app).appears(timeout: 10))
@@ -4590,11 +4722,14 @@ final class VentiUITests: XCTestCase {
         let toGroups = element("plans-groups", in: app)
         XCTAssertTrue(toGroups.appears(timeout: 10))
         toGroups.tap()
-        let group = element("group-row", in: app)
+        let group = element("community-card", in: app)
         XCTAssertTrue(group.appears(timeout: 15))
         group.tap()
+        let about = element("chat-info", in: app)
+        XCTAssertTrue(about.appears(timeout: 15))
+        about.tap()
         XCTAssertTrue(element("group-member", in: app).appears(timeout: 20))
-        XCTAssertTrue(app.buttons["New invite code"].exists)
+        XCTAssertTrue(element("group-invite", in: app).exists)
         usleep(400_000)
         keepScreenshot("plans-3-group")
     }

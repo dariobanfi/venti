@@ -70,6 +70,7 @@ struct CommunityHub: View {
                         if !nearby.asked.isEmpty {
                             helpAsked
                         }
+                        groupCards
                         plans
                         openPlansNear(isSignedIn: true)
                         following
@@ -135,10 +136,11 @@ struct CommunityHub: View {
         async let near: Void = loadNear()
         if isSignedIn {
             async let board: Void = groups.load()
+            async let chats: Void = groups.loadChats()
             async let feed: Void = loadFeed()
             async let told: Void = loadTold()
             async let help: Void = nearby.loadHelp()
-            _ = await (board, feed, told, help)
+            _ = await (board, chats, feed, told, help)
         } else {
             feed = nil
             told = nil
@@ -150,16 +152,7 @@ struct CommunityHub: View {
 
     @ViewBuilder private var plans: some View {
         VStack(alignment: .leading, spacing: VentiSpace.s3) {
-            HubHeader(title: "Plans") {
-                if let board = groups.board {
-                    NavigationLink {
-                        GroupsList()
-                    } label: {
-                        Text(board.groups.isEmpty ? "Make or join a group" : "Groups")
-                    }
-                    .accessibilityIdentifier("community-groups")
-                }
-            }
+            HubHeader(title: "Plans") {}
             if let board = groups.board {
                 if let problem = groups.problem {
                     HubLine(words: problem)
@@ -191,6 +184,51 @@ struct CommunityHub: View {
             } else if let problem = groups.problem {
                 HubProblem(words: problem) {
                     Task { await groups.load() }
+                }
+            } else {
+                HubLoading()
+            }
+        }
+    }
+
+    // MARK: Groups
+
+    /// How many of the pilot's groups stand here as cards; the rest, the
+    /// groups near and the invites are a tap away.
+    private static let groupCardsShown = 3
+
+    /// The pilot's groups as cards, those with the newest messages first
+    /// as Venti lists them, and the way to all of them.
+    @ViewBuilder private var groupCards: some View {
+        VStack(alignment: .leading, spacing: VentiSpace.s3) {
+            HubHeader(title: groups.words.title) {
+                NavigationLink {
+                    GroupsScreen()
+                } label: {
+                    Text((groups.chats?.isEmpty ?? true) && groups.invites.isEmpty ? "Find or make one" : "All")
+                }
+                .accessibilityIdentifier("community-groups")
+            }
+            if let chats = groups.chats {
+                if !groups.invites.isEmpty {
+                    HubLine(words: groups.invites.count == 1 ? groups.invites[0].words : "\(groups.invites.count) invites into groups")
+                        .accessibilityIdentifier("community-group-invites")
+                }
+                if chats.isEmpty {
+                    HubLine(words: "You are in no group yet. A group is a chat of pilots who fly together: public ones near you to join, or a private one of your own.")
+                }
+                ForEach(chats.prefix(Self.groupCardsShown), id: \.id) { group in
+                    NavigationLink {
+                        GroupChatScreen(id: group.id, name: group.name)
+                    } label: {
+                        CommunityCard(group: group)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("community-card")
+                }
+            } else if let problem = groups.chatsProblem {
+                HubProblem(words: problem) {
+                    Task { await groups.loadChats() }
                 }
             } else {
                 HubLoading()

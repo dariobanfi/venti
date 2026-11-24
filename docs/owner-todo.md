@@ -52,6 +52,7 @@ A short list to pick up when there is time. Each line says what to do and where 
 - [ ] The home-screen widget on both phones.
 - [ ] "Follow on the map" on a pilot in the air.
 - [ ] The parity work on both phones (2026-11-22): a task as a QR code, full brightness in the cockpit (on by default, as the design says) and the airspace strip's tap on Android; the watched folder, the last-sync line and an alarm's tap on the iPhone.
+- [ ] **The night of 2026-11-24, to look at**: the thermal forecast by region and the wind arrows with the height pill (all three apps); groups with chat on Android; flight search on both phones; the ranking by the pilots' country; the seven sample pilots in your local Venti (they sign in with the development password); the words made one across the apps. Your choices of naming and order are listed under item 22 in [plan.md](plan.md), and two more under 11d.
 
 ## Older questions, still open
 

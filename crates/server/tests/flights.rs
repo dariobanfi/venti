@@ -713,9 +713,11 @@ async fn a_file_larger_than_any_flight_is_not_read() {
 #[tokio::test]
 async fn a_file_that_keeps_the_analysis_busy_is_given_up_on() {
     // As on a real server, each file is analysed by a program of its own,
-    // which is killed when it takes too long: two seconds here, ten there.
+    // which is killed when it takes too long: four seconds here, ten
+    // there. An honest flight takes over a second to analyse in a debug
+    // build on a busy machine, so two was too tight for the test.
     let clock = TestClock::new();
-    let patient = StdDuration::from_secs(2);
+    let patient = StdDuration::from_secs(4);
     let folder = std::env::temp_dir().join(format!("venti-stalling-{}", std::process::id()));
     let program = stalling_analyser(&folder);
     let settings = Settings {

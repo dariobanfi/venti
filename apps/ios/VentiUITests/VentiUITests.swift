@@ -5740,7 +5740,10 @@ extension VentiUITests {
         firstChoice("site-use", in: app).tap()
         let height = bring("site-height", into: app)
         height.tap()
-        height.typeText("1500")
+        // The return puts the keyboard away: on the smaller iPhones it lies
+        // over the form's lower half, and the swipes to the send button
+        // below then move nothing.
+        height.typeText("1500\n")
         let wind = firstChoice("site-wind", in: app)
         if wind.exists, isOnScreen(wind, in: app) {
             wind.tap()

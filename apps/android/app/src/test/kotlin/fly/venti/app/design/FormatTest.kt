@@ -135,7 +135,9 @@ class FormatTest {
         val moment = 1_783_161_000L
         val munich = ZoneId.of("Europe/Berlin")
 
-        assertEquals("Sat, 4 Jul 2026", Format.day(moment, ZoneOffset.UTC))
+        // A day with no weekday, the month a word (plan item 11).
+        assertEquals("4 Jul 2026", Format.day(moment, ZoneOffset.UTC))
+        assertEquals("26 Sep 2026", Format.day(1_790_416_800, ZoneOffset.UTC))
         assertEquals("Sat, 4 Jul", Format.dayInYear(moment, ZoneOffset.UTC))
         assertEquals("10:30", Format.time(moment, ZoneOffset.UTC))
         assertEquals("12:30", Format.time(moment, munich))

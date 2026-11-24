@@ -99,6 +99,8 @@ fun WhatPanel(
     onTryAgainMap: () -> Unit,
     onTryAgainHours: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Whether the hour's wind colours the take-offs' fans, which then have their key under the layer's. */
+    showsFansKey: Boolean = false,
 ) {
     val colours = Venti.colours
     val words = MapWords.core
@@ -213,6 +215,7 @@ fun WhatPanel(
             }
 
             if (key.steps.isNotEmpty()) CompactKey(key)
+            if (showsFansKey) FansKey()
 
             // What the pilot has to be told about the data as it stands: never folded away.
             if (rain) radar?.caution?.let { Stale(it) }

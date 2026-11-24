@@ -444,7 +444,7 @@ class LogbookModelTest {
             assertTrue(LogbookWords.spoken(entry), LogbookWords.spoken(entry).startsWith("Took off at 20:00"))
             assertEquals(LocalDate.of(2026, 7, 4), LogbookDay.days(listOf(entry)).single().date)
             val flight = logbook.flight(entry.id)
-            assertEquals("Sat, 4 Jul 2026", Format.day(flight.startUnixS, Format.zone(flight.timeZone)))
+            assertEquals("4 Jul 2026", Format.day(flight.startUnixS, Format.zone(flight.timeZone)))
             // The phone's own clock where the core knows no zone.
             assertEquals("05:00", Format.time(entry.startUnixS, Format.zone(null)))
             assertEquals("05:00", Format.time(entry.startUnixS, Format.zone("Not/AZone")))

@@ -41,6 +41,7 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.swipeUp
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -1935,13 +1936,14 @@ class VentiUiTest {
         launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
         waitFor(described("Show my position"))
 
-        // Nobody watches until the pilot says who may. Without an account
-        // there is nobody to send positions to, and the page says so first.
+        // Everyone watches until the pilot says otherwise (plan item 18).
+        // Without an account there is nobody to send positions to, and the
+        // page says so first.
         openCockpitSettings()
-        waitFor(hasTestTag("live-before-takeoff") and hasText("Off"))
+        waitFor(hasTestTag("live-before-takeoff") and hasText("Not signed in"))
         tap(hasTestTag("live-before-takeoff"))
         waitFor(hasTestTag("live-needs-account"))
-        assertTrue(exists(hasTestTag("live-nobody") and isSelected()))
+        assertTrue(exists(hasTestTag("live-everyone") and isSelected()))
         keepScreenshot("$prefix-live-1-no-account")
         tap(hasText("Done") and hasClickAction())
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("live-needs-account")) }
@@ -3874,6 +3876,176 @@ class VentiUiTest {
      * no longer once it has left; switched off, the cockpit leaves the
      * brightness alone.
      */
+    /**
+     * The cockpit before its first fix (plan items 15, 16, 17): quiet bars
+     * in place of the readings, no airspace notice on the ground, and a
+     * page that moves under the finger and settles on the next.
+     */
+    @Test
+    fun theCockpitWaitsQuietlyAndItsPagesSlide() {
+        launch()
+        waitFor(described("Show my position"))
+        openTheCockpit()
+        waitFor(hasTestTag("cockpit-pages") and saying("Instruments"))
+        // Nothing measured yet: no number is made up, and the ground
+        // says nothing of airspace (the top line's "No GPS" does).
+        waitFor(described("Altitude") and saying("not available"))
+        assertFalse(exists(hasTestTag("airspace-notice")))
+        assertFalse(exists(hasText("– –", substring = true)))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("light-cockpit-quiet-1-before-first-fix")
+
+        // A finger halfway across: the page follows it.
+        val cockpit = screen.onNode(hasTestTag("cockpit"))
+        cockpit.performTouchInput {
+            down(center)
+            repeat(10) { moveBy(Offset(-width / 30f, 0f)) }
+        }
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("light-cockpit-quiet-2-page-sliding")
+        assertTrue(exists(hasTestTag("cockpit-pages") and saying("Instruments")))
+        // Let go: it settles on the next, and the dots follow.
+        cockpit.performTouchInput { up() }
+        waitFor(hasTestTag("cockpit-pages") and saying("Map"))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("light-cockpit-quiet-3-map-page")
+        // A short drag puts the page back.
+        cockpit.performTouchInput {
+            down(center)
+            repeat(3) { moveBy(Offset(-width / 60f, 0f)) }
+            up()
+        }
+        TestDevice.letTheAppRun(screen, 1)
+        assertTrue(exists(hasTestTag("cockpit-pages") and saying("Map")))
+        // A swipe to the right goes back.
+        cockpit.performTouchInput { swipeRight() }
+        waitFor(hasTestTag("cockpit-pages") and saying("Instruments"))
+        holdToEnd()
+    }
+
+    /**
+     * Live tracking is shared with everyone unless the pilot chose (plan
+     * item 18), and the first cockpit a signed-in pilot opens says so once;
+     * a tap opens live tracking. Never again after. Skipped without a server.
+     */
+    @Test
+    fun theCockpitSaysOnceThatTheFlightIsSharedLive() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        signInAsTheDemoPilot()
+        tap(described("Back"))
+        waitFor(tab("Map"))
+        tap(tab("Map"))
+        openTheCockpit()
+        val notice = hasTestTag("cockpit-live-notice")
+        waitFor(notice)
+        assertTrue(exists(hasText("With Venti your flight is shared live for safety. Change it in the settings.")))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshotInBoth("light-live-notice-1-cockpit")
+        tap(notice)
+        waitFor(hasTestTag("live-everyone") and isSelected())
+        assertTrue(exists(hasText("On from take-off.", substring = true)))
+        keepScreenshotInBoth("light-live-notice-2-live-tracking")
+        tap(hasText("Done") and hasClickAction())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("live-everyone")) }
+        assertFalse(exists(notice))
+        holdToEnd()
+        waitFor(tab("Map"))
+        // Once: the next cockpit says nothing.
+        openTheCockpit()
+        TestDevice.letTheAppRun(screen, 2)
+        assertFalse(exists(notice))
+        holdToEnd()
+    }
+
+    /**
+     * The Community tab's badge is the server's marker (plan item 5): the
+     * demo pilot has what an alarm fired unseen, and the badge goes down
+     * once the alerts were shown. Skipped without a server.
+     */
+    @Test
+    fun theCommunityTabCarriesTheServersUnreadMarker() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        // The count as TalkBack has it from the tab: the core's "5 new".
+        fun count(): Int? = screen.onAllNodes(tab("Community")).fetchSemanticsNodes().firstOrNull()
+            ?.config?.getOrNull(SemanticsProperties.StateDescription)
+            ?.substringBefore(" new")?.removeSuffix("+")?.toIntOrNull()
+        // Signed out there is none.
+        assertTrue(count() == null)
+        signInAsTheDemoPilot()
+        tap(described("Back"))
+        waitFor(tab("Map"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { count() != null }
+        val before = checkNotNull(count())
+        assertTrue(exists(tab("Community") and sayingLike("^\\d+\\+? new$")))
+        keepScreenshotInBoth("light-unread-1-badge")
+
+        // The alerts shown: what fired is seen, on every device.
+        openFromToday("Settings")
+        waitFor(hasTestTag("account-link"))
+        screen.onNode(hasTestTag("account-link")).performScrollTo()
+        tap(hasTestTag("account-link"))
+        screen.onNode(hasTestTag("account-alerts")).performScrollTo()
+        tap(hasTestTag("account-alerts"))
+        waitFor(hasTestTag("alerts-page"))
+        waitFor(hasTestTag("alert-fired"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (count() ?: 0) < before }
+        tap(described("Back"))
+        waitFor(hasTestTag("account-alerts"))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("light-unread-2-after-alerts")
+    }
+
+    /** A flight's date as day, month and year, without its weekday (plan item 11). */
+    @Test
+    fun aFlightsDateIsDayMonthAndYear() {
+        launch()
+        waitFor(described("Show my position"))
+        tap(tab("Logbook"))
+        waitFor(hasText("Add a sample flight"))
+        tap(hasText("Add a sample flight"))
+        waitFor(described("Flight details"))
+        waitFor(hasText("4 Jul 2026", substring = true))
+        letTheMapDraw(2)
+        keepScreenshotInBoth("light-dates-1-flight")
+        tap(described("Back"))
+        waitFor(hasTestTag("logbook-day") and hasText("4 Jul 2026", substring = true))
+        assertFalse(exists(hasText("Sat, ", substring = true)))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshotInBoth("light-dates-2-logbook")
+    }
+
+    /**
+     * The directions a take-off works in, as fans round the pins (plan item
+     * 19), at the development server's Vorderunnutz: one colour on the wind
+     * as measured, and by whether the wind fits on an hour of the wind's
+     * forecast, with a key. Skipped without a server.
+     */
+    @Test
+    fun theMapDrawsTakeoffDirectionsAsFans() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(hasTestTag("map-layers"))
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.5139, lon = 11.7381, zoom = 10.0))
+        waitForSites()
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, "flying-site-fans") ?: 0) > 0 }
+        assertFalse(exists(hasTestTag("what-fans-key")))
+        letTheMapDraw()
+        keepScreenshot("light-fans-1-measured")
+
+        // An hour of the forecast's wind: the fans by whether it fits, and their key.
+        toClock("13:00")
+        waitFor(hasTestTag("what-fans-key"))
+        assertTrue(exists(hasTestTag("what-fans-key") and saying("Filled: wind fits; hollow: doesn't fit")))
+        letTheMapDraw(3)
+        keepScreenshotInEveryLook("light-fans-2-forecast-hour")
+    }
+
     @Test
     fun theCockpitTurnsTheScreenAllTheWayUpUnlessSwitchedOff() {
         launch()

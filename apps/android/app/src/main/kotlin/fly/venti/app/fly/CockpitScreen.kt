@@ -86,6 +86,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import app.venti.design.VentiRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -143,6 +146,15 @@ import fly.venti.core.WindView
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.foundation.layout.offset
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.runtime.mutableIntStateOf
 
 /**
  * The pages of the cockpit, in their order. A swipe across the cockpit
@@ -247,6 +259,31 @@ fun CockpitScreen(
     // The task's page is there only while a task is flown.
     val hasTask = fly.task != null
     val page = if (chosenPage == CockpitPage.Task && !hasTask) CockpitPage.Instruments else chosenPage
+    // How far the page is moved sideways: by the finger, or while it
+    // settles on the next one (plan item 16, as on the iPhone).
+    val slide = remember { Animatable(0f) }
+    var pageWidth by remember { mutableIntStateOf(0) }
+    var isSettling by remember { mutableStateOf(false) }
+    val pageScope = rememberCoroutineScope()
+    // Turns the page as a pager does: the page in front goes off to the
+    // side and the next comes in from the other. The dots change with the page.
+    val turnPage = { toNext: Boolean ->
+        if (!isSettling) {
+            isSettling = true
+            pageScope.launch {
+                try {
+                    val width = max(pageWidth, 1).toFloat()
+                    slide.animateTo(if (toNext) -width else width, tween(PageSlide.OUT_MILLIS, easing = FastOutLinearInEasing))
+                    chosenPage = if (toNext) page.next(hasTask) else page.previous(hasTask)
+                    slide.snapTo(if (toNext) width else -width)
+                    slide.animateTo(0f, tween(PageSlide.IN_MILLIS, easing = LinearOutSlowInEasing))
+                } finally {
+                    slide.snapTo(0f)
+                    isSettling = false
+                }
+            }
+        }
+    }
     // A cable tapped on the map, by its identifier.
     var chosenCable by remember { mutableStateOf<String?>(null) }
     var isChoosingTarget by remember { mutableStateOf(false) }
@@ -265,6 +302,16 @@ fun CockpitScreen(
     // Whether the screen takes no touches: against a glove, a line or rain
     // pressing a button in flight.
     var isLocked by remember { mutableStateOf(false) }
+    // Once, the first time a signed-in pilot opens the cockpit: that the
+    // flight is shared live (on by default, the owner, 2026-11-23). Kept as
+    // said at once, so that it never comes again, tapped or not.
+    var showsLiveNotice by remember { mutableStateOf(false) }
+    LaunchedEffect(account.isSignedIn) {
+        if (LiveNotice.isDue(preferences, isSignedIn = account.isSignedIn, isReplay = isReplay)) {
+            preferences.liveNoticeShown = true
+            showsLiveNotice = true
+        }
+    }
     // The task is drawn only while the session flies one.
     val taskStatus = fly.task
     val task = tasks.task.takeIf { taskStatus != null }
@@ -335,8 +382,15 @@ fun CockpitScreen(
                     .systemBarsPadding()
                     .testTag("cockpit")
                     .turnsPagesBySwipe(
-                        onNext = { chosenPage = page.next(hasTask) },
-                        onPrevious = { chosenPage = page.previous(hasTask) },
+                        isSettling = { isSettling },
+                        onSlide = { by -> pageScope.launch { slide.snapTo(by) } },
+                        onLetGo = { across, flung ->
+                            if (PageSlide.turns(across, flung, pageWidth.toFloat())) {
+                                turnPage(across < 0)
+                            } else {
+                                pageScope.launch { slide.animateTo(0f, tween(PageSlide.IN_MILLIS)) }
+                            }
+                        },
                     ),
             ) {
                 StatusLine(
@@ -354,7 +408,7 @@ fun CockpitScreen(
                     onSettings = { isShowingSettings = true },
                     page = page,
                     pages = CockpitPage.pages(hasTask),
-                    onNextPage = { chosenPage = page.next(hasTask) },
+                    onNextPage = { turnPage(true) },
                     onEnd = onFinish,
                     isLocked = isLocked,
                 )
@@ -367,6 +421,25 @@ fun CockpitScreen(
                     onGroundWinds = openGroundWinds,
                     onHelp = { onAskForHelp(view.position) },
                 )
+                if (showsLiveNotice) {
+                    LiveNoticeLine(
+                        onOpen = {
+                            showsLiveNotice = false
+                            isShowingLive = true
+                        },
+                    )
+                }
+                // The page: the readings, the map and the strips under it.
+                // It moves under the finger and settles on the next; what
+                // has slid off is not drawn over the lines above.
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .onSizeChanged { pageWidth = it.width }
+                        .clipToBounds()
+                        .offset { IntOffset(slide.value.roundToInt(), 0) },
+                ) {
                 when (page) {
                     CockpitPage.Instruments -> InstrumentsPage(view, way, onWinds = openWinds)
                     CockpitPage.Map -> Unit
@@ -572,6 +645,7 @@ fun CockpitScreen(
                     TargetStrip(way, course(view), onChoose = { isChoosingTarget = true })
                     MapReadings(view)
                 }
+                }
             }
         }
         if (isLocked) {
@@ -763,7 +837,9 @@ private fun Alerts(
 ) {
     val notice = PhaseWords.notice(view, isReplay)
     val warning = fly.windWarning
-    val hasAirspace = AirspaceWords.shown(fly.airspaceWarnings) != null || AirspaceWords.notChecking(fly.airspaceCheck) != null
+    val isFlying = view.phase == FlightPhase.FLYING
+    val hasAirspace = AirspaceWords.shown(fly.airspaceWarnings) != null ||
+        AirspaceWords.notChecking(fly.airspaceCheck, isFlying) != null
     val cable = fly.cableWarning
     val carriedBack = view.carriedBack
     if (notice == null && warning == null && !hasAirspace && cable == null && carriedBack == null) return
@@ -774,7 +850,7 @@ private fun Alerts(
         verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
     ) {
         if (cable != null && !isInside) CableBanner(cable, onSeen = { fly.acknowledgeCable(cable.id) })
-        AirspaceBanner(fly.airspaceWarnings, fly.airspaceCheck, onOpen = onAirspace)
+        AirspaceBanner(fly.airspaceWarnings, fly.airspaceCheck, onOpen = onAirspace, isFlying = isFlying)
         if (cable != null && isInside) CableBanner(cable, onSeen = { fly.acknowledgeCable(cable.id) })
         warning?.let { GroundWindBanner(it, onOpen = onGroundWinds, onPutAway = fly::putWindWarningAway) }
         carriedBack?.let { CarriedBackBanner(it) }
@@ -782,6 +858,46 @@ private fun Alerts(
         // After landing, and only then: pilots nearby may give a lift or a hand.
         if (view.phase == FlightPhase.LANDED && !isReplay) {
             QuietButton(HelpWords.ENTRY, R.drawable.venti_landing, Modifier.fillMaxWidth().testTag("cockpit-help"), onClick = onHelp)
+        }
+    }
+}
+
+/** That the flight is shared live, said once in the cockpit. */
+object LiveNotice {
+    const val WORDS = "With Venti your flight is shared live for safety. Change it in the settings."
+
+    /**
+     * Whether the cockpit says it now: once, for a signed-in pilot whose
+     * choice shares the flight, not in a replay.
+     */
+    fun isDue(preferences: Preferences, isSignedIn: Boolean, isReplay: Boolean): Boolean =
+        !preferences.liveNoticeShown && !isReplay && isSignedIn && LiveChoice.stored(preferences).audience != null
+}
+
+/**
+ * The notice that the flight is shared live: quiet, on the raised surface
+ * without a sign of caution; a tap opens live tracking, where it is changed.
+ */
+@Composable
+private fun LiveNoticeLine(onOpen: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s2)
+            .fillMaxWidth()
+            .heightIn(min = VentiSize.touchFlight)
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(role = Role.Button, onClickLabel = "Open live tracking", onClick = onOpen)
+            .testTag("cockpit-live-notice"),
+        shape = MaterialTheme.shapes.medium,
+        color = Venti.colours.surfaceRaised,
+    ) {
+        Row(
+            Modifier.padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(LiveNotice.WORDS, style = fixed(VentiType.label), modifier = Modifier.weight(1f))
+            Spacer(Modifier.width(VentiSpace.s2))
+            Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = null, modifier = Modifier.size(VentiSize.icon))
         }
     }
 }
@@ -1110,41 +1226,83 @@ private fun PageDots(page: CockpitPage, pages: List<CockpitPage>, onNext: () -> 
     }
 }
 
+/** When a drag sideways turns the cockpit's page: the numbers of the slide, apart from the view. */
+internal object PageSlide {
+    /** How long the page in front takes to go off to the side: the pack's fast motion. */
+    const val OUT_MILLIS = VentiMotion.fastMillis
+
+    /** How long the next page takes to come in, or the page to come back: the pack's base motion. */
+    const val IN_MILLIS = VentiMotion.baseMillis
+
+    /** How far the drag would have gone on, at the speed it was let go with: a quarter of a second. */
+    private const val FLUNG_SECONDS = 0.25f
+
+    /**
+     * Whether a drag let go turns the page: a sixth of the page's width
+     * along, or flung so that it would have ended half the page along, in
+     * the direction it went.
+     */
+    fun turns(across: Float, flungPerSecond: Float, width: Float): Boolean {
+        if (across == 0f || width <= 0f) return false
+        if (abs(across) > width / 6f) return true
+        val ends = across + flungPerSecond * FLUNG_SECONDS
+        return abs(ends) >= width / 2f && (ends < 0) == (across < 0)
+    }
+}
+
 /**
- * Turns the cockpit's pages by a swipe across it: to the left the next, to
- * the right the one before. It watches the touches before what lies under
- * them; once a finger has clearly gone sideways the touch is the swipe's,
- * and what it started on (a reading, a button, the map) lets it go. Two
- * fingers are a pinch on the map, never a swipe.
+ * Moves the cockpit's page with a finger dragged across it and, let go,
+ * turns it or puts it back: to the left the next, to the right the one
+ * before. It watches the touches before what lies under them; once a
+ * finger has clearly gone sideways the touch is the slide's, and what it
+ * started on (a reading, a button, the map) lets it go. Two fingers are a
+ * pinch on the map, never a slide.
  */
-private fun Modifier.turnsPagesBySwipe(onNext: () -> Unit, onPrevious: () -> Unit): Modifier = composed {
-    val next by rememberUpdatedState(onNext)
-    val previous by rememberUpdatedState(onPrevious)
+private fun Modifier.turnsPagesBySwipe(
+    isSettling: () -> Boolean,
+    /** How far the page is to stand from its place, pixels, negative to the left. */
+    onSlide: (Float) -> Unit,
+    /** The finger let go this far along, at this speed, pixels and pixels per second. */
+    onLetGo: (Float, Float) -> Unit,
+): Modifier = composed {
+    val settling by rememberUpdatedState(isSettling)
+    val slide by rememberUpdatedState(onSlide)
+    val letGo by rememberUpdatedState(onLetGo)
     pointerInput(Unit) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            if (settling()) return@awaitEachGesture
+            val speed = VelocityTracker()
+            speed.addPosition(down.uptimeMillis, down.position)
             var across = 0f
             var along = 0f
             var isSwipe = false
+            var isPinch = false
+            val slop = viewConfiguration.touchSlop
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 if (event.changes.count { it.pressed } > 1) {
-                    isSwipe = false
+                    isPinch = true
                     break
                 }
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
                 val moved = change.position - change.previousPosition
                 across += moved.x
                 along += moved.y
-                if (!isSwipe && abs(across) > viewConfiguration.touchSlop && abs(across) > 2 * abs(along)) {
+                speed.addPosition(change.uptimeMillis, change.position)
+                if (!isSwipe && abs(across) > slop && abs(across) > 2 * abs(along)) {
                     isSwipe = true
                 }
-                if (isSwipe) change.consume()
+                if (isSwipe) {
+                    change.consume()
+                    // From where the slide was first seen, so that the page
+                    // does not jump by the slop.
+                    slide(if (across < 0) across + slop else across - slop)
+                }
                 if (!change.pressed) break
             }
-            // Far enough to be meant: a sixth of the screen's width.
-            if (isSwipe && abs(across) > size.width / 6f) {
-                if (across < 0) next() else previous()
+            if (isSwipe) {
+                if (isPinch) letGo(0f, 0f) else letGo(across, speed.calculateVelocity().x)
             }
         }
     }
@@ -1438,11 +1596,48 @@ object AltitudeWords {
 }
 
 /** The sizes of the cockpit's readings: the pack's instrument styles. */
-enum class ReadingSize(val number: VentiTypeStyle, val unit: VentiTypeStyle) {
+enum class ReadingSize(
+    val number: VentiTypeStyle,
+    val unit: VentiTypeStyle,
+    /** How much of the number's line its placeholder leaves above and below the bar: about the figures' height is drawn. */
+    val placeholderInset: Dp,
+) {
     /** The one reading a page may have of this size. */
-    VeryLarge(VentiType.instrumentXl, VentiType.heading),
-    Large(VentiType.instrumentL, VentiType.label),
-    Medium(VentiType.instrumentM, VentiType.label),
+    VeryLarge(VentiType.instrumentXl, VentiType.heading, VentiSpace.s5),
+    Large(VentiType.instrumentL, VentiType.label, VentiSpace.s3),
+    Medium(VentiType.instrumentM, VentiType.label, VentiSpace.s2),
+}
+
+/**
+ * What a reading shows before its first value: a quiet bar in the flight
+ * theme's raised surface, as wide as a number of two figures and as high
+ * as figures in that type, on the number's baseline, so that nothing moves
+ * when the value comes (plan item 15, as on the iPhone). No dashes and no
+ * made-up zero; the top line says why ("No GPS").
+ */
+@Composable
+internal fun NumberPlaceholder(style: TextStyle, inset: Dp, modifier: Modifier = Modifier) {
+    val bar = Venti.colours.surfaceRaised
+    // Two figures in the number's type, unseen, give the bar its size and
+    // the line its baseline.
+    Text(
+        "00",
+        modifier = modifier
+            .testTag("reading-placeholder")
+            .drawBehind {
+                val top = inset.toPx().coerceAtMost(size.height / 3)
+                drawRoundRect(
+                    bar,
+                    topLeft = Offset(0f, top),
+                    size = Size(size.width, size.height - 2 * top),
+                    cornerRadius = CornerRadius(VentiRadius.s.toPx()),
+                )
+            },
+        style = style,
+        color = Color.Transparent,
+        maxLines = 1,
+        softWrap = false,
+    )
 }
 
 /**
@@ -1450,7 +1645,7 @@ enum class ReadingSize(val number: VentiTypeStyle, val unit: VentiTypeStyle) {
  * are the design language's instrument sizes and do not follow the phone's
  * text-size setting: a reading has to be in the same place at the same
  * size every time the pilot glances at it. A value the sensors have not
- * supplied is two dashes, never an old number.
+ * supplied is a quiet bar ([NumberPlaceholder]), never an old number.
  */
 @Composable
 private fun Reading(
@@ -1496,8 +1691,10 @@ private fun Reading(
             .padding(vertical = VentiSpace.s1),
     ) {
         Row {
-            Text(
-                value ?: "– –",
+            if (value == null) {
+                NumberPlaceholder(fixed(size.number).numbers, size.placeholderInset, Modifier.alignByBaseline())
+            } else Text(
+                value,
                 modifier = Modifier.weight(1f, fill = false).alignByBaseline(),
                 color = ink,
                 style = fixed(size.number).numbers,

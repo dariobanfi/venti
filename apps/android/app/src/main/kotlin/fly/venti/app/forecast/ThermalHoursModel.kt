@@ -315,6 +315,9 @@ class ThermalHoursModel(
         return there.hours.square(found, index.toUInt())
     }
 
+    /** The square of the hours' grid a place lies in; `null` outside it or with no hours read. */
+    fun cellAt(lat: Double, lon: Double): UInt? = (state as? ThermalHoursState.There)?.hours?.cellAt(lat, lon)
+
     /** Lets everything go: the layer is switched off, or the server changed. */
     fun close() = forget(null)
 

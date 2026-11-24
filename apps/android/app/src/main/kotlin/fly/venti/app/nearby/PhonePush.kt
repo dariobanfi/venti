@@ -148,6 +148,10 @@ class PushService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
+        // Any push from Venti: the Community tab's badge may have grown.
+        ((application as VentiApplication).session as? Session.Ready)?.let { ready ->
+            ready.scope.launch { ready.unread.read() }
+        }
         val kind = message.data[PushNotifications.KIND] ?: return
         val id = message.data[PushNotifications.ID] ?: return
         val title = message.notification?.title ?: return

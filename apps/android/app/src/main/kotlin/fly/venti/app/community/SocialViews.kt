@@ -609,8 +609,8 @@ fun CommentsSwitchRow(flight: String, social: SocialModel, requests: CoroutineSc
 /**
  * "Notifications", a page of the account: what the pilot was told, the
  * newest on top. A line about a flight opens that flight, one about a
- * follower that pilot's page. No badge and no push: it is read when the
- * page shows.
+ * follower that pilot's page. It is read when the page shows, and what it
+ * shows is then seen: off the Community tab's badge on every device.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -627,7 +627,9 @@ fun NotificationsScreen(
     var asked by remember { mutableIntStateOf(0) }
     LaunchedEffect(asked) {
         told = null
-        told = social.notifications()
+        val read = social.notifications()
+        told = read
+        if (read is SocialModel.Told.Read) social.unread?.sawNotifications(upTo = read.value.cursor)
     }
     BackHandler(onBack = onBack)
     Scaffold(

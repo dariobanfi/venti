@@ -337,16 +337,36 @@ class LiveSharingTest {
     @Test
     fun theChoiceOfWhoMayWatchIsKeptAndSaidInWords() {
         val preferences = MemoryPreferences()
-        assertEquals(LiveChoice.Nobody, LiveChoice.stored(preferences))
+        // Everyone until the pilot chooses (plan item 18): shared for safety.
+        assertEquals(LiveChoice.Everyone, LiveChoice.stored(preferences))
         preferences.liveAudience = "link"
         assertEquals(LiveChoice.Link, LiveChoice.stored(preferences))
         preferences.liveAudience = "public"
         assertEquals(LiveChoice.Everyone, LiveChoice.stored(preferences))
-        // Something a later version wrote is nobody, not a guess.
-        preferences.liveAudience = "friends"
+        // Nobody chosen stays Nobody, also as it was kept before, an empty word.
+        preferences.liveAudience = LiveChoice.Nobody.key
         assertEquals(LiveChoice.Nobody, LiveChoice.stored(preferences))
+        preferences.liveAudience = ""
+        assertEquals(LiveChoice.Nobody, LiveChoice.stored(preferences))
+        // Something a later version wrote is the default again, as on the iPhone.
+        preferences.liveAudience = "friends"
+        assertEquals(LiveChoice.Everyone, LiveChoice.stored(preferences))
+        // The page's sentence says whether it is on.
+        assertTrue(LiveChoice.Nobody.explanation.startsWith("Off."))
+        assertTrue(LiveChoice.Everyone.explanation.startsWith("On from take-off."))
+        assertTrue(LiveChoice.Link.explanation.startsWith("On from take-off."))
 
-        assertEquals(listOf("", "link", "public"), LiveChoice.entries.map { it.key })
+        // Told once in the cockpit: signed in, sharing, not in a replay.
+        val told = MemoryPreferences()
+        assertFalse(LiveNotice.isDue(told, isSignedIn = false, isReplay = false))
+        assertFalse(LiveNotice.isDue(told, isSignedIn = true, isReplay = true))
+        assertTrue(LiveNotice.isDue(told, isSignedIn = true, isReplay = false))
+        told.liveNoticeShown = true
+        assertFalse(LiveNotice.isDue(told, isSignedIn = true, isReplay = false))
+        val quiet = MemoryPreferences().apply { liveAudience = LiveChoice.Nobody.key }
+        assertFalse(LiveNotice.isDue(quiet, isSignedIn = true, isReplay = false))
+
+        assertEquals(listOf("nobody", "link", "public"), LiveChoice.entries.map { it.key })
         assertEquals(listOf("Nobody", "People I give the link", "Everyone"), LiveChoice.entries.map { it.title })
         assertEquals(listOf(null, LiveAudience.LINK, LiveAudience.PUBLIC), LiveChoice.entries.map { it.audience })
         assertTrue(LiveChoice.entries.all { it.explanation.endsWith(".") })

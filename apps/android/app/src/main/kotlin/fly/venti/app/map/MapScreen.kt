@@ -566,6 +566,9 @@ fun MapScreen(
     val allCredits = (credits + (drawnFrom?.credits?.takeIf { it.isNotEmpty() } ?: MapWords.baseCredits)).distinct()
     val byTheHour = showForecast && hours?.isOn == true
     val hourShapes = if (byTheHour) hours?.shapes else null
+    // The hour's wind square by square, for the take-offs' fans: only an
+    // hour with arrows colours them (plan item 19).
+    val fanWindFrom = remember(hourShapes) { hourShapes?.arrows?.let(SiteFans::windFrom)?.takeIf { it.isNotEmpty() } }
     val hourLegend = thermalMap?.map?.layers?.firstOrNull { it.layer == hours?.layer }?.legend.orEmpty()
     // The squares of the kind of day the pilot looks at, on the thermals'
     // "Day"; a day's squares are one list from the core, handed over whole.
@@ -628,6 +631,10 @@ fun MapScreen(
                 map.showThermals(thermals && offersThermals)
                 map.showForecast(squares)
                 map.showHours(hourShapes, hourLegend, byTheHour)
+                map.showFanWind(
+                    hourShapes.takeIf { fanWindFrom != null },
+                    fanWindFrom?.let { from -> { lat: Double, lon: Double -> hours?.cellAt(lat, lon)?.let { from[it] } } },
+                )
                 map.showRadar(if (showsRadar) radar.shown else null)
                 map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar), pins, unsaidSites)
                 map.showOthers(others)
@@ -728,6 +735,7 @@ fun MapScreen(
             if (shownWhat != null && hasServer && !isPlacing) {
                 // The one panel of what the map shows, beside the round buttons and over the credits.
                 WhatPanel(
+                    showsFansKey = fanWindFrom != null && !hidesSites,
                     what = shownWhat,
                     name = whats.getValue(shownWhat).first,
                     cells = cells,

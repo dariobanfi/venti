@@ -74,7 +74,7 @@ class AirspaceModelTest {
         val file = airspace.files.single()
         // The file is known by its name without the ending.
         assertEquals("zones", file.name)
-        assertEquals("1 airspace · brought in Sat, 4 Jul 2026", AirspaceModel.detail(file))
+        assertEquals("1 airspace · brought in 4 Jul 2026", AirspaceModel.detail(file))
         assertNull(AirspaceModel.leftOutNote(file))
         assertNotNull(airspace.set)
 
@@ -219,7 +219,7 @@ class AirspaceModelTest {
         val layer = airspace.kept.single()
         assertEquals("openAIP", layer.provider)
         assertTrue(layer.saysWhatItCovers)
-        assertEquals("1 airspace · as of Wed, 18 Nov 2026 · fetched Thu, 19 Nov 2026", AirspaceModel.detail(layer))
+        assertEquals("1 airspace · as of 18 Nov 2026 · fetched 19 Nov 2026", AirspaceModel.detail(layer))
         assertEquals(
             "The airspace of Germany and Austria. Of other countries none is kept, also where the area " +
                 "fetched reaches into them.",
@@ -250,7 +250,7 @@ class AirspaceModelTest {
         val warning = session.airspaceWarnings().first()
         assertEquals("SERVER ZONE (NOT REAL)", warning.name)
         assertEquals(AirspaceOrigin.SERVER, warning.origin)
-        assertEquals("From openAIP, by way of Venti, as of Wed, 18 Nov 2026.", AirspaceWords.origin(warning))
+        assertEquals("From openAIP, by way of Venti, as of 18 Nov 2026.", AirspaceWords.origin(warning))
 
         // Switched off, what was kept is gone and nothing is asked.
         airspace.stopUsingServer()

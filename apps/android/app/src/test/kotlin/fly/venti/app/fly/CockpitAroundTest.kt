@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -134,6 +135,23 @@ class CockpitAroundTest {
         fly.acknowledgeCable("osm-cables:way/1")
         fly.cableWarning?.let { warning -> assertTrue(warning.words.startsWith("Cable")) }
         fly.finish()
+    }
+
+    @Test
+    fun aDragLetGoTurnsThePageWhenFarOrFlung() {
+        val width = 1080f
+        // Far enough along: a sixth of the page.
+        assertTrue(PageSlide.turns(across = -200f, flungPerSecond = 0f, width = width))
+        assertTrue(PageSlide.turns(across = 200f, flungPerSecond = 0f, width = width))
+        // Short and slow: the page comes back.
+        assertFalse(PageSlide.turns(across = -100f, flungPerSecond = 0f, width = width))
+        // Short but flung on to half the page.
+        assertTrue(PageSlide.turns(across = -100f, flungPerSecond = -2000f, width = width))
+        // Flung back against the way it went: no turn.
+        assertFalse(PageSlide.turns(across = -100f, flungPerSecond = 3000f, width = width))
+        // No drag, or no page yet.
+        assertFalse(PageSlide.turns(across = 0f, flungPerSecond = -5000f, width = width))
+        assertFalse(PageSlide.turns(across = -500f, flungPerSecond = 0f, width = 0f))
     }
 
     @Test

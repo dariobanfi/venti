@@ -76,6 +76,9 @@ class SocialModel(
     /** The words no answer carries: titles, the field's placeholder, the actions' names. */
     val words: SocialWords by lazy { socialWords() }
 
+    /** The marker of what is new, moved when the notifications were shown. */
+    var unread: UnreadModel? = null
+
     /** Whether the phone is signed in: without it no control that needs an account is shown. */
     val isSignedIn: Boolean get() = account.isSignedIn
 

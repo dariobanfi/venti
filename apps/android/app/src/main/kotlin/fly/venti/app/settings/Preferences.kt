@@ -59,10 +59,14 @@ interface Preferences {
     var neverLand: Boolean
 
     /**
-     * Whom flights are shown to while they are under way: "link", "public",
-     * or nothing for nobody.
+     * Whom flights are shown to while they are under way: "nobody", "link"
+     * or "public"; nothing kept is "public" (`LiveChoice.chosen`), and an
+     * empty word, as Nobody was kept before 2026-11-23, nobody.
      */
-    var liveAudience: String
+    var liveAudience: String?
+
+    /** Whether the cockpit has told the signed-in pilot once that the flight is shared live. Never again after. */
+    var liveNoticeShown: Boolean
 
     /** What the pilot signs in to the DHV-XC with, and the glider as it is set up there. Not the password. */
     var dhvxcUser: String
@@ -225,9 +229,13 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean(NEVER_LAND, false)
         set(value) = store.edit { putBoolean(NEVER_LAND, value) }
 
-    override var liveAudience: String
-        get() = store.getString(LIVE_AUDIENCE, null).orEmpty()
-        set(value) = store.edit { putString(LIVE_AUDIENCE, value) }
+    override var liveAudience: String?
+        get() = store.getString(LIVE_AUDIENCE, null)
+        set(value) = store.edit { if (value == null) remove(LIVE_AUDIENCE) else putString(LIVE_AUDIENCE, value) }
+
+    override var liveNoticeShown: Boolean
+        get() = store.getBoolean(LIVE_NOTICE_SHOWN, false)
+        set(value) = store.edit { putBoolean(LIVE_NOTICE_SHOWN, value) }
 
     override var dhvxcUser: String
         get() = store.getString(DHVXC_USER, null).orEmpty()
@@ -350,6 +358,7 @@ class StoredPreferences(context: Context) : Preferences {
         const val GLIDER_CLASS = "VentiGliderClass"
         const val NEVER_LAND = "VentiCockpitNeverLand"
         const val LIVE_AUDIENCE = "VentiLiveAudience"
+        const val LIVE_NOTICE_SHOWN = "VentiLiveNoticeShown"
         const val DHVXC_USER = "dhvxc-user"
         const val DHVXC_GLIDER = "dhvxc-glider"
         const val DHVXC_PUBLISHES = "dhvxc-publishes"
@@ -372,7 +381,8 @@ class MemoryPreferences : Preferences {
     override var showsFaiAreas = false
     override var gliderClass: String? = null
     override var neverLand = false
-    override var liveAudience = ""
+    override var liveAudience: String? = null
+    override var liveNoticeShown = false
     override var dhvxcUser = ""
     override var dhvxcGlider = ""
     override var dhvxcPublishes = false

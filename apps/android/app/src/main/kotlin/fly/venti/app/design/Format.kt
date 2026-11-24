@@ -45,9 +45,15 @@ object Format {
     private fun at(unixSeconds: Long, pattern: String, zone: ZoneId): String =
         DateTimeFormatter.ofPattern(pattern).format(Instant.ofEpochSecond(unixSeconds).atZone(zone))
 
-    /** "Sat, 4 Jul 2026" */
+    /**
+     * A day as day, month and year, the month a word and no weekday:
+     * "26 Sep 2026" (the owner, 2026-11-23, plan item 11), so that 9/10 is
+     * never read two ways; in English whatever the phone's language, as on
+     * the iPhone and the web. A flight's day is told by the clock where it
+     * was flown (`zone`), as its times are.
+     */
     fun day(unixSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): String =
-        at(unixSeconds, "EEE, d MMM yyyy", zone)
+        DateTimeFormatter.ofPattern("d MMM yyyy", Locale.US).format(Instant.ofEpochSecond(unixSeconds).atZone(zone))
 
     /** "Sat, 4 Jul", for lists already grouped by year. */
     fun dayInYear(unixSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): String =

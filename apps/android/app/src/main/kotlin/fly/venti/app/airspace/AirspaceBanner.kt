@@ -68,11 +68,15 @@ object AirspaceWords {
 
     /**
      * What to say when the app is not checking, so that its silence is not
-     * taken for "no airspace near".
+     * taken for "no airspace near". The wait for the first fix on the
+     * ground is said by the top line's "No GPS" alone: no banner for it
+     * before take-off (the owner, 2026-11-23, plan item 17). In flight a
+     * position lost is said, and a flight that never had a height.
      */
-    fun notChecking(check: AirspaceCheck): String? = when (check) {
+    fun notChecking(check: AirspaceCheck, isFlying: Boolean = true): String? = when (check) {
         AirspaceCheck.CHECKING, AirspaceCheck.NO_AIRSPACE -> null
-        AirspaceCheck.WAITING_FOR_HEIGHT -> "Airspace is not being checked yet: no position with a height."
+        AirspaceCheck.WAITING_FOR_HEIGHT ->
+            if (isFlying) "Airspace is not being checked yet: no position with a height." else null
         AirspaceCheck.STALE -> "Airspace is not being checked: no position. What is shown is from the last one."
         AirspaceCheck.OUTSIDE_FILES -> "Your airspace does not cover this place. Nothing is checked here."
     }
@@ -122,9 +126,11 @@ fun AirspaceBanner(
     check: AirspaceCheck,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Whether the glider is in the air: before take-off the wait for a first fix is not said here. */
+    isFlying: Boolean = true,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        AirspaceWords.notChecking(check)?.let { notice ->
+        AirspaceWords.notChecking(check, isFlying)?.let { notice ->
             Surface(
                 modifier = Modifier.fillMaxWidth().testTag("airspace-notice"),
                 shape = MaterialTheme.shapes.medium,

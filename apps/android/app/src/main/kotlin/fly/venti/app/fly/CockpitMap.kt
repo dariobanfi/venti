@@ -20,6 +20,7 @@ import fly.venti.app.airspace.AirspaceLayers
 import fly.venti.app.cables.CableLayers
 import fly.venti.app.live.OtherFeature
 import fly.venti.app.sites.SiteFeature
+import fly.venti.app.map.SiteFans
 import fly.venti.app.sites.SiteSymbols
 import fly.venti.core.CableLine
 import fly.venti.core.OtherNearView
@@ -83,6 +84,10 @@ import kotlin.math.min
 class CockpitMap : MapContent {
     private var map: MapLibreMap? = null
     private var style: Style? = null
+
+    /** What the take-offs' fans are drawn for, and the pictures this style has been given. */
+    private var fanContext: android.content.Context? = null
+    private val fanPictures = HashSet<String>()
     private var mapView: MapView? = null
 
     /** Whether the thermal map shows, as the pilot switched it on the flight page. */
@@ -276,6 +281,11 @@ class CockpitMap : MapContent {
             style.addImage(name, picture)
         }
         style.addSource(GeoJsonSource(TAKEOFFS))
+        // The directions each works in, a fan round its pin's head in one
+        // neutral colour of the flight theme: no hour of the forecast in flight.
+        fanContext = view.context
+        fanPictures.clear()
+        style.addLayer(SiteFans.layer("$TAKEOFFS-fans", TAKEOFFS).withProperties(PropertyFactory.iconSize(TAKEOFF_SIGN_SIZE)))
         style.addLayer(
             SymbolLayer(TAKEOFFS, TAKEOFFS).withProperties(
                 PropertyFactory.iconImage(Expression.get(SiteFeature.PICTURE)),
@@ -646,7 +656,20 @@ class CockpitMap : MapContent {
         }
         if (takeoffs != drawnTakeoffs) {
             drawnTakeoffs = takeoffs
-            style.getSourceAs<GeoJsonSource>(TAKEOFFS)?.setGeoJson(FeatureCollection.fromFeatures(takeoffs.map { SiteFeature.of(it) }))
+            val features = takeoffs.map { site ->
+                SiteFeature.of(site).apply {
+                    val context = fanContext
+                    val fan = if (SiteFans.hasFan(site) && context != null) {
+                        val name = SiteFans.name(site.wind, SiteFans.Fit.InFlight)
+                        if (fanPictures.add(name)) style.addImage(name, SiteFans.picture(site.wind, SiteFans.Fit.InFlight, context))
+                        name
+                    } else {
+                        ""
+                    }
+                    addStringProperty(SiteFans.FAN, fan)
+                }
+            }
+            style.getSourceAs<GeoJsonSource>(TAKEOFFS)?.setGeoJson(FeatureCollection.fromFeatures(features))
         }
         if (others != drawnOthers) {
             drawnOthers = others

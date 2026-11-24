@@ -11,6 +11,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.window.Popup
 import app.venti.design.VentiSpace
 import kotlinx.coroutines.delay
@@ -31,6 +33,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -216,6 +220,8 @@ fun RootScreen(
     LaunchedEffect(lifecycle, account) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             session.scope.launch { account.sync() }
+            // And how much is new since the pilot last looked.
+            session.scope.launch { session.unread.read() }
         }
     }
     // What the server says of the account can change while the phone stays
@@ -229,6 +235,8 @@ fun RootScreen(
     // read; signed out, what was read is forgotten.
     val nearby = session.nearby
     LaunchedEffect(account.isSignedIn) {
+        // How much is new, for the Community tab's badge; none signed out.
+        session.scope.launch { session.unread.read() }
         if (account.isSignedIn) {
             session.scope.launch { session.push?.register() }
             nearby.loadSettings()
@@ -489,7 +497,30 @@ private fun Sections(
                         NavigationBarItem(
                             selected = selected,
                             onClick = { navigation.choose(tab) },
-                            icon = { Icon(painterResource(tab.icon), contentDescription = null) },
+                            icon = {
+                                // The Community tab carries the count of what is
+                                // new since the pilot last looked: the core's
+                                // badge, and its words for TalkBack.
+                                val badge = session.unread.badge.takeIf { tab == AppTab.League }
+                                if (badge != null) {
+                                    BadgedBox(
+                                        badge = {
+                                            Badge(
+                                                containerColor = colours.accent,
+                                                contentColor = colours.onAccent,
+                                                modifier = Modifier.testTag("community-badge"),
+                                            ) { Text(badge) }
+                                        },
+                                    ) { Icon(painterResource(tab.icon), contentDescription = null) }
+                                } else {
+                                    Icon(painterResource(tab.icon), contentDescription = null)
+                                }
+                            },
+                            modifier = if (tab == AppTab.League) {
+                                Modifier.semantics { session.unread.label?.let { stateDescription = it } }
+                            } else {
+                                Modifier
+                            },
                             label = {
                                 Text(
                                     tab.title,

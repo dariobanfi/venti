@@ -142,7 +142,12 @@ fun AlertsScreen(model: AlertsModel, scope: CoroutineScope, onSignIn: () -> Unit
     val askToNotify = rememberNotificationQuestion()
     LaunchedEffect(model) {
         model.read()
-        scope.launch { model.fetch() }
+        scope.launch {
+            model.fetch()
+            // What fired is shown once the fetch has brought it: seen up to
+            // there, which takes it off the Community tab's badge.
+            model.unread?.sawAlarms()
+        }
     }
     Scaffold(
         topBar = {

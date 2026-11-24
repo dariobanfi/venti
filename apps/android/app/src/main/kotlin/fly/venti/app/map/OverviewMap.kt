@@ -206,6 +206,19 @@ class OverviewMap : MapContent {
     /** The sites shown apart from those that fit the pilot's filter: drawn dimmed. */
     private var unsaidSites: List<SiteView> = emptyList()
     private var drawnUnsaidSites: List<SiteView>? = null
+
+    /**
+     * Where the wind of the hour the map shows comes from at a place, for
+     * the take-offs' fans; `null` where no hour of the forecast's wind is
+     * shown. [fansHour] names that hour, so that the fans are coloured anew
+     * only when it changes.
+     */
+    private var fanWind: ((Double, Double) -> Double?)? = null
+    private var fansHour: Any? = null
+    private var drawnFansHour: Any? = null
+
+    /** The fans' pictures the style has been given. */
+    private val fanPictures = HashSet<String>()
     private var gliders: List<LiveGlider> = emptyList()
     private var drawnGliders: List<LiveGlider>? = null
 
@@ -308,6 +321,9 @@ class OverviewMap : MapContent {
         this.map = map
         this.style = style
         this.view = view
+        // A new style has none of the fans' pictures, nor the sites.
+        fanPictures.clear()
+        drawnSites = null
         MapSetup.showAerial(aerial, style, view)
         // The forecast's squares lie under the base map's names, and under
         // everything this map draws.
@@ -418,6 +434,17 @@ class OverviewMap : MapContent {
      * layer of hours is the one looked at, so that a tap anywhere opens
      * its square.
      */
+    /**
+     * The wind of the hour shown, for the take-offs' fans: where it comes
+     * from at a place, or `null` to draw every fan in the pin's own dark.
+     * `hour` names it (the hour's shapes); the fans are coloured anew when it changes.
+     */
+    fun showFanWind(hour: Any?, windFrom: ((Double, Double) -> Double?)?) {
+        fansHour = hour
+        fanWind = windFrom
+        drawSites()
+    }
+
     fun showHours(shapes: ThermalMapShapes?, legend: List<ThermalMapKey>, on: Boolean) {
         hourShapes = shapes
         hourLegend = legend
@@ -825,6 +852,8 @@ class OverviewMap : MapContent {
             ).apply { minZoom = SiteAreas.FROM_ZOOM },
         )
         style.addSource(GeoJsonSource(SITES))
+        // The directions a take-off works in, a fan round its pin's head, under the signs.
+        style.addLayer(SiteFans.layer(SITE_FANS, SITES))
         style.addLayer(
             SymbolLayer(SITES, SITES).withProperties(
                 PropertyFactory.iconImage(Expression.get(SiteFeature.PICTURE)),
@@ -849,11 +878,29 @@ class OverviewMap : MapContent {
 
     /** Draws the flying sites, once the style is there and only when they have changed. */
     private fun drawSites() {
-        val source = style?.getSourceAs<GeoJsonSource>(SITES) ?: return
-        if (sites == drawnSites && unsaidSites == drawnUnsaidSites) return
+        val style = style ?: return
+        val source = style.getSourceAs<GeoJsonSource>(SITES) ?: return
+        if (sites == drawnSites && unsaidSites == drawnUnsaidSites && fansHour === drawnFansHour) return
         drawnSites = sites
         drawnUnsaidSites = unsaidSites
-        source.setGeoJson(FeatureCollection.fromFeatures(SiteFeature.all(sites, unsaidSites)))
+        drawnFansHour = fansHour
+        val wind = fanWind
+        val context = view?.context
+        // Those shown apart first, so that the ones that fit lie over them; only these have fans.
+        val features = unsaidSites.map { SiteFeature.of(it, dimmed = true) } + sites.map { site ->
+            SiteFeature.of(site).apply {
+                val fan = if (SiteFans.hasFan(site) && context != null) {
+                    val fit = SiteFans.fit(site, wind?.invoke(site.position.lat, site.position.lon))
+                    val name = SiteFans.name(site.wind, fit)
+                    if (fanPictures.add(name)) style.addImage(name, SiteFans.picture(site.wind, fit, context))
+                    name
+                } else {
+                    ""
+                }
+                addStringProperty(SiteFans.FAN, fan)
+            }
+        }
+        source.setGeoJson(FeatureCollection.fromFeatures(features))
         style?.getSourceAs<GeoJsonSource>(SiteAreas.SOURCE)
             ?.setGeoJson(FeatureCollection.fromFeatures(SiteAreas.all(sites, unsaidSites)))
     }
@@ -1092,6 +1139,7 @@ class OverviewMap : MapContent {
         private const val TRACKS = "logbook-tracks"
         private const val WIND = "wind-stations"
         private const val SITES = "flying-sites"
+        private const val SITE_FANS = "flying-site-fans"
         private const val GLIDERS = "live-gliders"
         private const val OTHERS = "live-others"
 

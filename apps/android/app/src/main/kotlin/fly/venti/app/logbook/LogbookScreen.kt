@@ -634,7 +634,7 @@ private fun DayHeader(day: LogbookDay, year: LogbookYear?) {
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                day.flights.first().let { Format.dayInYear(it.startUnixS, Format.zone(it.timeZone)) },
+                day.flights.first().let { Format.day(it.startUnixS, Format.zone(it.timeZone)) },
                 style = MaterialTheme.typography.titleMedium,
                 color = Venti.colours.text,
                 modifier = Modifier.padding(end = VentiSpace.s2),
@@ -802,7 +802,7 @@ object LogbookWords {
      */
     fun place(entry: LogbookEntry): String {
         entry.takeoffName?.takeIf { it.isNotEmpty() }?.let { return it }
-        val first = entry.outline.firstOrNull() ?: return Format.dayInYear(entry.startUnixS, Format.zone(entry.timeZone))
+        val first = entry.outline.firstOrNull() ?: return Format.day(entry.startUnixS, Format.zone(entry.timeZone))
         return Format.place(first.lat, first.lon)
     }
 

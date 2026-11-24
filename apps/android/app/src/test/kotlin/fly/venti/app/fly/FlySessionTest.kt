@@ -588,6 +588,10 @@ class FlySessionTest {
         assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.STALE)).startsWith("Airspace is not being checked: no position."))
         assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.OUTSIDE_FILES)).startsWith("Your airspace does not cover this place."))
         assertNull(AirspaceWords.notChecking(AirspaceCheck.CHECKING))
+        // On the ground before the first fix the top line's "No GPS" says
+        // it: no banner (plan item 17). A position lost in flight is said.
+        assertNull(AirspaceWords.notChecking(AirspaceCheck.WAITING_FOR_HEIGHT, isFlying = false))
+        assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.STALE, isFlying = false)).startsWith("Airspace is not being checked: no position."))
     }
 
     /**

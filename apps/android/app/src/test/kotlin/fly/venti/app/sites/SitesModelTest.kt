@@ -6,6 +6,7 @@ import fly.venti.app.wind.grown
 import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
 import fly.venti.core.SiteKind
+import fly.venti.app.map.SiteFans
 import fly.venti.core.SitesShown
 import fly.venti.core.SiteView
 import fly.venti.core.WindSpan
@@ -346,6 +347,38 @@ class SitesModelTest {
         noFlightInWords = "",
         outline = emptyList(),
     )
+
+    @Test
+    fun aTakeoffsFanCoversItsDirectionsAndIsColouredByTheCore() {
+        val south = site(Coordinate(lat = 47.0, lon = 11.0), 1200.0, listOf(WindSpan(fromDeg = 180.0, toDeg = 225.0)), "S to SW")
+        assertTrue(SiteFans.hasFan(south))
+        // A landing's pale pin is its sign; a site without directions has no fan.
+        assertFalse(SiteFans.hasFan(south.copy(kind = SiteKind.LANDING)))
+        assertFalse(SiteFans.hasFan(south.copy(wind = emptyList())))
+        // Half a point of the compass more on each side.
+        assertEquals(listOf(168.75 to 236.25), SiteFans.wedges(south.wind))
+        // A span over north goes on past 360; all round stays one circle.
+        assertEquals(listOf(326.25 to 416.25), SiteFans.wedges(listOf(WindSpan(fromDeg = 337.5, toDeg = 45.0))))
+        assertEquals(listOf(-11.25 to 348.75), SiteFans.wedges(listOf(WindSpan(fromDeg = 0.0, toDeg = 360.0))))
+        // Whether the wind fits is the core's; no wind at the place is neither.
+        assertEquals(SiteFans.Fit.Fits, SiteFans.fit(south, windFrom = 200.0))
+        assertEquals(SiteFans.Fit.DoesNotFit, SiteFans.fit(south, windFrom = 20.0))
+        assertEquals(SiteFans.Fit.Unknown, SiteFans.fit(south, windFrom = null))
+        // One picture for the same spans in the same state.
+        assertEquals("site-fan-fits-180-225", SiteFans.name(south.wind, SiteFans.Fit.Fits))
+        assertEquals("site-fan-flight-180-225", SiteFans.name(south.wind, SiteFans.Fit.InFlight))
+    }
+
+    @Test
+    fun theHoursArrowsSayWhereTheWindComesFromSquareBySquare() {
+        val arrows = """{"type":"FeatureCollection","features":[""" +
+            """{"type":"Feature","geometry":{"type":"Point","coordinates":[11.0,47.0]},"properties":{"cell":0,"symbol":"calm","band":"light","heading":0,"label":"1/4"}},""" +
+            """{"type":"Feature","geometry":{"type":"Point","coordinates":[11.1,47.0]},"properties":{"cell":1,"symbol":"arrow","band":"light","heading":170,"label":"9"}},""" +
+            """{"type":"Feature","geometry":{"type":"Point","coordinates":[11.2,47.0]},"properties":{"cell":2,"symbol":"arrow","band":"moderate","heading":270,"label":"15"}}]}"""
+        // Blowing to 170 is from 350; a calm square has no direction.
+        assertEquals(mapOf(1u to 350.0, 2u to 90.0), SiteFans.windFrom(arrows))
+        assertTrue(SiteFans.windFrom("not json").isEmpty())
+    }
 
     @Test
     fun aRowSaysTheWindASiteWorksIn() {

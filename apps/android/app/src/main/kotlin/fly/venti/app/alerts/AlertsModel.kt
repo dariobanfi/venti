@@ -58,6 +58,9 @@ class AlertsModel(
     val isSignedIn: Boolean get() = account.isSignedIn
 
     /** Reads the list and what fired from what the phone holds. */
+    /** The marker of what is new, moved when what fired was shown. */
+    var unread: fly.venti.app.community.UnreadModel? = null
+
     suspend fun read() {
         val now = clock()
         val (list, lines) = withContext(background) {

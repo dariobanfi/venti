@@ -28,6 +28,7 @@ import fly.venti.app.assistant.FixedKey
 import fly.venti.app.assistant.ScriptedProvider
 import fly.venti.app.community.CommunityModel
 import fly.venti.app.community.SocialModel
+import fly.venti.app.community.UnreadModel
 import fly.venti.app.community.OpenPlansModel
 import fly.venti.app.community.PilotPictures
 import fly.venti.app.design.Format
@@ -105,6 +106,8 @@ sealed interface Session {
         val openPlans: OpenPlansModel,
         /** The pilot's alarms and what they fired. */
         val alerts: AlertsModel,
+        /** How much is new for the pilot, for the Community tab's badge. */
+        val unread: UnreadModel,
         /** Adding and correcting the sites that pilots make. */
         val siteEdit: SiteEditModel,
         val tasks: TaskModel,
@@ -375,6 +378,12 @@ sealed interface Session {
                 scope.launch { alerts.read() }
             }
             if (!isUnderTest && !account.isSignedIn) AlertsCheck.cancel(app)
+            // How much is new for the pilot: read when the app comes to the
+            // front, after signing in and out and after a push; moved when
+            // the notifications or the alerts were shown.
+            val unread = UnreadModel(send = { account.answer(it) }, isSignedIn = { account.isSignedIn })
+            social.unread = unread
+            alerts.unread = unread
             // What pilots nearby do: the settings, the position told
             // while the pilot may be asked for help, and help after
             // landing; whether a request still stands by Venti's clock.
@@ -461,7 +470,7 @@ sealed interface Session {
             // A league's deadline by Venti's clock; named without calling the flight late while it is unread.
             leagues.clock = { wind.serverTimeOrZero() }
             return Ready(
-                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, air, community, social, account, groups, openPlans, alerts, siteEdit, tasks,
+                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, air, community, social, account, groups, openPlans, alerts, unread, siteEdit, tasks,
                 leagues, maps, ground, today, keptSites, thermalMap, radar, cables, WatchedFolder(AndroidFolders(app), preferences, logbook), preferences, files, scope,
                 nearby, push,
             )

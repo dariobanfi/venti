@@ -69,19 +69,19 @@ enum class LiveChoice(
     /** What the choice means, in a sentence. */
     val explanation: String,
 ) {
-    Nobody("", "Nobody", "Off", "Nothing is sent. Nobody sees where you are."),
+    Nobody("nobody", "Nobody", "Off", "Off. Nothing is sent. Nobody sees where you are."),
     Link(
         "link",
         "People I give the link",
         "With a link",
-        "Whoever has the link sees where you are and where you flew, with your name: send it to the people " +
+        "On from take-off. Whoever has the link sees where you are and where you flew, with your name: send it to the people " +
             "who should know. The flight is on nobody's map.",
     ),
     Everyone(
         "public",
         "Everyone",
         "Everyone",
-        "Everyone who looks at Venti's map sees your glider on it, with your name, and can follow the flight.",
+        "On from take-off. Everyone who looks at Venti's map sees your glider on it, with your name, and can follow the flight.",
     ),
     ;
 
@@ -101,9 +101,23 @@ enum class LiveChoice(
     fun summary(isSignedIn: Boolean): String = if (this == Nobody || isSignedIn) short else "Not signed in"
 
     companion object {
-        /** The choice the pilot last made. Nobody, until one was made. */
-        fun stored(preferences: Preferences): LiveChoice =
-            entries.firstOrNull { it.key == preferences.liveAudience } ?: Nobody
+        /**
+         * The choice the pilot last made. Everyone, until one was made (the
+         * owner, 2026-11-23: on by default, for safety).
+         */
+        fun stored(preferences: Preferences): LiveChoice = chosen(preferences.liveAudience)
+
+        /**
+         * The choice as it is kept: nothing kept is Everyone; an empty word
+         * is Nobody as it was kept before 2026-11-23, an explicit choice that
+         * stays; a word this app no longer knows is the default again, as on
+         * the iPhone.
+         */
+        fun chosen(kept: String?): LiveChoice = when {
+            kept == null -> Everyone
+            kept.isEmpty() -> Nobody
+            else -> entries.firstOrNull { it.key == kept } ?: Everyone
+        }
     }
 }
 

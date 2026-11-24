@@ -58,6 +58,25 @@ Pick the step with `scaleColor()` in `tokens/tokens.ts` or the breaks below. Alw
 - Text is never coloured by a scale. Put a coloured mark next to normal text.
 - Charts: one y-axis, 2–2.5 px lines, quiet grid in `border`, tap or hover shows the value.
 
+### Day levels
+
+How good the day is for flying, in five levels, worst to best. Pastel colours from the palette; the very good day is Venti's purple. Tokens `level-*` (`venti.level`, `level` in `VentiTheme`, ordered worst to best).
+
+| Level | Token | Means | Light | Dark |
+|---|---|---|---|---|
+| Not flyable | `level-not-flyable` | Rain, strong wind or low cloud | brick | coral |
+| Glides only | `level-glides-only` | Flyable air without thermals | grey violet | grey |
+| Weak | `level-weak` | Weak or local thermals | gold | gold |
+| Good | `level-good` | A cross-country day | green | green |
+| Very good | `level-very-good` | A big day | purple | lilac |
+
+- Always shown with a key: the five colours with their words. Never the colour alone.
+- On the map a level fills its area at its own opacity, `level-*-fill-opacity` (0.55 to 0.85 over land). It is a weather layer: airspace, tracks and labels draw above it.
+- Labels on a fill keep the `label-halo`. In dark it is what makes them readable: cream on the weak fill alone is 3.1:1. Light ink is 6.2:1 or more on every fill.
+- Off the map, the colour is a mark next to the word, in full colour. Text is never coloured by a level.
+- Flight takes the light values.
+- Neighbouring levels differ by hue more than by lightness; the key and the words carry the meaning.
+
 ### Map
 
 Colours are in `--map-*` and `venti.map`. The base map stays pale so overlays stand out.
@@ -173,5 +192,6 @@ Short and calm, like a local pilot at launch.
 ## 10. Still to confirm with the product owner
 
 - Airspace colours and scale breaks are proposals. Test them with pilots.
+- Day level colours are not yet checked for colour blindness or tested on a phone in sun.
 - Flight theme contrast is computed, not yet tested on a phone in direct sun.
 - Tagline ("Weather, maps and cross-country in one app") and tab names are placeholders.

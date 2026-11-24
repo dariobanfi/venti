@@ -56,6 +56,9 @@ struct VentiTheme {
     let vario: [Color]
     let wind: [Color]
     let thermal: [Color]
+    // The day's levels, worst to best: not flyable, glides only, weak, good, very good.
+    let level: [Color]
+    let levelFillOpacity: [Double]
 
     static let light = VentiTheme(
         bg: Color(hex: 0xFFF8E8),
@@ -85,7 +88,9 @@ struct VentiTheme {
         series: [0x6A4CB8, 0xE2593F, 0x0C93A3, 0xB9800A, 0xA63A66].map { Color(hex: $0) },
         vario: [0x0A5F6C, 0x1F93A1, 0x86C9CC, 0xCBC6C2, 0xF3A682, 0xE56954, 0xB02A45].map { Color(hex: $0) },
         wind: [0xE9E3F2, 0xCFC3E3, 0xB0A0D0, 0x8F78BA, 0x6F56A3, 0x4F3A82, 0x302157].map { Color(hex: $0) },
-        thermal: [0xFDE7CF, 0xFBCDA6, 0xF6A97C, 0xEC8260, 0xD95A4A, 0xA93640].map { Color(hex: $0) }
+        thermal: [0xFDE7CF, 0xFBCDA6, 0xF6A97C, 0xEC8260, 0xD95A4A, 0xA93640].map { Color(hex: $0) },
+        level: [0xD65F56, 0x8A7CA6, 0xFDD283, 0x6BD9A4, 0x6A4CB8].map { Color(hex: $0) },
+        levelFillOpacity: [0.6, 0.55, 0.85, 0.6, 0.55]
     )
     static let dark = VentiTheme(
         bg: Color(hex: 0x272239),
@@ -115,7 +120,9 @@ struct VentiTheme {
         series: [0x9B7FE0, 0xE8684E, 0x19A2AF, 0xBE8A1E, 0xC94E86].map { Color(hex: $0) },
         vario: [0x9BE8E4, 0x40ADB9, 0x35788F, 0x5F5A72, 0xB0605C, 0xF0806B, 0xFDC98A].map { Color(hex: $0) },
         wind: [0x43336F, 0x58458C, 0x6F59A6, 0x8C77C0, 0xAA98D6, 0xC9BCE8, 0xEAE3F8].map { Color(hex: $0) },
-        thermal: [0x54304F, 0x7E3E54, 0xAC5157, 0xD96A58, 0xF59270, 0xFDC49C].map { Color(hex: $0) }
+        thermal: [0x54304F, 0x7E3E54, 0xAC5157, 0xD96A58, 0xF59270, 0xFDC49C].map { Color(hex: $0) },
+        level: [0xE56954, 0x5F5A72, 0xFDD283, 0x6BD9A4, 0xC3AEF5].map { Color(hex: $0) },
+        levelFillOpacity: [0.65, 0.8, 0.6, 0.55, 0.6]
     )
     static let flight = VentiTheme(
         bg: Color(hex: 0xFFFFFF),
@@ -145,7 +152,9 @@ struct VentiTheme {
         series: [0x6A4CB8, 0xE2593F, 0x0C93A3, 0xB9800A, 0xA63A66].map { Color(hex: $0) },
         vario: [0x0A5F6C, 0x1F93A1, 0x86C9CC, 0xCBC6C2, 0xF3A682, 0xE56954, 0xB02A45].map { Color(hex: $0) },
         wind: [0xE9E3F2, 0xCFC3E3, 0xB0A0D0, 0x8F78BA, 0x6F56A3, 0x4F3A82, 0x302157].map { Color(hex: $0) },
-        thermal: [0xFDE7CF, 0xFBCDA6, 0xF6A97C, 0xEC8260, 0xD95A4A, 0xA93640].map { Color(hex: $0) }
+        thermal: [0xFDE7CF, 0xFBCDA6, 0xF6A97C, 0xEC8260, 0xD95A4A, 0xA93640].map { Color(hex: $0) },
+        level: [0xD65F56, 0x8A7CA6, 0xFDD283, 0x6BD9A4, 0x6A4CB8].map { Color(hex: $0) },
+        levelFillOpacity: [0.6, 0.55, 0.85, 0.6, 0.55]
     )
 }
 

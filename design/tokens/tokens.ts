@@ -220,6 +220,39 @@ export const venti = {
       "wildlife": "#6BD9A4"
     }
   },
+  "level": {
+    "order": [
+      "notFlyable",
+      "glidesOnly",
+      "weak",
+      "good",
+      "veryGood"
+    ],
+    "light": {
+      "notFlyable": "#D65F56",
+      "notFlyableFillOpacity": 0.6,
+      "glidesOnly": "#8A7CA6",
+      "glidesOnlyFillOpacity": 0.55,
+      "weak": "#FDD283",
+      "weakFillOpacity": 0.85,
+      "good": "#6BD9A4",
+      "goodFillOpacity": 0.6,
+      "veryGood": "#6A4CB8",
+      "veryGoodFillOpacity": 0.55
+    },
+    "dark": {
+      "notFlyable": "#E56954",
+      "notFlyableFillOpacity": 0.65,
+      "glidesOnly": "#5F5A72",
+      "glidesOnlyFillOpacity": 0.8,
+      "weak": "#FDD283",
+      "weakFillOpacity": 0.6,
+      "good": "#6BD9A4",
+      "goodFillOpacity": 0.55,
+      "veryGood": "#C3AEF5",
+      "veryGoodFillOpacity": 0.6
+    }
+  },
   "map": {
     "light": {
       "land": "#F7EFDD",

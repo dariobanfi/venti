@@ -53,6 +53,9 @@ data class VentiColors(
     val vario: List<Color>,
     val wind: List<Color>,
     val thermal: List<Color>,
+    // The day's levels, worst to best: not flyable, glides only, weak, good, very good.
+    val level: List<Color>,
+    val levelFillOpacity: List<Float>,
 )
 
 val VentiLight = VentiColors(
@@ -84,6 +87,8 @@ val VentiLight = VentiColors(
     vario = listOf(Color(0xFF0A5F6C), Color(0xFF1F93A1), Color(0xFF86C9CC), Color(0xFFCBC6C2), Color(0xFFF3A682), Color(0xFFE56954), Color(0xFFB02A45)),
     wind = listOf(Color(0xFFE9E3F2), Color(0xFFCFC3E3), Color(0xFFB0A0D0), Color(0xFF8F78BA), Color(0xFF6F56A3), Color(0xFF4F3A82), Color(0xFF302157)),
     thermal = listOf(Color(0xFFFDE7CF), Color(0xFFFBCDA6), Color(0xFFF6A97C), Color(0xFFEC8260), Color(0xFFD95A4A), Color(0xFFA93640)),
+    level = listOf(Color(0xFFD65F56), Color(0xFF8A7CA6), Color(0xFFFDD283), Color(0xFF6BD9A4), Color(0xFF6A4CB8)),
+    levelFillOpacity = listOf(0.6f, 0.55f, 0.85f, 0.6f, 0.55f),
 )
 
 val VentiDark = VentiColors(
@@ -115,6 +120,8 @@ val VentiDark = VentiColors(
     vario = listOf(Color(0xFF9BE8E4), Color(0xFF40ADB9), Color(0xFF35788F), Color(0xFF5F5A72), Color(0xFFB0605C), Color(0xFFF0806B), Color(0xFFFDC98A)),
     wind = listOf(Color(0xFF43336F), Color(0xFF58458C), Color(0xFF6F59A6), Color(0xFF8C77C0), Color(0xFFAA98D6), Color(0xFFC9BCE8), Color(0xFFEAE3F8)),
     thermal = listOf(Color(0xFF54304F), Color(0xFF7E3E54), Color(0xFFAC5157), Color(0xFFD96A58), Color(0xFFF59270), Color(0xFFFDC49C)),
+    level = listOf(Color(0xFFE56954), Color(0xFF5F5A72), Color(0xFFFDD283), Color(0xFF6BD9A4), Color(0xFFC3AEF5)),
+    levelFillOpacity = listOf(0.65f, 0.8f, 0.6f, 0.55f, 0.6f),
 )
 
 val VentiFlight = VentiColors(
@@ -146,6 +153,8 @@ val VentiFlight = VentiColors(
     vario = listOf(Color(0xFF0A5F6C), Color(0xFF1F93A1), Color(0xFF86C9CC), Color(0xFFCBC6C2), Color(0xFFF3A682), Color(0xFFE56954), Color(0xFFB02A45)),
     wind = listOf(Color(0xFFE9E3F2), Color(0xFFCFC3E3), Color(0xFFB0A0D0), Color(0xFF8F78BA), Color(0xFF6F56A3), Color(0xFF4F3A82), Color(0xFF302157)),
     thermal = listOf(Color(0xFFFDE7CF), Color(0xFFFBCDA6), Color(0xFFF6A97C), Color(0xFFEC8260), Color(0xFFD95A4A), Color(0xFFA93640)),
+    level = listOf(Color(0xFFD65F56), Color(0xFF8A7CA6), Color(0xFFFDD283), Color(0xFF6BD9A4), Color(0xFF6A4CB8)),
+    levelFillOpacity = listOf(0.6f, 0.55f, 0.85f, 0.6f, 0.55f),
 )
 
 object VentiSpace {

@@ -38,3 +38,19 @@ WCAG 2 contrast ratios, computed from the tokens. Text needs 4.5 (7 in flight mo
 | focus | surface | 4.7 | 7.7 | 8.9 |
 | border-strong | bg | 3.6 | 4.3 | 19.2 |
 | border-strong | surface | 3.7 | 3.7 | 19.2 |
+
+## Day levels on the map
+
+Each level's colour at its own fill opacity over map `land` (light #F7EFDD, dark #211640), and the map `label` (light #221640, dark #FFF4DA) on the result. Flight takes the light values. A fill is not text: it needs no ratio, the figures show how far it stands off the land.
+
+| Level | Light fill | Over land | Label on fill | Dark fill | Over land | Label on fill |
+|---|---|---|---|---|---|---|
+| not-flyable | #D65F56 at 0.60 | 2.0 | 7.3 | #E56954 at 0.65 | 2.9 | 5.3 |
+| glides-only | #8A7CA6 at 0.55 | 1.8 | 8.0 | #5F5A72 at 0.80 | 2.1 | 7.4 |
+| weak | #FDD283 at 0.85 | 1.2 | 12.1 | #FDD283 at 0.60 | 5.0 | 3.1 |
+| good | #6BD9A4 at 0.60 | 1.3 | 11.2 | #6BD9A4 at 0.55 | 3.8 | 4.1 |
+| very-good | #6A4CB8 at 0.55 | 2.3 | 6.3 | #C3AEF5 at 0.60 | 3.9 | 3.9 |
+
+- Light: the label passes 4.5 on every fill (6.25 at the least, on very good), with or without its halo.
+- Dark: the label fails 4.5 on weak (3.1), good (4.1) and very good (3.9). Labels on a fill keep `label-halo` (#1C1236), on which the label is 16.2 (light 15.8).
+- Neighbouring levels differ in lightness by 1.1 to 1.8 (light) and 1.05 to 2.4 (dark); hue and the key tell them apart. Colour blindness: to verify.

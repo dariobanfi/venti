@@ -76,6 +76,13 @@ module.exports = { theme: { extend: {
       "4": "var(--thermal-4)",
       "5": "var(--thermal-5)",
       "6": "var(--thermal-6)"
+    },
+    "level": {
+      "not-flyable": "var(--level-not-flyable)",
+      "glides-only": "var(--level-glides-only)",
+      "weak": "var(--level-weak)",
+      "good": "var(--level-good)",
+      "very-good": "var(--level-very-good)"
     }
   },
   "fontFamily": {

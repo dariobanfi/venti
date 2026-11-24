@@ -355,7 +355,7 @@ class AirspaceModelTest {
         assertEquals(AirspaceCover.NONE, unchecked.cover)
         assertTrue(unchecked.crossings.isEmpty())
         assertEquals(FlightAirspaceWords.NOT_CHECKED, FlightAirspaceWords.summary(unchecked))
-        assertTrue(FlightAirspaceWords.caveat(AirspaceCover.NONE).startsWith("The app has no airspace here."))
+        assertTrue(FlightAirspaceWords.caveat(AirspaceCover.NONE).startsWith("Add an airspace file, or open the map once with a network"))
 
         // With the sample zone: the flight clips it, twelve minutes in.
         logbook.makeAirspace(now = { today }).importFiles(listOf(zone))

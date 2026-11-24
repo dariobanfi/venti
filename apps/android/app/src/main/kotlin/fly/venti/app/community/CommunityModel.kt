@@ -44,6 +44,8 @@ import fly.venti.core.ranking
 import fly.venti.core.rankingMonthPath
 import fly.venti.core.rankingPath
 import fly.venti.core.rankingSearchPath
+import fly.venti.core.searchedFlights
+import fly.venti.core.searchedRanking
 import fly.venti.core.pilotFlightsSearchPath
 import fly.venti.core.rankingSeasons
 import kotlinx.coroutines.CancellationException
@@ -317,7 +319,10 @@ class CommunityModel(
         try {
             val path = publicFlightsSearchPath(order, null, null, null, search, if (fromTheTop) null else next)
             val answer = transport(server + path)
-            val page = withContext(background) { publicFlights(answer.status16, answer.body) }
+            // A search the server gave up on is one to narrow (the core's words); a plain list is read as one.
+            val page = withContext(background) {
+                if (search.isSearching) searchedFlights(answer.status16, answer.body) else publicFlights(answer.status16, answer.body)
+            }
             // The pilot may have changed the server, the order or the search
             // while this was under way.
             if (server != this.server() || order != this.order || search != flightSearch) return
@@ -333,7 +338,7 @@ class CommunityModel(
             if (server != this.server() || order != this.order || search != flightSearch) return
             problem = when (error) {
                 is CoreException -> error.pilotMessage
-                else -> "Venti could not be reached for other pilots' flights. ${error.pilotMessage}"
+                else -> pilotsWords().unreachable
             }
         } finally {
             isLoading = false
@@ -393,7 +398,10 @@ class CommunityModel(
                 rankingPath(null, chosen.fromUnixS, chosen.toUnixS)
             }
             val answer = transport(server + path)
-            val ranking = withContext(background) { ranking(answer.status16, answer.body) }
+            val searched = search.isSearching || pilotCountry != null
+            val ranking = withContext(background) {
+                if (searched) searchedRanking(answer.status16, answer.body) else ranking(answer.status16, answer.body)
+            }
             // The pilot may have chosen another span or server while this
             // was under way: that question's answer sets the rest.
             if (server != this.server() || !ranked.isFor(chosen.name, month, search, pilotCountry)) return
@@ -602,7 +610,7 @@ class CommunityModel(
                     pilotFlightsSearchPath(shown.handle, PublicFlightsOrder.NEWEST, shown.fromUnixS, shown.toUnixS, shown.search, shown.next)
                 }
                 val answer = transport(server + path)
-                withContext(background) { publicFlights(answer.status16, answer.body) }.let { it.flights to it.next }
+                withContext(background) { searchedFlights(answer.status16, answer.body) }.let { it.flights to it.next }
             } else if (shown.fromUnixS == null && shown.toUnixS == null) {
                 val answer = transport(server + pilotPagePath(shown.handle, shown.next))
                 withContext(background) { pilotPage(answer.status16, answer.body) }.let { it.flights to it.next }

@@ -41,10 +41,10 @@ object ReplayWords {
      */
     val SPEEDS: List<Double> = listOf(0.0, 1.0, 10.0, 20.0)
 
-    /** A speed as the menu offers it: "Paused", "Real time", "10 times faster". */
+    /** A speed as the menu offers it: "Paused", "In real time", "10 times faster". */
     fun choice(speed: Double): String = when (speed) {
         0.0 -> "Paused"
-        1.0 -> "Real time"
+        1.0 -> "In real time"
         else -> "${speed.toInt()} times faster"
     }
 

@@ -3037,7 +3037,7 @@ class VentiUiTest {
 
             // The days are there; where the hours will stand the panel says that they are asked for.
             waitFor(hasTestTag("forecast-hours-asking"))
-            assertTrue(exists(hasText("Asking Venti for the hours")))
+            assertTrue(exists(hasText("Asking Venti for the hours of this layer.")))
             assertFalse(exists(hasTestTag("what-time")))
             // Kept at once: the app gives a server twenty seconds to answer.
             keepScreenshot("map-hours-0-waiting")
@@ -3709,7 +3709,7 @@ class VentiUiTest {
         screen.onNode(page).performScrollToNode(hasTestTag("site-more"))
         waitFor(hasText("A fee is asked for using this site."))
         screen.onNode(page).performScrollToNode(hasTestTag("site-website"))
-        assertTrue(exists(hasTestTag("site-website") and hasText("https://www.dhv.de/")))
+        assertTrue(exists(hasTestTag("site-website") and hasText("Web page") and hasText("www.dhv.de")))
         screen.onNode(page).performScrollToNode(hasText("See or correct it at the source"))
         unfoldHowASiteIsRead()
         assertTrue(exists(hasText("© OpenStreetMap contributors", substring = true)))
@@ -3965,11 +3965,11 @@ class VentiUiTest {
         keepScreenshot("$prefix-sites-filter-3-map")
         if (dark) return
 
-        // The list: the filter where its title stands, what it leaves, the
+        // The list: the filter under its title, what it leaves, the
         // sites that fit first, and those whose source does not say apart
         // under the core's heading and sentence.
         tapInLayers(described("Flying sites"))
-        waitFor(hasTestTag("site-list-title") and hasText("All sites, take-offs for a wind from SW"))
+        waitFor(hasTestTag("site-list-filter-words") and hasText("All sites, take-offs for a wind from SW"))
         assertTrue(exists(hasTestTag("site-list-leaves") and written(fits)))
         val list = screen.onNode(hasTestTag("site-list"))
         list.performScrollToNode(hasTestTag("site-row") and described("Startmöglichkeit Vorderunnutz"))
@@ -6356,7 +6356,7 @@ class VentiUiTest {
         // Three round buttons, airspace off, and none of the lists', the plans' or the sites' filter.
         assertTrue(exists(hasTestTag("map-layers")))
         assertTrue(exists(hasTestTag("map-airspace") and isSelected().not()))
-        for (gone in listOf("Wind stations", "Flying sites", "Pilots in the air", "Flying plans", "Aerial view", "Filter sites")) {
+        for (gone in listOf("Wind stations", "Flying sites", "Pilots in the air", "Flying plans", "Aerial view", "Filter the sites")) {
             assertFalse(gone, exists(described(gone)))
         }
         letTheMapDraw()

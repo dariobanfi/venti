@@ -103,10 +103,15 @@ fun FlightDetailsSheet(
                             )
                         }
                     }
+                    if (!isCompared) SectionFooter(CompareWords.LAY_BESIDE_FOOTER)
                 }
             }
             analysis?.score?.let { score ->
                 item { ScoreSection(score) }
+            }
+            // Airspace after the score, as on the iPhone and the web.
+            if (airspace != null) {
+                item { AirspaceSection(airspace, flight.startUnixS, Format.zone(flight.timeZone), onSelect) }
             }
             if (analysis != null && analysis.takeoff != null) {
                 item { AirSection(analysis) }
@@ -116,9 +121,6 @@ fun FlightDetailsSheet(
                 if (analysis.glides.isNotEmpty()) {
                     item { GlidesSection(analysis.glides, flight.startUnixS, Format.zone(flight.timeZone), onSelect) }
                 }
-            }
-            if (airspace != null) {
-                item { AirspaceSection(airspace, flight.startUnixS, Format.zone(flight.timeZone), onSelect) }
             }
             item { ExtremesSection(flight) }
             item { ColoursSection() }
@@ -151,12 +153,8 @@ private fun ScoreSection(score: FlightScore) {
             row { ValueRow("Start to finish", "${Format.kilometres(closing)} km") }
         }
     }
-    SectionFooter(
-        "Worked out by Venti from the World XContest's published rules, at " +
-            "${if (score.pointsPerKm == 1.0) "1 point" else "${Format.plain(score.pointsPerKm)} points"} " +
-            "per kilometre for this kind of route. The dashed " +
-            "line on the map is the scored route. A league's own result can differ a little.",
-    )
+    // The core's sentence, as the web shows it.
+    SectionFooter(score.note)
 }
 
 /** "FAI triangle, closed", "Free flight". */
@@ -253,8 +251,8 @@ object FlightAirspaceWords {
             "flight, and without knowing what was active. A help for your own review, nothing more."
         return when (cover) {
             AirspaceCover.NONE ->
-                "The app has no airspace here. Open the map over this place with a network, or add an " +
-                    "airspace file, and the flight is checked against what the app then has."
+                "Add an airspace file, or open the map once with a network so that the app fetches Venti's " +
+                    "airspace, and the flight is checked against what the app then has."
             AirspaceCover.PARTLY ->
                 "Part of this flight lies where the app has no airspace; of that part nothing is known. $limits"
             AirspaceCover.WHOLE -> limits

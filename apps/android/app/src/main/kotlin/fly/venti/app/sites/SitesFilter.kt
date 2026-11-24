@@ -57,7 +57,7 @@ import fly.venti.app.design.Common
  */
 object SitesFilterWords {
     /** The button that opens the filter, and the head of its sheet. */
-    const val TITLE = "Filter sites"
+    val TITLE: String get() = fly.venti.app.map.MapWords.core.filterSites
 
     /** A filter that asks nothing: every site is shown. */
     val NOTHING = SitesFilter(

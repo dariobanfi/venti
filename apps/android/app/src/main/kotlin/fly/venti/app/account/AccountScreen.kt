@@ -594,14 +594,10 @@ private fun SignedIn(
         Spacer(Modifier.height(VentiSpace.s5))
         Group {
             row {
-                LinkRow(tokenForm().title, R.drawable.ic_chevron_right, Modifier.testTag("account-tokens"), onClick = onTokens)
-            }
-            row {
                 LinkRow(
                     AlertWords.core.title,
                     R.drawable.ic_chevron_right,
                     Modifier.testTag("account-alerts"),
-                    leading = R.drawable.ic_notifications,
                     onClick = onAlerts,
                 )
             }
@@ -611,10 +607,12 @@ private fun SignedIn(
                         notifications,
                         R.drawable.ic_chevron_right,
                         Modifier.testTag("account-notifications"),
-                        leading = R.drawable.ic_group,
                         onClick = onNotifications,
                     )
                 }
+            }
+            row {
+                LinkRow(tokenForm().title, R.drawable.ic_chevron_right, Modifier.testTag("account-tokens"), onClick = onTokens)
             }
         }
     }
@@ -695,7 +693,8 @@ private fun DeleteAccountDialog(onDelete: (String) -> Unit, withGoogle: (() -> U
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
                     "The account and every flight on Venti are deleted at once and for good, and your " +
-                        "shared links stop working. The flights on this phone stay. Enter your password to go on.",
+                        "shared links stop working. The flights on this phone stay. " +
+                        if (withGoogle != null) "Enter your password, or confirm with Google, to go on." else "Enter your password to go on.",
                 )
                 OutlinedTextField(
                     value = password,

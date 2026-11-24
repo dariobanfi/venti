@@ -282,10 +282,13 @@ class ThermalMapModel(
  * when there is no map to read, and the height a square was judged at.
  */
 object ThermalMapWords {
-    const val ASKING = "Asking Venti for the forecast map"
+    const val ASKING = "Asking Venti for the forecast map."
 
     /** Said where the hours will stand while a layer of a day is asked for. */
-    const val ASKING_HOURS = "Asking Venti for the hours"
+    const val ASKING_HOURS = "Asking Venti for the hours of this layer."
+
+    /** Said where the hours would stand when Venti did not answer. */
+    const val UNREACHABLE_HOURS = "Venti could not be reached for the hours of this layer."
 
     /** The first cell of the hours on "Thermals": the day as a whole. */
     const val DAY = "Day"
@@ -305,7 +308,7 @@ object ThermalMapWords {
     fun said(view: ThermalMapHoursView, hour: Int?, day: ThermalMapDay): String =
         "${view.title}, ${hour?.let { view.hours.getOrNull(it)?.label } ?: day.name}"
     const val UNREACHABLE = "Venti could not be reached for the forecast map."
-    const val NO_DAYS = "The forecast map has no days from today on."
+    const val NO_DAYS = "The forecast map has no day from today on."
     const val NONE_HERE = "The forecast map has no squares for this part of the map."
 
     /** A square's status as TalkBack reads it, with what speaks against the day: "Marginal, Gusts". */

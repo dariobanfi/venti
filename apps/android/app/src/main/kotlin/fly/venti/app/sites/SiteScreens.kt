@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -525,12 +526,18 @@ private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -
             modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // While a filter is on, the filter in the core's line stands where the title stands.
-            Text(
-                if (filtered.isOn) filtered.filterWords else "Flying sites",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.weight(1f).testTag("site-list-title"),
-            )
+            // While a filter is on, the filter in the core's line stands under the title.
+            Column(Modifier.weight(1f)) {
+                Text("Flying sites", style = MaterialTheme.typography.titleLarge, modifier = Modifier.testTag("site-list-title"))
+                if (filtered.isOn) {
+                    Text(
+                        filtered.filterWords,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.testTag("site-list-filter-words"),
+                    )
+                }
+            }
             if (onFilter != null && sites.sites.isNotEmpty()) {
                 IconButton(onClick = onFilter, modifier = Modifier.size(VentiSize.touch).testTag("site-list-filter")) {
                     Icon(
@@ -827,6 +834,7 @@ private fun SitePage(
             // ground is known.
             if (day != null && day.groundM != null) {
                 item {
+                    SectionHeader(SiteWords.AIR_THROUGH_THE_DAY)
                     AirChart(day, site.elevationM)
                 }
             }
@@ -913,6 +921,10 @@ private fun SitePage(
                             }
                         }
                     }
+                }
+                SectionFooter(if (isOwn) SiteWords.OWN_FOOT_KEPT else SiteWords.OWN_FOOT, Modifier.testTag("site-own-foot"))
+                Spacer(Modifier.height(VentiSpace.s3))
+                Group {
                     row {
                         KeepRow(isKept, onKeep)
                     }
@@ -1140,15 +1152,18 @@ private fun WebsiteRow(address: String, onClick: () -> Unit) {
             .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // "Web page" and the host, as on the iPhone and the web.
+        Text(SiteWords.WEB_PAGE, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(VentiSpace.s3))
         Text(
-            address,
+            SiteWords.host(address),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary,
-            maxLines = 2,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f, fill = false),
         )
-        Spacer(Modifier.width(VentiSpace.s3))
+        Spacer(Modifier.width(VentiSpace.s2))
         Icon(
             painterResource(R.drawable.ic_open_in_new),
             contentDescription = null,
@@ -1206,6 +1221,14 @@ fun WindRose(spans: List<WindSpan>, modifier: Modifier = Modifier) {
 
 /** What the sites' screens say, apart from what the core has worded. */
 object SiteWords {
+    const val WEB_PAGE = "Web page"
+    const val AIR_THROUGH_THE_DAY = "The air through the day"
+    const val OWN_FOOT = "Today lists your take-offs first."
+    const val OWN_FOOT_KEPT = "Today lists it first, among your take-offs. Tap again to forget it."
+
+    /** The host of a web address, "www.dhv.de"; the address itself where it has none. */
+    fun host(address: String): String = runCatching { java.net.URI(address).host }.getOrNull()?.takeIf { it.isNotEmpty() } ?: address
+
     /** "Take-off 1550 m, wind from N to NE" */
     fun inALine(site: SiteView): String {
         var line = site.kindInWords

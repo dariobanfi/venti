@@ -74,6 +74,8 @@ import fly.venti.app.design.ValueRow
 import fly.venti.app.design.numbers
 import fly.venti.core.PlanDraft
 import fly.venti.core.PlanView
+import fly.venti.core.whoSeesAPlan
+import fly.venti.core.whoSeesThisPlan
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -182,11 +184,6 @@ fun PlansSheet(
                         modifier = Modifier.weight(1f),
                     )
                     if (page == Page.Board && account.isSignedIn) {
-                        // Pulling a sheet down closes it, so the board is
-                        // asked for again with a button.
-                        IconButton(onClick = { requests.launch { groups.load() } }, enabled = !groups.isLoading) {
-                            Icon(painterResource(R.drawable.ic_refresh), contentDescription = "Ask again")
-                        }
                         if (groups.groups.isNotEmpty()) {
                             IconButton(onClick = { open(Page.Form(editing = null)) }) {
                                 Icon(painterResource(R.drawable.ic_add), contentDescription = "New plan")
@@ -308,7 +305,7 @@ private fun Board(groups: GroupsModel, account: AccountModel, onPlan: (String) -
                         )
                     }
                 }
-                SectionFooter(PlanWords.WHO_SEES)
+                SectionFooter(whoSeesAPlan(groups.chats.orEmpty().any { it.isPublic }))
             }
             problem != null -> Quiet(problem)
             else -> Waiting()
@@ -666,7 +663,7 @@ private fun PlanForm(
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
             modifier = Modifier.fillMaxWidth().testTag("plan-note"),
         )
-        SectionFooter(PlanWords.FORM_FOOT)
+        SectionFooter(whoSeesThisPlan(groups.chats.orEmpty().firstOrNull { it.id == group }?.isPublic ?: false))
         Problem(problem)
         Button(
             onClick = {

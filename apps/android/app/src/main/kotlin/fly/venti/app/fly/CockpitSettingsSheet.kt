@@ -44,6 +44,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
 import fly.venti.app.R
+import fly.venti.app.design.SectionFooter
+import fly.venti.core.mapLayersWords
+import fly.venti.core.pagesWords
 import fly.venti.app.design.Common
 import fly.venti.app.design.Group
 import fly.venti.app.maps.OfflineMapsWords
@@ -54,7 +57,9 @@ import androidx.compose.runtime.setValue
 object CockpitSettingsWords {
     const val TITLE = "Settings"
     const val VARIO = "Vario"
-    const val THERMALS = "Thermal map"
+    val THERMALS: String get() = mapLayersWords().thermalMap
+    const val VARIO_FOOT = "The phone beeps in flight, and not while a connected vario beeps itself."
+    const val REPLAY_FOOT = "Plays a recorded flight through the cockpit, to try it on the ground. Nothing is saved."
     const val AIRSPACE = "Airspace"
     const val TASK = "Task"
     const val LIVE = "Live tracking"
@@ -100,6 +105,8 @@ fun CockpitSettingsSheet(
     onMaps: () -> Unit,
     onTask: () -> Unit,
     onLive: () -> Unit,
+    /** The settings' page "Glider and cockpit". */
+    onGliderAndCockpit: () -> Unit,
     /** Called with how many times faster than it was flown the sample flight is to be replayed. */
     onReplay: (Double) -> Unit,
     onDismiss: () -> Unit,
@@ -134,9 +141,17 @@ fun CockpitSettingsSheet(
             item {
                 Group {
                     row { SettingRow(R.drawable.venti_vario, CockpitSettingsWords.VARIO, vario, "cockpit-settings-vario", onVario) }
-                    // On the cockpit's map, at 40 %: fetched tile by tile for
-                    // the map in view, never kept for flying without a network.
-                    if (showsThermals != null) {
+                }
+            }
+            // When the phone sounds is the core's: in flight only, and not
+            // while a connected vario beeps itself.
+            item { SectionFooter(CockpitSettingsWords.VARIO_FOOT) }
+            // On the cockpit's map, at 40 %: fetched tile by tile for
+            // the map in view, never kept for flying without a network.
+            if (showsThermals != null) {
+                item { Spacer(Modifier.padding(top = VentiSpace.s5)) }
+                item {
+                    Group {
                         row {
                             SwitchSettingRow(
                                 R.drawable.venti_thermal,
@@ -194,6 +209,16 @@ fun CockpitSettingsSheet(
                     }
                     // Who may watch the flight while it is under way.
                     row { SettingRow(R.drawable.venti_live, CockpitSettingsWords.LIVE, live, "live-before-takeoff", onLive) }
+                    // The glider's numbers and what the cockpit shows, as on the iPhone.
+                    row {
+                        SettingRow(
+                            R.drawable.venti_wing,
+                            pagesWords().gliderAndCockpit,
+                            "",
+                            "cockpit-settings-glider",
+                            onGliderAndCockpit,
+                        )
+                    }
                 }
             }
             // To try the cockpit on the ground, while nothing is recorded.
@@ -232,6 +257,7 @@ fun CockpitSettingsSheet(
                         }
                     }
                 }
+                item { SectionFooter(CockpitSettingsWords.REPLAY_FOOT) }
             }
         }
     }

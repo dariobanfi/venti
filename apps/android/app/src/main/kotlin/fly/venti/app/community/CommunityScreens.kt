@@ -84,6 +84,8 @@ import fly.venti.app.design.Common
 
 /** What the list of everyone's flights says, in words. */
 object CommunityWords {
+    const val NOT_LISTED = "The flights could not be listed"
+
     const val WHOSE_RECKONING =
         "Flights their pilots share with everyone on Venti. Distances and points are " +
             "Venti's own reckoning by the World XContest's rules, not a league's."
@@ -312,7 +314,9 @@ private fun EveryonesFlights(community: CommunityModel, onOpen: (PublicFlight) -
             }
             if (flights.isEmpty() && !community.isLoading) {
                 item(key = "none") {
-                    if (!community.flightSearch.isSearching) {
+                    if (community.problem != null) {
+                        NoFlights(CommunityWords.NOT_LISTED, community.problem.orEmpty(), R.drawable.venti_league)
+                    } else if (!community.flightSearch.isSearching) {
                         NoFlights("No public flights yet", community.problem ?: CommunityWords.NONE_YET, R.drawable.venti_league)
                     } else {
                         NoFlights(FlightSearchWords.NONE_FOUND, community.problem ?: FlightSearchWords.NONE_FOUND_LINE, R.drawable.venti_league)

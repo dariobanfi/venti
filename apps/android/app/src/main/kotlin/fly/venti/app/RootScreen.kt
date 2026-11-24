@@ -350,6 +350,7 @@ fun RootScreen(
             onOpenAirspace = { navigation.flyRoute = FlyRoute.Airspace },
             onOpenMaps = { navigation.flyRoute = FlyRoute.OfflineMaps },
             onOpenTask = { navigation.flyRoute = FlyRoute.Task },
+            onOpenGliderAndCockpit = { navigation.flyRoute = FlyRoute.GliderAndCockpit },
             onAskForHelp = { at -> navigation.help = HelpOpening.Home(landedAt = at) },
             onReplay = { speed ->
                 val text = try {
@@ -751,6 +752,11 @@ private fun Sections(
                     terrain = session.terrain,
                 )
                 FlyRoute.OfflineMaps -> OfflineMapsScreen(session.maps, hasServer, onBack = { navigation.back() })
+                FlyRoute.GliderAndCockpit -> CockpitSettingsScreen(
+                    session.preferences,
+                    onBack = { navigation.back() },
+                    onGliderClass = { kind -> session.scope.launch { session.account.gliderClassChanged(kind) } },
+                )
                 null -> FlyScreen(
                     session.fly,
                     session.vario,

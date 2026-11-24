@@ -74,11 +74,11 @@ object AirspaceWords {
      * position lost is said, and a flight that never had a height.
      */
     fun notChecking(check: AirspaceCheck, isFlying: Boolean = true): String? = when (check) {
-        AirspaceCheck.CHECKING, AirspaceCheck.NO_AIRSPACE -> null
+        // Said by the top line's "No airspace", as on the iPhone.
+        AirspaceCheck.CHECKING, AirspaceCheck.NO_AIRSPACE, AirspaceCheck.OUTSIDE_FILES -> null
         AirspaceCheck.WAITING_FOR_HEIGHT ->
             if (isFlying) "Airspace is not being checked yet: no position with a height." else null
         AirspaceCheck.STALE -> "Airspace is not being checked: no position. What is shown is from the last one."
-        AirspaceCheck.OUTSIDE_FILES -> "Your airspace does not cover this place. Nothing is checked here."
     }
 
     /** A warning as a screen reader says it. */

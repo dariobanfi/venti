@@ -47,6 +47,7 @@ import fly.venti.app.SharedFiles
 import fly.venti.app.account.AccountModel
 import fly.venti.app.design.ActionRow
 import fly.venti.app.design.Group
+import fly.venti.app.design.Format
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
@@ -298,7 +299,7 @@ private fun ThisFlight(live: LiveShareView, onSend: () -> Unit, onDelete: () -> 
         // Read as one by a screen reader, and found as one by a test.
         row { ValueRow("Status", live.words, Modifier.testTag("live-status").semantics(mergeDescendants = true) {}) }
         if (live.state != LiveShareState.STOPPED) {
-            row { ValueRow("Positions sent", live.taken.toString()) }
+            row { ValueRow("Positions sent", Format.count(live.taken.toLong())) }
             row { ActionRow("Send the link", MaterialTheme.colorScheme.primary, Modifier.testTag("live-send"), onClick = onSend) }
             row {
                 ActionRow("Delete the track", MaterialTheme.colorScheme.error, Modifier.testTag("live-delete"), onClick = onDelete)

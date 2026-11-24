@@ -201,7 +201,7 @@ class ThermalHoursModel(
             answers.remove(path)
             if (wanted != key) return
             state = ThermalHoursState.Failed(
-                if (error is CoreException) error.pilotMessage else "${ThermalMapWords.UNREACHABLE} ${error.pilotMessage}",
+                if (error is CoreException) error.pilotMessage else "${ThermalMapWords.UNREACHABLE_HOURS} ${error.pilotMessage}",
             )
             if (layer == ThermalHoursLayer.THERMALS) hour = null
         }

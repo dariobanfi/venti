@@ -15,6 +15,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import fly.venti.app.design.Venti
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -64,6 +68,15 @@ fun FlyScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // The iPhone's title and line over the one button.
+        Text(FlyWords.TITLE, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
+        Text(
+            FlyWords.LINE,
+            style = MaterialTheme.typography.bodyLarge,
+            color = Venti.colours.textSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = VentiSpace.s2, bottom = VentiSpace.s5),
+        )
         // The screen's one accent: the action that opens the cockpit.
         Button(
             onClick = { askThenStart.launch(permissionsToFly(vario)) },
@@ -97,4 +110,8 @@ private fun permissionsToFly(vario: VarioLink): Array<String> = buildList {
 /** What the Fly tab says about the cockpit. */
 object FlyWords {
     const val OPEN_COCKPIT = "Open the cockpit"
+    const val TITLE = "Fly"
+    const val LINE =
+        "The cockpit waits on the ground and records from the moment you take off, with the screen off too. " +
+            "Two minutes after you have landed, the flight is saved to the logbook."
 }

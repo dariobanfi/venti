@@ -67,6 +67,7 @@ import fly.venti.app.design.Common
 
 /** What the list and a glider's page say apart from their numbers. */
 object GliderWords {
+    const val AIRCRAFT_GONE = "This aircraft is no longer on this part of the map."
     const val CAUTION =
         "Positions are as each pilot's app sent them. A glider nothing was heard of for a while has most " +
             "likely no network: it is not known to have landed."
@@ -391,6 +392,15 @@ fun OtherAircraftSheet(
         }
         if (shown != null) {
             OtherAircraftPage(shown.first, shown.second)
+        }
+        // Kept from before: the newest answer no longer has it.
+        if (shown != null && live.other(id) == null) {
+            Text(
+                GliderWords.AIRCRAFT_GONE,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 32.dp).testTag("other-gone"),
+            )
         }
     }
 }

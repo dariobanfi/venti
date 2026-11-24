@@ -169,8 +169,11 @@ data class GlideReachEdges(val solid: List<List<Coordinate>>, val dashed: List<L
 
 /** Words of the card that are not the core's, and the steps of its settings. */
 object GlideReachWords {
-    /** The entry in what a long press on the map opens, and the card's title. */
+    /** The entry in what a long press on the map opens. */
     const val ENTRY = "What a glide reaches from here"
+
+    /** The card's title, as on the iPhone and the web. */
+    const val TITLE = "What a glide reaches"
     const val GLIDE = "Glide"
     const val START = "Start height"
     const val ON_THE_GROUND = "On the ground"

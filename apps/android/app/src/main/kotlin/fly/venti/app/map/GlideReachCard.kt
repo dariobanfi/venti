@@ -77,7 +77,7 @@ fun GlideReachCard(model: GlideReachModel, onClear: () -> Unit, modifier: Modifi
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    GlideReachWords.ENTRY,
+                    GlideReachWords.TITLE,
                     style = MaterialTheme.typography.titleSmall,
                     color = colours.text,
                     modifier = Modifier.weight(1f).semantics { heading() },

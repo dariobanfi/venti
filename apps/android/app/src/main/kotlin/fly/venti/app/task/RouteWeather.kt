@@ -183,9 +183,9 @@ class RouteWeatherModel(
 /** What the weather along a route says that is not the core's, and the settings' steps. */
 object RouteWeatherWords {
     const val TITLE = "Weather along the route"
-    const val ASKING = "Asking Venti for the weather along the route"
+    const val ASKING = "Asking Venti for the weather along the route."
     const val UNREACHABLE = "Venti could not be reached for the weather along the route."
-    const val NO_SERVER = "Without a Venti server there is no forecast along the route."
+    const val NO_SERVER = "Without Venti there is no forecast along the route."
     const val START = "Start"
     const val SPEED = "Speed over the ground"
     const val GLIDE = "Glide"

@@ -243,6 +243,8 @@ fun CockpitScreen(
     onOpenMaps: () -> Unit = {},
     /** Called to show the pilot's task, from the settings. */
     onOpenTask: () -> Unit = {},
+    /** The settings' page "Glider and cockpit". */
+    onOpenGliderAndCockpit: () -> Unit = {},
     /** Called with how many times faster the sample flight is to be replayed, from the settings. */
     onReplay: (Double) -> Unit = {},
     /**
@@ -772,6 +774,10 @@ fun CockpitScreen(
                 isShowingSettings = false
                 isShowingLive = true
             },
+            onGliderAndCockpit = {
+                isShowingSettings = false
+                onOpenGliderAndCockpit()
+            },
             onReplay = { speed ->
                 isShowingSettings = false
                 if (isReplay) {
@@ -1079,15 +1085,17 @@ object CockpitChecks {
             null
         },
         vario(view, isReplay, varioState, varioName),
-        // The cockpit holds no airspace at all: it warns of none.
-        if (airspaceCheck == AirspaceCheck.NO_AIRSPACE) {
+        // The cockpit holds no airspace at all, or none that covers this
+        // place: it warns of none (the top line says it, as on the iPhone).
+        if (airspaceCheck == AirspaceCheck.NO_AIRSPACE || airspaceCheck == AirspaceCheck.OUTSIDE_FILES) {
             CockpitCheck("check-airspace", R.drawable.venti_airspace, NO_AIRSPACE, CheckTone.Caution, NO_AIRSPACE)
         } else {
             null
         },
         // Where the glider is, no region is kept on the phone: without a
         // network there is no map.
-        if (!mapIsKept && view.position != null) {
+        // On the ground only (docs/design.md): in the air it is too late.
+        if (!mapIsKept && view.position != null && view.phase != FlightPhase.FLYING) {
             CockpitCheck("check-map", R.drawable.venti_map, NO_MAP, CheckTone.Caution, NO_MAP)
         } else {
             null
@@ -1451,7 +1459,7 @@ private fun FlightPage(
         Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
             // Nothing on the screen answers a touch until it is unlocked
             // by holding a finger on the lock.
-            QuietButton("Lock screen", R.drawable.ic_lock, Modifier.weight(1f).testTag("cockpit-lock"), onClick = onLock)
+            QuietButton("Lock the screen", R.drawable.ic_lock, Modifier.weight(1f).testTag("cockpit-lock"), onClick = onLock)
             // Who watches the flight, and whether it is going out. Not in
             // a replay: what is replayed is not shared, nor recorded.
             if (!isReplay) LiveButton(live, Modifier.weight(1f), onOpen = onLive)
@@ -2261,7 +2269,7 @@ private fun LockCover(onUnlock: () -> Unit) {
             ) {
                 Icon(painterResource(R.drawable.ic_lock), contentDescription = null, modifier = Modifier.size(VentiSize.icon))
                 Spacer(Modifier.width(VentiSpace.s2))
-                Text("Hold to unlock", style = fixed(VentiType.label))
+                Text("Locked. Hold to unlock", style = fixed(VentiType.label))
             }
         }
     }
@@ -2372,54 +2380,68 @@ private fun TaskPage(readings: TaskReadings?) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.testTag("task-next-name"),
         )
-        LegReadings(next, ReadingSize.Large, Modifier.testTag("task-next"))
-        LegReadings(next, ReadingSize.Large, arrival = true)
+        // As the iPhone has it: to the next turnpoint (or the goal) with
+        // the time it takes, how far over the glide needed, and in a row
+        // under it the glide needed, the arrival and the speed section.
+        val stillAir = TaskPageWords.STILL_AIR.takeIf { readings?.windKnown == false }
+        Row(Modifier.testTag("task-next")) {
+            Reading(
+                if (next?.isGoal == true) TaskPageWords.TO_GOAL else TaskPageWords.TO_NEXT,
+                next?.let { Format.kilometres(it.distanceM) },
+                "km",
+                note = next?.arrivesInS?.let(TaskPageWords::arrivesIn),
+                modifier = Modifier.weight(1f),
+            )
+            OverNeeded(next, ReadingSize.Large, stillAir, Modifier.weight(1f).testTag("task-over-needed"))
+        }
+        Row {
+            Reading(TaskPageWords.GLIDE_NEEDED, next?.glideNeeded?.let(Format::neededGlide), "", size = ReadingSize.Medium, modifier = Modifier.weight(1f))
+            Reading(TaskPageWords.ARRIVAL, next?.arrivesUnixS?.let(Format::time), "", size = ReadingSize.Medium, modifier = Modifier.weight(1f))
+            Reading(
+                TaskPageWords.SPEED_SECTION,
+                readings?.speedSectionAverageWords,
+                "",
+                size = ReadingSize.Medium,
+                modifier = Modifier.weight(1f).testTag("task-speed"),
+            )
+        }
         // On the last leg the next turnpoint is the goal: it is not said twice.
         val goal = readings?.goal?.takeIf { next?.isGoal != true }
         goal?.let {
-            Text(it.name, style = fixed(VentiType.label), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            LegReadings(it, ReadingSize.Medium, Modifier.testTag("task-goal"))
-        }
-        readings?.speedSectionAverageWords?.let { words ->
-            Text(
-                words,
-                style = fixed(VentiType.label).numbers,
-                color = Venti.colours.textMuted,
-                modifier = Modifier.testTag("task-speed"),
-            )
+            Row(Modifier.testTag("task-goal")) {
+                Reading(TaskPageWords.GOAL, Format.kilometres(it.distanceM), "km", size = ReadingSize.Medium, modifier = Modifier.weight(1f))
+                OverNeeded(it, ReadingSize.Medium, stillAir, Modifier.weight(1f).testTag("task-goal-over"))
+                Reading(TaskPageWords.GLIDE_NEEDED, it.glideNeeded?.let(Format::neededGlide), "", size = ReadingSize.Medium, modifier = Modifier.weight(1f))
+            }
         }
     }
 }
 
-/** One place ahead of the task: distance and height over what it needs, or the glide it needs and the arrival. */
+/** The names on the task page, the iPhone's (`TaskReadingsPage`); the values and "Still air" are the core's. */
+object TaskPageWords {
+    const val TO_NEXT = "To next"
+    const val TO_GOAL = "To goal"
+    const val GOAL = "Goal"
+    const val OVER_NEEDED = "Over needed"
+    const val GLIDE_NEEDED = "Glide needed"
+    const val ARRIVAL = "Arrival"
+    const val SPEED_SECTION = "Speed section"
+
+    /** Under "Over needed" while no wind is known: the core then reckons in still air. */
+    const val STILL_AIR = "Still air"
+
+    /** The time a leg takes at the speed flown: "in 1:23". */
+    fun arrivesIn(seconds: Long): String = "in ${Format.hoursMinutes(seconds)}"
+}
+
+/** How far over or under the altitude needed the glider is, in the core's words: green over it, red under it. */
 @Composable
-private fun LegReadings(leg: TaskLegReading?, size: ReadingSize, modifier: Modifier = Modifier, arrival: Boolean = false) {
+private fun OverNeeded(leg: TaskLegReading?, size: ReadingSize, stillAir: String?, modifier: Modifier = Modifier) {
     val over = leg?.overNeededM
     val overInk = when {
         over == null -> Color.Unspecified
         over >= 0 -> Venti.colours.good
         else -> Venti.colours.danger
     }
-    Row(modifier) {
-        if (!arrival) {
-            Reading("Distance", leg?.let { Format.kilometres(it.distanceM) }, "km", size = size, modifier = Modifier.weight(1f))
-            Reading(
-                "Over needed",
-                leg?.overNeededWords,
-                "",
-                size = size,
-                ink = overInk,
-                modifier = Modifier.weight(1f).testTag("task-over-needed"),
-            )
-        } else {
-            Reading("Glide needed", leg?.glideNeeded?.let(Format::neededGlide), "", size = size, modifier = Modifier.weight(1f))
-            Reading(
-                "Arrival",
-                leg?.arrivesUnixS?.let(Format::time),
-                "",
-                size = size,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
+    Reading(TaskPageWords.OVER_NEEDED, leg?.overNeededWords, "", note = stillAir, size = size, ink = overInk, modifier = modifier)
 }

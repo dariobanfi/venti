@@ -240,6 +240,12 @@ fun StationPage(
                     }
                 }
             }
+            val credit = (history as? History.Ready)?.history?.credits?.firstOrNull()
+                ?: wind.credits.firstOrNull { it.source == station.source }
+            // Whose readings they are, before the fold, as on the iPhone and the web.
+            if (credit != null) {
+                item { Source(credit) }
+            }
             // What the core reads of the air from the readings, and how the
             // chart's hours are to be read: behind a row at the end.
             item {
@@ -257,11 +263,6 @@ fun StationPage(
                     SectionFooter(days.note, Modifier.testTag("station-days-note"))
                     if (air.cloudBase != null || air.temperatureStep != null) Air(air)
                 }
-            }
-            val credit = (history as? History.Ready)?.history?.credits?.firstOrNull()
-                ?: wind.credits.firstOrNull { it.source == station.source }
-            if (credit != null) {
-                item { Source(credit) }
             }
         }
     }
@@ -367,7 +368,10 @@ private fun Air(air: StationAir) {
         air.cloudBase?.let { base ->
             row {
                 Column(Modifier.fillMaxWidth().padding(16.dp).testTag("station-cloud-base")) {
-                    Metric(base.words, Format.metres(base.baseM), unit = "m")
+                    Row {
+                        Metric(base.words, Format.metres(base.baseM), Modifier.weight(1f), unit = "m")
+                        Metric("Above the station", Format.metres(base.aboveStationM), Modifier.weight(1f), unit = "m")
+                    }
                     Text(
                         base.note,
                         style = MaterialTheme.typography.bodySmall,

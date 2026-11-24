@@ -183,6 +183,7 @@ fun FlightScreen(
             // with, from its own file. Nothing is recorded and nothing is
             // shared. The cockpit covers the app while it plays, and gives
             // this page back when it closes.
+            offersReplay = !fly.isOpen,
             onReplay = { speed ->
                 scope.launch {
                     try {
@@ -239,6 +240,8 @@ private fun TopButtons(
     /** Called with how many times faster than it was flown the flight is to be replayed. */
     onReplay: (Double) -> Unit,
     onDelete: () -> Unit,
+    /** Whether "Replay in the cockpit" is offered: not while a cockpit is open. */
+    offersReplay: Boolean = true,
 ) {
     var isShowingMenu by remember { mutableStateOf(false) }
     // Material's menus do not open one out of another: "Replay in the
@@ -294,12 +297,15 @@ private fun TopButtons(
                         onShare()
                     },
                 )
-                DropdownMenuItem(
-                    text = { Text("Replay in the cockpit") },
-                    leadingIcon = { Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null) },
-                    trailingIcon = { Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = null) },
-                    onClick = { isChoosingSpeed = true },
-                )
+                // Not while a cockpit is open: a replay would take its place (as on the iPhone).
+                if (offersReplay) {
+                    DropdownMenuItem(
+                        text = { Text("Replay in the cockpit") },
+                        leadingIcon = { Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null) },
+                        trailingIcon = { Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = null) },
+                        onClick = { isChoosingSpeed = true },
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text("Delete flight") },
                     leadingIcon = { Icon(painterResource(R.drawable.ic_delete), contentDescription = null) },

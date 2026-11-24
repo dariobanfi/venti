@@ -38,12 +38,16 @@ fun CableSheet(line: CableLine, layer: CablesMap?, onDismiss: () -> Unit) {
     ) {
         Column(Modifier.padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s7).testTag("cable-sheet")) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                // The cable's name as the title, its words under it; the words alone where it has no name.
                 Text(
-                    line.words,
+                    line.name ?: line.words,
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f).testTag("cable-words"),
+                    modifier = Modifier.weight(1f).then(if (line.name == null) Modifier.testTag("cable-words") else Modifier),
                 )
                 TextButton(onClick = onDismiss) { Text(Common.words.done) }
+            }
+            if (line.name != null) {
+                Text(line.words, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.testTag("cable-words"))
             }
             for (credit in layer?.credits.orEmpty()) {
                 TextButton(

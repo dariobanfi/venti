@@ -32,6 +32,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -89,6 +90,7 @@ import fly.venti.core.Notifications
 import fly.venti.core.PlanView
 import fly.venti.core.PublicFlight
 import fly.venti.core.pilotsWords
+import fly.venti.core.whoSeesAPlan
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -106,6 +108,7 @@ object CommunityPageWords {
         "With an account you plan flying days with your groups, follow pilots and see what they fly, " +
             "and hear who cheered your flights."
     const val SIGN_IN = "Sign in"
+    const val MAKE_OR_JOIN = "Make or join a group"
 
     /** Where the pilots near were looked for. */
     fun around(fromPhone: Boolean): String = if (fromPhone) "Around your position" else "Around the middle of the map"
@@ -114,8 +117,8 @@ object CommunityPageWords {
     fun more(count: Int): String = "+${Format.count(count.toLong())}"
 
     /** How many lines of the feed and of the notifications the page shows; the rest are a page of their own. */
-    const val FEED_CARDS = 5
-    const val TOLD_LINES = 3
+    const val FEED_CARDS = 6
+    const val TOLD_LINES = 5
 
     /** How many faces a plan's card shows before "+3". */
     const val FACES = 5
@@ -138,7 +141,7 @@ object CommunityPageWords {
  * the rest. Every part asks for itself when the page shows: no request is
  * the page's own, and nothing is kept on the phone.
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun CommunityPage(
     community: CommunityModel,
@@ -233,6 +236,21 @@ fun CommunityPage(
     val list = rememberLazyListState()
     val askedCount = nearby?.help?.asked.orEmpty().count { it.stands }.takeIf { signedIn } ?: 0
     LaunchedEffect(askedCount) { if (askedCount > 0) list.animateScrollToItem(0) }
+    // Pulled down, every part is asked again, as on the iPhone.
+    val pulls = rememberCoroutineScope()
+    PullToRefreshBox(
+        isRefreshing = community.near.isLoading,
+        onRefresh = {
+            nearAsked += 1
+            feedAsked += 1
+            toldAsked += 1
+            if (signedIn) {
+                pulls.launch { groups.loadChats() }
+                pulls.launch { groups.load() }
+            }
+        },
+        modifier = Modifier.fillMaxSize(),
+    ) {
     LazyColumn(
         state = list,
         modifier = Modifier.fillMaxSize().testTag("community"),
@@ -291,33 +309,28 @@ fun CommunityPage(
                     }
                 }
                 groups.chatsProblem != null -> item(key = "groups-problem") {
-                    Quietly(groups.chatsProblem.orEmpty(), Modifier.testTag("community-groups-problem"))
+                    val scope = rememberCoroutineScope()
+                    Problem(groups.chatsProblem.orEmpty(), Modifier.testTag("community-groups-problem")) { scope.launch { groups.loadChats() } }
                 }
                 else -> item(key = "groups-loading") { Waiting() }
             }
 
-            // The plans of the pilot's groups; nothing of them in no group,
-            // where the groups' part above says so and leads to them.
-            val inNoGroup = groups.board?.groups?.isEmpty() == true
-            if (!inNoGroup) item(key = "plans-head") {
-                PartHead(CommunityPageWords.PLANS, Modifier.testTag("community-plans")) {
-                    val board = groups.board
-                    if (board != null && board.groups.isNotEmpty()) {
-                        TextButton(onClick = { onOpenPlans(PlansOpening.NewPlan) }, modifier = Modifier.testTag("community-new-plan")) {
-                            Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(VentiSpace.s5))
-                            Spacer(Modifier.width(VentiSpace.s1))
-                            Text(CommunityPageWords.NEW_PLAN)
-                        }
-                    }
-                }
-            }
+            // The plans of the pilot's groups; "New plan" is in the top bar.
+            // In no group, a line and the way to the groups, as on the iPhone and the web.
+            item(key = "plans-head") { PartHead(CommunityPageWords.PLANS, Modifier.testTag("community-plans")) {} }
             val board = groups.board
             when {
                 board == null && groups.problem != null -> item(key = "plans-problem") {
-                    Quietly(groups.problem.orEmpty(), Modifier.testTag("community-plans-problem"))
+                    val scope = rememberCoroutineScope()
+                    Problem(groups.problem.orEmpty(), Modifier.testTag("community-plans-problem")) { scope.launch { groups.load() } }
                 }
                 board == null -> item(key = "plans-loading") { Waiting() }
-                board.groups.isEmpty() -> Unit
+                board.groups.isEmpty() -> item(key = "plans-no-group") {
+                    Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
+                        Quietly(PlanWords.NO_GROUP, Modifier.testTag("community-plans-no-group"))
+                        TextButton(onClick = onOpenGroups, modifier = Modifier.heightIn(min = VentiSize.touch)) { Text(CommunityPageWords.MAKE_OR_JOIN) }
+                    }
+                }
                 else -> {
                     val plans = board.days.flatMap { day -> day.plans.map { day.day to it } }
                     if (plans.isEmpty()) {
@@ -336,7 +349,7 @@ fun CommunityPage(
                     if (board.isCutShort) {
                         item(key = "plans-cut") { SectionFooter(PlanWords.CUT_SHORT) }
                     }
-                    item(key = "plans-who") { SectionFooter(PlanWords.WHO_SEES) }
+                    item(key = "plans-who") { SectionFooter(whoSeesAPlan(groups.chats.orEmpty().any { it.isPublic })) }
                 }
             }
 
@@ -385,11 +398,7 @@ fun CommunityPage(
 
         // The pilots who fly near the phone, or near the map's middle.
         item(key = "near-head") {
-            PartHead(PilotPictures.words.nearTitle, Modifier.testTag("community-near")) {
-                IconButton(onClick = { nearAsked += 1 }, enabled = !community.near.isLoading) {
-                    Icon(painterResource(R.drawable.ic_refresh), contentDescription = "Ask again")
-                }
-            }
+            PartHead(PilotPictures.words.nearTitle, Modifier.testTag("community-near")) {}
         }
         val near = community.near
         val nearPilots = near.pilots
@@ -411,7 +420,10 @@ fun CommunityPage(
                                 pilot.name,
                                 pilot.picturePath,
                                 title = pilot.name,
-                                line = pilot.words,
+                                line = listOfNotNull(
+                                    pilot.words.takeIf { it.isNotEmpty() },
+                                    pilot.season?.takeIf { it.words.isNotEmpty() }?.let { "${it.name}: ${it.words}" },
+                                ).joinToString("\n"),
                                 initials = pilot.initials,
                                 modifier = Modifier.testTag("near-pilot"),
                                 onClick = { onOpenPilot(pilot.handle, pilot.name) },
@@ -421,29 +433,8 @@ fun CommunityPage(
                 }
             }
             nearPilots != null -> item(key = "near-empty") { Quietly(nearPilots.empty, Modifier.testTag("pilots-near-empty")) }
-            near.problem != null -> item(key = "near-problem") { Quietly(near.problem, Modifier.testTag("pilots-near-problem")) }
+            near.problem != null -> item(key = "near-problem") { Problem(near.problem, Modifier.testTag("pilots-near-problem")) { nearAsked += 1 } }
             else -> item(key = "near-loading") { Waiting() }
-        }
-
-        // Help after landing: asking the pilots nearby for a lift or a hand.
-        if (nearby != null) {
-            item(key = "help") {
-                val mine = nearby.help?.mine?.firstOrNull { it.stands }.takeIf { signedIn }
-                Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
-                    Group {
-                        row {
-                            LinkRow(
-                                HelpWords.ENTRY,
-                                R.drawable.ic_chevron_right,
-                                Modifier.testTag("community-help"),
-                                leading = R.drawable.venti_landing,
-                                onClick = { onOpenHelp(HelpOpening.Home()) },
-                            )
-                        }
-                    }
-                    mine?.let { SectionFooter(it.line, Modifier.testTag("community-help-mine")) }
-                }
-            }
         }
 
         // Finding a pilot by name.
@@ -499,7 +490,7 @@ fun CommunityPage(
             item(key = "told-head") {
                 PartHead(social.words.notificationsTitle, Modifier.testTag("community-notifications")) {
                     val lines = (told as? SocialModel.Told.Read)?.value?.lines.orEmpty()
-                    if (lines.size > CommunityPageWords.TOLD_LINES) {
+                    if (lines.isNotEmpty()) {
                         TextButton(onClick = onOpenNotifications, modifier = Modifier.testTag("community-notifications-all")) {
                             Text(CommunityPageWords.ALL)
                         }
@@ -534,6 +525,28 @@ fun CommunityPage(
                 }
             }
         }
+
+        // Help after landing: asking the pilots nearby for a lift or a hand.
+        if (nearby != null && signedIn) {
+            item(key = "help") {
+                val mine = nearby.help?.mine?.firstOrNull { it.stands }
+                Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
+                    Group {
+                        row {
+                            LinkRow(
+                                HelpWords.ENTRY,
+                                R.drawable.ic_chevron_right,
+                                Modifier.testTag("community-help"),
+                                leading = R.drawable.venti_landing,
+                                onClick = { onOpenHelp(HelpOpening.Home()) },
+                            )
+                        }
+                    }
+                    mine?.let { SectionFooter(it.line, Modifier.testTag("community-help-mine")) }
+                }
+            }
+        }
+    }
     }
 }
 
@@ -843,9 +856,6 @@ private fun FeedCard(row: FeedRow, onOpen: () -> Unit) {
                     Large(Format.kilometres(flight.score?.distanceM ?: flight.trackLengthM), "km")
                 }
             }
-            CommunityWords.glider(flight)?.let { glider ->
-                Text(glider, style = MaterialTheme.typography.bodyMedium, color = colours.textSecondary)
-            }
             if (said.isNotEmpty()) {
                 Text(said, style = MaterialTheme.typography.bodyMedium, color = colours.textSecondary)
             }
@@ -868,4 +878,13 @@ private fun Large(number: String, unit: String) {
         maxLines = 1,
         textAlign = TextAlign.Start,
     )
+}
+
+/** A part that could not be read: the problem, and the core's "Try again". */
+@Composable
+private fun Problem(words: String, modifier: Modifier = Modifier, onTryAgain: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
+        Quietly(words, modifier)
+        OutlinedButton(onClick = onTryAgain, modifier = Modifier.heightIn(min = VentiSize.touch)) { Text(Common.words.tryAgain) }
+    }
 }

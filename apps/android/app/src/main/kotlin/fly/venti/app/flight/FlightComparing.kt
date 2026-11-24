@@ -126,11 +126,14 @@ data class ComparedFlight(
 /** What the comparison says that is not the core's. */
 object CompareWords {
     const val LAY_BESIDE = "Lay another flight beside it"
+    const val LAY_BESIDE_FOOTER =
+        "One of your own, or one that other pilots show to everyone and that was flown here on the same day. " +
+            "Flights that were in the air together are shown by the clock."
     const val SIDE_BY_SIDE_ROW = "The two flights side by side"
     const val CHOOSER_TITLE = "Lay a flight beside it"
     const val FLOWN_HERE = "Flown here that day"
     const val FLOWN_HERE_FOOTER =
-        "Flights that other pilots show to everyone on Venti, begun within twelve hours of this one around " +
+        "Flights that other pilots show to everyone, begun within twelve hours of this one around " +
             "where it was flown."
     const val NOBODY_HERE = "Nobody shows a flight from around here on that day."
     const val YOUR_FLIGHTS = "Your flights"

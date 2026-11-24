@@ -15,19 +15,11 @@ object PlanWords {
         "Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, " +
             "then make a group or join one."
 
-    const val NO_GROUP =
-        "You are in no group yet. A group is a few pilots who tell each other where they mean to fly; " +
-            "only its members see it."
+    const val NO_GROUP = GroupWords.NONE_YET_LONG
 
     const val NO_PLANS = "Nobody in your groups has posted a plan for today or a later day."
 
     const val CUT_SHORT = "Your groups hold more plans than fit here: the later days are missing."
-
-    const val WHO_SEES =
-        "A plan is seen by the members of its group and nobody else, and is removed two days after its day."
-
-    const val FORM_FOOT =
-        "The plan is posted in the group's chat, with \"I'm in\" on its card. It is removed two days after its day."
 
     const val GONE = "This plan is no longer there."
 
@@ -58,7 +50,7 @@ object PlanWords {
         return when (date) {
             today -> "Today"
             today.plusDays(1) -> "Tomorrow"
-            else -> DateTimeFormatter.ofPattern("EEEE, d MMM").format(date)
+            else -> DateTimeFormatter.ofPattern("EEEE, d MMM", Locale.US).format(date)
         }
     }
 
@@ -118,6 +110,9 @@ object GroupWords {
     const val MAKE_ADMIN = "Make admin"
     const val MAKE_MEMBER = "Make a member again"
     const val REMOVE_MEMBER = "Remove from the group"
+    const val REMOVE_MEMBER_MEANS = "Their plans go with them."
+    const val HAND_ON = "Hand on"
+    const val HAND_ON_MEANS = "They become its owner. You stay in the group as a member, and cannot take it back yourself."
     const val NAME = "Name"
     const val ABOUT_FIELD = "What the group is about"
     const val HOME_AS_IT_IS = "As it is"
@@ -149,6 +144,12 @@ object GroupWords {
     const val MOST_PICTURES = 4
 
     fun owner(name: String): String = "Make $name the owner"
+
+    /** Asked before the group goes to another member, in the web's words. */
+    fun handOnQuestion(name: String): String = "Hand the group to $name?"
+
+    /** Asked before a member is taken out, in the web's words. */
+    fun removeQuestion(name: String): String = "Remove $name?"
 
     fun you(name: String): String = "$name (you)"
 

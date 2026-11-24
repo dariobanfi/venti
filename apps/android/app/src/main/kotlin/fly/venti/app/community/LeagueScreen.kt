@@ -149,7 +149,17 @@ fun LeagueScreen(
         modifier = Modifier.padding(bottom = bars.calculateBottomPadding()),
         topBar = {
             Column {
-                TopAppBar(title = { Text(LeagueWords.COMMUNITY) })
+                TopAppBar(
+                    title = { Text(LeagueWords.COMMUNITY) },
+                    actions = {
+                        // A new plan for one of the pilot's groups, as the iPhone's toolbar has it.
+                        if (hasServer && shown == LeagueList.Community && social.isSignedIn && groups.board?.groups?.isNotEmpty() == true) {
+                            IconButton(onClick = { plans = PlansOpening.NewPlan }, modifier = Modifier.testTag("community-new-plan")) {
+                                Icon(painterResource(R.drawable.ic_add), contentDescription = CommunityPageWords.NEW_PLAN)
+                            }
+                        }
+                    },
+                )
                 if (hasServer) {
                     PrimaryTabRow(selectedTabIndex = lists.indexOf(shown), containerColor = MaterialTheme.colorScheme.surface) {
                         for (list in lists) {

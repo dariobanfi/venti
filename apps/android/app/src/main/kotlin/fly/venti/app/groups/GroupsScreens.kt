@@ -60,6 +60,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -518,6 +519,8 @@ fun GroupPage(
     var isEditing by remember { mutableStateOf(false) }
     var acting by remember { mutableStateOf<CommunityMember?>(null) }
     var asking by remember { mutableStateOf<Asking?>(null) }
+    // Handing the group on (true) or removing a member (false): asked first, as on the web.
+    var confirming by remember { mutableStateOf<Pair<CommunityMember, Boolean>?>(null) }
     var reporting by remember { mutableStateOf<Reported?>(null) }
 
     suspend fun load() {
@@ -743,7 +746,7 @@ fun GroupPage(
                         TextButton(
                             onClick = {
                                 acting = null
-                                act { detail = groups.handOver(id, member.handle) }
+                                confirming = member to true
                             },
                             modifier = Modifier.fillMaxWidth().testTag("member-owner"),
                         ) { Text(GroupWords.owner(member.name)) }
@@ -752,7 +755,7 @@ fun GroupPage(
                         TextButton(
                             onClick = {
                                 acting = null
-                                act { groups.remove(member.handle, id); load() }
+                                confirming = member to false
                             },
                             modifier = Modifier.fillMaxWidth().testTag("member-remove"),
                         ) { Text(GroupWords.REMOVE_MEMBER, color = Venti.colours.danger) }
@@ -761,6 +764,33 @@ fun GroupPage(
             },
             confirmButton = {},
             dismissButton = { TextButton(onClick = { acting = null }) { Text(Common.words.cancel) } },
+        )
+    }
+
+    confirming?.let { (member, handsOn) ->
+        AlertDialog(
+            onDismissRequest = { confirming = null },
+            title = { Text(if (handsOn) GroupWords.handOnQuestion(member.name) else GroupWords.removeQuestion(member.name)) },
+            text = { Text(if (handsOn) GroupWords.HAND_ON_MEANS else GroupWords.REMOVE_MEMBER_MEANS) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirming = null
+                        if (handsOn) {
+                            act { detail = groups.handOver(id, member.handle) }
+                        } else {
+                            act { groups.remove(member.handle, id); load() }
+                        }
+                    },
+                    modifier = Modifier.testTag("member-confirm"),
+                ) {
+                    Text(
+                        if (handsOn) GroupWords.HAND_ON else GroupWords.REMOVE_MEMBER,
+                        color = if (handsOn) Color.Unspecified else Venti.colours.danger,
+                    )
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirming = null }) { Text(Common.words.cancel) } },
         )
     }
 

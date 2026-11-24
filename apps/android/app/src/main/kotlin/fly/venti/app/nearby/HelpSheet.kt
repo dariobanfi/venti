@@ -98,7 +98,7 @@ object HelpWords {
     const val WAITING_FOR_POSITION = "Finding where you are"
     const val SIGNED_OUT = "Sign in to ask pilots nearby for help, or to be asked."
     const val SIGN_IN = "Sign in"
-    const val REPORT = "Report"
+    const val REPORT = "Report this request"
     const val NOTE_ROOM = 280
 
     /** The channel of the phone's notifications that pushes come on. */

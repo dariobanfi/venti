@@ -468,7 +468,8 @@ class CommunityModelTest {
         address = BASE
         server.isReachable = false
         community.loadIfNeeded()
-        assertTrue(community.problem, checkNotNull(community.problem).startsWith("Venti could not be reached for other pilots' flights."))
+        // The core's words for it, as on the iPhone and the web.
+        assertEquals(fly.venti.core.pilotsWords().unreachable, community.problem)
         assertTrue(community.flights.isEmpty())
         assertFalse(community.isLoading)
 
@@ -489,7 +490,7 @@ class CommunityModelTest {
         server.isReachable = false
         community.loadMore()
         assertEquals(2, community.flights.size)
-        assertTrue(checkNotNull(community.problem).startsWith("Venti could not be reached"))
+        assertEquals(fly.venti.core.pilotsWords().unreachable, community.problem)
 
         // The pilot takes the server away: its flights go with it.
         address = null

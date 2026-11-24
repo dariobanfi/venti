@@ -95,8 +95,8 @@ fun ThermalView(
                 .semantics {
                     contentDescription = "Thermal view"
                     stateDescription = when {
-                        view.circling && view.lift != null -> "The lift of the circles flown"
-                        else -> "The track behind the glider"
+                        view.circling && view.lift != null -> "The last circles"
+                        else -> "The track of the last minutes"
                     }
                 },
         ) {

@@ -189,7 +189,7 @@ class FlySessionTest {
 
         // What the cockpit's menu offers, and what its line says.
         assertEquals(
-            listOf("Paused", "Real time", "10 times faster", "20 times faster"),
+            listOf("Paused", "In real time", "10 times faster", "20 times faster"),
             ReplayWords.SPEEDS.map(ReplayWords::choice),
         )
         assertEquals(
@@ -586,7 +586,8 @@ class FlySessionTest {
         // Silence that is not "no airspace near" is said in words.
         assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.WAITING_FOR_HEIGHT)).startsWith("Airspace is not being checked yet"))
         assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.STALE)).startsWith("Airspace is not being checked: no position."))
-        assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.OUTSIDE_FILES)).startsWith("Your airspace does not cover this place."))
+        // Files that do not cover the place: the top line's "No airspace" says it, as on the iPhone.
+        assertNull(AirspaceWords.notChecking(AirspaceCheck.OUTSIDE_FILES))
         assertNull(AirspaceWords.notChecking(AirspaceCheck.CHECKING))
         // On the ground before the first fix the top line's "No GPS" says
         // it: no banner (plan item 17). A position lost in flight is said.

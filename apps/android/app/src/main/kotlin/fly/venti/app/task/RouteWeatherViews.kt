@@ -104,7 +104,7 @@ fun RouteWeatherSection(
                 .clickable(role = Role.Button, onClick = { isOpen = !isOpen })
                 .semantics {
                     heading()
-                    stateDescription = if (isOpen) ThermalMapWords.EXPANDED else ThermalMapWords.COLLAPSED
+                    stateDescription = if (isOpen) "Shown" else "Hidden"
                     if (isOpen) {
                         collapse {
                             isOpen = false

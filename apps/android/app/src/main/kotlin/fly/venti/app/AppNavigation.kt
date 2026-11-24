@@ -103,6 +103,9 @@ enum class FlyRoute {
 
     /** Maps for flying without a network. */
     OfflineMaps,
+
+    /** The glider's numbers and what the cockpit shows: the settings' page of that name. */
+    GliderAndCockpit,
 }
 
 /**

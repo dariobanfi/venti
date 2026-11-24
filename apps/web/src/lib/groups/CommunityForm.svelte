@@ -6,9 +6,10 @@
 	by which pilots near find it (owner decision 26). What the server would
 	refuse, the core refuses first, in its words.
 
-	The map is the search's (`AreaMap.svelte`, its "radius" mode): the mark
-	is dragged or the map tapped where it goes, the handle on the circle's
-	edge drags the radius.
+	The map is the search's (`AreaMap.svelte`, its "radius" mode), at its
+	own height and opened on the home and its circle, a new group's too: the
+	mark is dragged or the map tapped where it goes, the handle on the
+	circle's edge drags the radius.
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
@@ -147,7 +148,7 @@
 						corners={[]}
 						closed={false}
 						maxCorners={0}
-						frame={Boolean(editing?.center)}
+						frame
 						label="Map: the group's home and its radius"
 						onplace={(at) => (centre = at)}
 						onradius={(km) => (radiusKm = clamp(km))}
@@ -199,11 +200,10 @@
 		color: var(--text-secondary);
 	}
 
+	/* The map takes its own height: a box lower than it cut off its foot,
+	   the credits with it, and put the home above the box's middle. */
 	.map {
-		height: 16rem;
 		margin-top: var(--space-3);
-		border-radius: var(--radius-card);
-		overflow: hidden;
 	}
 
 	.radius {

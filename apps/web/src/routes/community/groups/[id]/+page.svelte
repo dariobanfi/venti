@@ -56,8 +56,10 @@
 	$effect(() => {
 		void groupId;
 		void signedIn;
-		detail = undefined;
-		void load();
+		// A group the pilot has just made comes with the answer that made it.
+		const made = untrack(() => communities?.takeMade(groupId));
+		detail = made;
+		if (!made) void load();
 	});
 
 	/** The chat, once the pilot may read it. */
@@ -386,6 +388,7 @@
 				open={planning}
 				groups={app.groups}
 				inGroup={groupId}
+				inPublic={detail?.group.isPublic}
 				onsaved={() => chat?.refresh()}
 				onclose={() => (planning = false)}
 			/>

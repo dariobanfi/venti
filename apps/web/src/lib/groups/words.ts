@@ -24,14 +24,6 @@ export const NO_PLANS = 'Nobody in your groups has posted a plan for today or a 
 
 export const CUT_SHORT = 'Your groups hold more plans than fit here: the later days are missing.';
 
-/** Who sees a plan and how long it is kept, under the board. */
-export const WHO_SEES_A_PLAN =
-	'A plan is seen by the members of its group and nobody else, and is removed two days after its day.';
-
-/** The same under the form, before a plan is posted. */
-export const WHO_SEES_THIS_PLAN =
-	'The members of the group see the plan, and nobody else. It is removed two days after its day.';
-
 /** A member as a row names them. */
 export function memberName(member: Pick<CommunityMember, 'name' | 'isMe'>): string {
 	return member.isMe ? `${member.name} (you)` : member.name;

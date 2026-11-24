@@ -213,7 +213,15 @@ describe('a group', () => {
 			description: 'Who goes up after work.',
 			home: { center: { lat: 47.6642, lon: 11.7967 }, radius_km: 20, place: 'Musterberg' }
 		});
-		expect(made.group).toMatchObject({ name: 'Zweite Mustergruppe', isKeptByMe: true });
+		// The answer is the group as it was made: no second question for it.
+		expect(made.group).toMatchObject({
+			name: 'Zweite Mustergruppe',
+			isPublic: false,
+			myRole: 'owner'
+		});
+		expect(made.members.map((member) => [member.handle, member.role, member.isMe])).toEqual([
+			['demo', 'owner', true]
+		]);
 	});
 
 	it('is read with its members, the owner and the pilot marked, and what the pilot may do', async () => {
@@ -399,5 +407,29 @@ describe('groups as communities with a chat', () => {
 		expect(withCard?.cards[0]).toMatchObject({ kind: 'flight', title: 'Flight by Mara Muster' });
 		expect(withCard?.cards[0].track.length).toBeGreaterThan(2);
 		expect(page.since).not.toBe('');
+	});
+
+	it('makes cards of the website’s own addresses of a site and an open plan in a message', async () => {
+		const { server, groups } = await signedIn();
+		server.instead = (request) =>
+			request.method === 'POST' && request.path.endsWith('/messages')
+				? refusal(404, 'not_found')
+				: undefined;
+
+		await expect(
+			groups.postMessage(GROUP, {
+				text:
+					'The take-off: https://venti.fly/places/47.28000,10.90000/?site=venti%3A0000000000000000000000s001 ' +
+					'and the bus (http://localhost:4173/plans/open/?id=aaaaaaaaaaaaaaaaaaaaaaaaaa).',
+				pictures: [],
+				links: []
+			})
+		).rejects.toThrow();
+
+		const sent = server.about.find((asked) => asked.path.endsWith('/messages'));
+		expect(JSON.parse(sent?.body ?? '{}').links).toEqual([
+			{ kind: 'site', id: 'venti:0000000000000000000000s001' },
+			{ kind: 'open_plan', id: 'aaaaaaaaaaaaaaaaaaaaaaaaaa' }
+		]);
 	});
 });

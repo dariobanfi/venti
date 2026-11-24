@@ -11,6 +11,7 @@
 import { untrack } from 'svelte';
 import type { AccountModel } from '#lib/account/model.svelte.ts';
 import type {
+	CommunityDetail,
 	CommunityDraft,
 	CommunityInvite,
 	CommunityView,
@@ -18,8 +19,7 @@ import type {
 	Coordinate,
 	CoreClient,
 	FoundCommunity,
-	GroupJoined,
-	GroupMade
+	GroupJoined
 } from '#lib/core/index.ts';
 import { words } from './board';
 
@@ -37,6 +37,7 @@ export class CommunitiesModel {
 	#account: AccountModel;
 	#changed: () => void;
 	#asked = 0;
+	#made: CommunityDetail | undefined;
 
 	/** `changed` is told after the pilot joined, made or left a group: the board's groups changed. */
 	constructor(core: CoreClient, account: AccountModel, changed: () => void = () => {}) {
@@ -109,9 +110,21 @@ export class CommunitiesModel {
 		return this.#change(() => this.#core.dropCommunityInvite(invite.group.id, handle));
 	}
 
-	/** Makes a group with the pilot as its owner. */
-	create(draft: CommunityDraft, isPublic: boolean): Promise<GroupMade> {
-		return this.#change(() => this.#core.createCommunity(draft, isPublic));
+	/**
+	 * Makes a group with the pilot as its owner. The group as it was made
+	 * is kept for its page, which then needs not ask for it (`takeMade`).
+	 */
+	async create(draft: CommunityDraft, isPublic: boolean): Promise<CommunityDetail> {
+		const made = await this.#change(() => this.#core.createCommunity(draft, isPublic));
+		this.#made = made;
+		return made;
+	}
+
+	/** The group just made, once, for the page of that group. */
+	takeMade(id: string): CommunityDetail | undefined {
+		const made = this.#made;
+		this.#made = undefined;
+		return made?.group.id === id ? made : undefined;
 	}
 
 	/** After a change of the pilot's groups somewhere else: the group's page. */

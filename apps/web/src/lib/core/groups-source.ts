@@ -33,22 +33,12 @@ import type {
 	Core,
 	GroupDetail,
 	GroupJoined,
-	GroupMade,
 	PlanBoard,
 	PlanDraft,
 	PlanView,
 	ServerRequest
 } from './pkg/venti_core_wasm.js';
 import type { CoreSession } from './session';
-
-/** `GET /v1/groups` with the session's token: the pilot's groups. */
-const GROUPS_REQUEST: ServerRequest = {
-	method: 'GET',
-	path: '/v1/groups',
-	body: undefined,
-	contentType: undefined,
-	needsToken: true
-};
 
 export class GroupsSource {
 	#session: CoreSession;
@@ -141,9 +131,7 @@ export class GroupsSource {
 	/** The pilot's groups as the groups' section shows them: unread and last message each. */
 	communities(): Promise<CommunityView[]> {
 		return this.#carry(
-			// The core has `groups_request`, but its WebAssembly binding does
-			// not hand it out yet: the same bare request, `GET /v1/groups`.
-			() => GROUPS_REQUEST,
+			(core) => core.groupsRequest(),
 			(core, status, body) => core.communities(status, body)
 		);
 	}
@@ -172,11 +160,14 @@ export class GroupsSource {
 		);
 	}
 
-	/** Makes a group with the pilot as its owner; the answer names the group. */
-	createCommunity(draft: CommunityDraft, isPublic: boolean): Promise<GroupMade> {
+	/**
+	 * Makes a group with the pilot as its owner. The answer is the group as
+	 * it was made, with the pilot its only member: no second question for it.
+	 */
+	createCommunity(draft: CommunityDraft, isPublic: boolean): Promise<CommunityDetail> {
 		return this.#carry(
 			(core) => core.createCommunityRequest(draft, isPublic),
-			(core, status, body) => core.groupMade(status, body)
+			(core, status, body) => core.communityMade(status, body)
 		);
 	}
 

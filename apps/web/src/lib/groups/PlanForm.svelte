@@ -11,13 +11,13 @@
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import type { Coordinate, PlanDraft, PlanView } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import { dayOf } from './days';
 	import type { GroupsModel } from './model.svelte';
-	import { WHO_SEES_THIS_PLAN } from './words';
 
 	interface Props {
 		open: boolean;
@@ -26,15 +26,18 @@
 		editing?: PlanView;
 		/** The group a new plan goes to, as from a group's chat; else the pilot chooses. */
 		inGroup?: string;
+		/** Whether that group is public, where the page knows; else the pilot's groups say. */
+		inPublic?: boolean;
 		/** Told once the plan is posted or changed. */
 		onsaved?: () => void;
 		onclose: () => void;
 	}
 
-	let { open, groups, editing, inGroup, onsaved, onclose }: Props = $props();
+	let { open, groups, editing, inGroup, inPublic, onsaved, onclose }: Props = $props();
 
 	const id = $props.id();
 	const text = format();
+	const app = getApp();
 
 	let group = $state('');
 	let place = $state('');
@@ -98,6 +101,20 @@
 	}
 
 	const changed = () => (problem = undefined);
+
+	/* Who sees the plan, in the core's words for its group: public or private. */
+	const communities = $derived(app.communities);
+	$effect(() => {
+		if (open && inPublic === undefined && communities && !untrack(() => communities.mine)) {
+			void communities.load();
+		}
+	});
+	const isPublic = $derived(
+		(group === inGroup ? inPublic : undefined) ??
+			communities?.mine?.find((each) => each.id === group)?.isPublic ??
+			false
+	);
+	const whoSees = $derived(app.said?.whoSees.thisPlan[isPublic ? 'public' : 'private']);
 </script>
 
 <Sheet {open} title={editing ? 'Change the plan' : 'New plan'} {onclose}>
@@ -170,7 +187,7 @@
 					aria-describedby="{id}-who"
 					bind:value={note}></textarea>
 			</div>
-			<p class="group-note" id="{id}-who">{WHO_SEES_THIS_PLAN}</p>
+			<p class="group-note" id="{id}-who">{whoSees}</p>
 			{#if problem}
 				<p class="group-note refusal" role="alert">{problem}</p>
 			{/if}

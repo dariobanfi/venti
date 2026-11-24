@@ -77,7 +77,6 @@ import type {
 	FoundCommunity,
 	GroupDetail,
 	GroupJoined,
-	GroupMade,
 	MessageDraft,
 	SentGroupPicture,
 	KeptAirspace,
@@ -184,7 +183,9 @@ import {
 	routeToGpx,
 	siteSheetWords,
 	stationSheetWords,
-	todayWords
+	todayWords,
+	whoSeesAPlan,
+	whoSeesThisPlan
 } from './pkg/venti_core_wasm.js';
 import type { ForecastSource } from './forecast-source';
 import type { GroupsSource } from './groups-source';
@@ -772,7 +773,7 @@ export interface Calls {
 	};
 	communityInvites: { given: undefined; answer: CommunityInvite[] };
 	community: { given: string; answer: CommunityDetail };
-	createCommunity: { given: { draft: CommunityDraft; isPublic: boolean }; answer: GroupMade };
+	createCommunity: { given: { draft: CommunityDraft; isPublic: boolean }; answer: CommunityDetail };
 	changeCommunity: { given: { id: string; draft: CommunityDraft }; answer: CommunityDetail };
 	setCommunityPublic: { given: { id: string; isPublic: boolean }; answer: CommunityDetail };
 	enterCommunity: { given: string; answer: GroupJoined };
@@ -868,6 +869,18 @@ export interface ScreenWords {
 	gliderClasses: { kind: GliderClassKind | undefined; name: string }[];
 	/** Who sees the pilot's flights: the switch for new ones and the change of all at once. */
 	flightVisibility: FlightVisibilityWords;
+	/**
+	 * Who sees a plan and how long it is kept, for a private and a public
+	 * group: under a list of plans (`aPlan`; for the board, public where one
+	 * of the pilot's groups is) and under the form of a plan (`thisPlan`).
+	 */
+	whoSees: { aPlan: WhoSees; thisPlan: WhoSees };
+}
+
+/** The core's sentence for a private group and for a public one. */
+export interface WhoSees {
+	private: string;
+	public: string;
 }
 
 /** Every glider class, in the order a menu lists them. */
@@ -1133,7 +1146,11 @@ export async function answer<Name extends CallName>(
 				name: gliderClassName(kind)
 			})),
 			flightVisibility: flightVisibilityWords(),
-			picture: pictureWords()
+			picture: pictureWords(),
+			whoSees: {
+				aPlan: { private: whoSeesAPlan(false), public: whoSeesAPlan(true) },
+				thisPlan: { private: whoSeesThisPlan(false), public: whoSeesThisPlan(true) }
+			}
 		}),
 		alertPoints: () => alerts.points(),
 		alertFormWords: () => alerts.formWords(),

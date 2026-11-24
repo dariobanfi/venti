@@ -141,7 +141,6 @@ export type {
 	SentGroupPicture,
 	GroupDetail,
 	GroupJoined,
-	GroupMade,
 	GroupMember,
 	GroupView,
 	ImportedFlight,

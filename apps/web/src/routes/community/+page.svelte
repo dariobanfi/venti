@@ -46,7 +46,7 @@
 	import { dayTitle } from '#lib/groups/days.ts';
 	import PlanCard from '#lib/groups/PlanCard.svelte';
 	import PlanForm from '#lib/groups/PlanForm.svelte';
-	import { CUT_SHORT, NO_GROUP, NO_PLANS, WHO_SEES_A_PLAN } from '#lib/groups/words.ts';
+	import { CUT_SHORT, NO_GROUP, NO_PLANS } from '#lib/groups/words.ts';
 	import FeedCard from '#lib/social/FeedCard.svelte';
 	import CommunityGroups from '#lib/groups/CommunityGroups.svelte';
 
@@ -70,6 +70,12 @@
 	let adding = $state(false);
 	/** A plan needs a group to be posted to. */
 	const canPlan = $derived(signedIn && (board?.groups.length ?? 0) > 0);
+	/** Who sees the plans, in the core's words: public where one of the pilot's groups is. */
+	const whoSees = $derived(
+		app.said?.whoSees.aPlan[
+			app.communities?.mine?.some((each) => each.isPublic) ? 'public' : 'private'
+		]
+	);
 
 	/* The flights of the pilots followed: the newest of them. */
 	const social = $derived(app.social);
@@ -206,8 +212,8 @@
 						{#if board.isCutShort}
 							<p class="note">{CUT_SHORT}</p>
 						{/if}
-						{#if board.groups.length > 0}
-							<p class="note">{WHO_SEES_A_PLAN}</p>
+						{#if board.groups.length > 0 && whoSees}
+							<p class="note">{whoSees}</p>
 						{/if}
 					{:else if groups?.problem}
 						<p class="quiet" role="alert">{groups.problem}</p>

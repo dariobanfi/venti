@@ -112,6 +112,16 @@ missing_docs = "warn"
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 
+# Debug builds and tests keep line numbers for backtraces and nothing
+# more: full debug info made every test program of the server some
+# 140 MB and filled a 2 TB disk in a night (2026-11-24). Dependencies
+# keep none. For a debugger session, set `debug = true` for a while.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 # The WebAssembly build of the core for the web app: small before fast,
 # because every visitor downloads it. apps/web/scripts/build-core.sh uses it.
 [profile.wasm]

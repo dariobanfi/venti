@@ -2,7 +2,9 @@
 	Community: pilots among each other, in one place (docs/plan.md, after
 	the owner's testing session of 2026-11-22, item 7). In this order: the
 	plans of the pilot's groups for the coming days, each a card with its
-	day, its place, the faces of who is in and "I am in"; the flights of
+	day, its place, the faces of who is in and "I am in"; the pilot's
+	groups as cards, their invites and the groups near or found
+	(`CommunityGroups.svelte`, owner decision 26); the flights of
 	the pilots they follow, each a card with the track's shape and the
 	airtime and distance large; finding a pilot by name; and what the
 	pilot was told. A wide screen has the plans across the page and the
@@ -47,6 +49,7 @@
 	import PlanForm from '#lib/groups/PlanForm.svelte';
 	import { CUT_SHORT, NO_GROUP, NO_PLANS, WHO_SEES_A_PLAN } from '#lib/groups/words.ts';
 	import FeedCard from '#lib/social/FeedCard.svelte';
+	import CommunityGroups from '#lib/groups/CommunityGroups.svelte';
 
 	const app = getApp();
 	const text = format();
@@ -216,6 +219,11 @@
 						<p class="quiet" role="status">Loading…</p>
 					{/if}
 				</section>
+
+				<!-- The pilot's groups, their invites and the groups near (owner decision 26). -->
+				{#if app.communities}
+					<CommunityGroups model={app.communities} near={near.place} />
+				{/if}
 
 				{@render openPlansNear()}
 

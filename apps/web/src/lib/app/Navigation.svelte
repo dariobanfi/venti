@@ -38,6 +38,23 @@
 	 * has no picture. Nothing signed out.
 	 */
 	const unread = $derived(account ? app.unread : undefined);
+	/**
+	 * The groups' messages not read yet: a marker of their own on Community,
+	 * beside the one on the picture and not in its count (the core's `Unread`).
+	 */
+	const groupsBadge = $derived(unread?.groupsBadge);
+	const groupsLabel = $derived(
+		groupsBadge
+			? `${groupsBadge} unread ${unread?.groups === 1 ? 'message' : 'messages'}`
+			: undefined
+	);
+
+	/** The badge a section carries, and what a screen reader says of it. */
+	function marker(section: Section): { badge?: string; label?: string } {
+		if (section.root === '/settings') return { badge: unread?.badge, label: unread?.label };
+		if (section.root === '/community') return { badge: groupsBadge, label: groupsLabel };
+		return {};
+	}
 
 	interface Section {
 		name: string;
@@ -137,23 +154,26 @@
 	</a>
 	<ul>
 		{#each sections as section (section.name)}
+			{@const marked = marker(section)}
 			<li class={section.on}>
 				<a
 					href={section.href()}
 					aria-label={section.breaks
-						? [section.name, section.root === '/settings' ? unread?.label : undefined]
-								.filter(Boolean)
-								.join(' ')
+						? [section.name, marked.label].filter(Boolean).join(' ')
 						: undefined}
 					aria-current={current === section.name ? 'page' : undefined}
 				>
 					<span class="icon">
 						<Icon name={section.icon} />
-						{#if section.root === '/settings' && unread?.badge}
-							<span class="bubble numeric" aria-hidden="true">{unread.badge}</span>
+						{#if marked.badge}
+							<span class="bubble numeric" aria-hidden="true">{marked.badge}</span>
 						{/if}
 					</span>
 					<span class="name">{section.breaks ?? section.name}</span>
+					{#if marked.badge && section.root === '/community'}
+						<!-- The wide bar shows no icons: the groups' count goes after the word. -->
+						<span class="count numeric" aria-hidden="true">{marked.badge}</span>
+					{/if}
 				</a>
 			</li>
 		{/each}
@@ -210,6 +230,11 @@
 	.pictured {
 		position: relative;
 		display: inline-flex;
+	}
+
+	/* The groups' count after Community's word, on the wide bar. */
+	.count {
+		display: none;
 	}
 
 	.bubble {
@@ -388,6 +413,21 @@
 		/* The bar is words; only Settings and the account keep their icon. */
 		ul .icon {
 			display: none;
+		}
+
+		.count {
+			display: inline-block;
+			min-width: var(--space-4);
+			height: var(--space-4);
+			margin-left: var(--space-1);
+			padding: 0 var(--space-1);
+			border-radius: var(--radius-pill);
+			background: var(--accent);
+			color: var(--on-accent);
+			font-size: var(--caption);
+			font-weight: 600;
+			line-height: var(--space-4);
+			text-align: center;
 		}
 
 		.end a :global(svg) {

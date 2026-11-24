@@ -13,16 +13,7 @@
 
 import { untrack } from 'svelte';
 import type { AccountModel } from '#lib/account/model.svelte.ts';
-import type {
-	CoreClient,
-	GroupDetail,
-	GroupJoined,
-	GroupMade,
-	GroupView,
-	PlanBoard,
-	PlanDraft,
-	PlanView
-} from '#lib/core/index.ts';
+import type { CoreClient, GroupView, PlanBoard, PlanDraft, PlanView } from '#lib/core/index.ts';
 import { type BoardState, BoardWatch, words } from './board';
 
 const NO_GROUPS: readonly GroupView[] = [];
@@ -103,52 +94,9 @@ export class GroupsModel {
 		return () => document.removeEventListener('visibilitychange', back);
 	}
 
-	// Groups. Each of these throws an error whose message is in words for
-	// the pilot, and asks for the board again once it has worked.
-
-	/** Makes a group, kept by the pilot. The answer has its invite code, this once. */
-	make(name: string): Promise<GroupMade> {
-		return this.#change(() => this.#core.makeGroup(name));
-	}
-
-	/** Takes the pilot into the group an invite code belongs to. */
-	join(code: string): Promise<GroupJoined> {
-		return this.#change(() => this.#core.joinGroup(code));
-	}
-
-	/** One group with its members. */
-	detail(id: string): Promise<GroupDetail> {
-		return inWords(() => this.#core.group(id));
-	}
-
-	rename(id: string, name: string): Promise<GroupDetail> {
-		return this.#change(() => this.#core.renameGroup(id, name));
-	}
-
-	/** Hands the keeping of a group to the member of that handle. */
-	handOver(id: string, handle: string): Promise<GroupDetail> {
-		return this.#change(() => this.#core.handOverGroup(id, handle));
-	}
-
-	/** A new invite code for a group. The one before it stops working. */
-	newInvite(id: string): Promise<string> {
-		return inWords(() => this.#core.newGroupInvite(id));
-	}
-
-	/** Removes a member from a group, which also ends its invite code. */
-	remove(id: string, handle: string): Promise<void> {
-		return this.#change(() => this.#core.removeGroupMember(id, handle));
-	}
-
-	leave(id: string): Promise<void> {
-		return this.#change(() => this.#core.leaveGroup(id));
-	}
-
-	delete(id: string): Promise<void> {
-		return this.#change(() => this.#core.deleteGroup(id));
-	}
-
-	// Plans.
+	// Plans. Each of these throws an error whose message is in words for
+	// the pilot, and asks for the board again once it has worked. The groups
+	// themselves are `communities.svelte.ts`'s.
 
 	async post(group: string, draft: PlanDraft): Promise<void> {
 		await this.#change(() => this.#core.postPlan(group, draft));

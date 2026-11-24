@@ -4,6 +4,8 @@
  * notifications and the lines of what the alarms fired after the
  * account's mark of what the pilot saw. The badge and the words a screen
  * reader says of it are the core's (`unread`, `crates/core/src/social.rs`).
+ * Beside it, and not in its count, the groups' messages not read yet,
+ * which the Community section's icon carries as a bubble of its own.
  *
  * The app reads it when the site opens, when it comes back to the front
  * and every few minutes while it is in front (`App.keepInStep`); a page
@@ -31,6 +33,13 @@ export class UnreadModel {
 	notifications = $state(0);
 	/** New lines of what the alarms fired, for the row of the alarms. */
 	alarms = $state(0);
+	/**
+	 * The groups' marker, beside this one and not in its count: messages of
+	 * others in the pilot's groups not read yet, "3" or "99+"; nothing for none.
+	 */
+	groupsBadge = $state<string>();
+	/** How many messages of others in the pilot's groups are not read yet. */
+	groups = $state(0);
 
 	#core: Pick<CoreClient, 'unread' | 'unreadSeen'>;
 	#reading: Promise<void> | undefined;
@@ -81,5 +90,7 @@ export class UnreadModel {
 		this.label = found?.label;
 		this.notifications = found?.notifications ?? 0;
 		this.alarms = found?.alarms ?? 0;
+		this.groupsBadge = found?.groupsBadge;
+		this.groups = found?.groups ?? 0;
 	}
 }

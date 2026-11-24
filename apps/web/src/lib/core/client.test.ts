@@ -204,7 +204,7 @@ describe('the core as the page calls it', () => {
 			name: 'Server',
 			message: 'This device is not signed in.'
 		});
-		await expect(core.joinGroup('5555-5555-5555-5555')).rejects.toThrow(
+		await expect(core.enterCommunity('44444444444444444444444444')).rejects.toThrow(
 			'This device is not signed in.'
 		);
 		await expect(

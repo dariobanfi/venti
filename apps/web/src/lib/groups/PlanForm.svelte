@@ -24,10 +24,14 @@
 		groups: GroupsModel;
 		/** The plan to change. Without one the form is for a new plan. */
 		editing?: PlanView;
+		/** The group a new plan goes to, as from a group's chat; else the pilot chooses. */
+		inGroup?: string;
+		/** Told once the plan is posted or changed. */
+		onsaved?: () => void;
 		onclose: () => void;
 	}
 
-	let { open, groups, editing, onclose }: Props = $props();
+	let { open, groups, editing, inGroup, onsaved, onclose }: Props = $props();
 
 	const id = $props.id();
 	const text = format();
@@ -59,7 +63,7 @@
 			today = dayOf(new Date());
 			problem = undefined;
 			saving = false;
-			group = editing?.groupId ?? groups.groups[0]?.id ?? '';
+			group = editing?.groupId ?? inGroup ?? groups.groups[0]?.id ?? '';
 			place = editing?.place ?? '';
 			position = editing?.position;
 			day = editing?.day ?? today;
@@ -84,6 +88,7 @@
 		try {
 			if (editing) await groups.change(editing, draft);
 			else await groups.post(group, draft);
+			onsaved?.();
 			onclose();
 		} catch (error) {
 			problem = error instanceof Error ? error.message : String(error);
@@ -99,7 +104,7 @@
 	<form onsubmit={save} oninput={changed} novalidate>
 		<section class="group first" aria-label="The plan">
 			<div class="group-card">
-				{#if !editing && groups.groups.length > 1}
+				{#if !editing && !inGroup && groups.groups.length > 1}
 					<label class="field">
 						<span>Group</span>
 						<select bind:value={group}>

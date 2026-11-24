@@ -25,7 +25,7 @@
 	import { dayTitle } from '#lib/groups/days.ts';
 	import PlanForm from '#lib/groups/PlanForm.svelte';
 	import WithAccount from '#lib/groups/WithAccount.svelte';
-	import { question } from '#lib/groups/words.ts';
+	import { DELETE_PLAN } from '#lib/groups/words.ts';
 
 	const app = getApp();
 	const text = format();
@@ -45,7 +45,7 @@
 	let forecasting = $state(false);
 	/** Whether the form that reports the plan to whoever runs the server is open. */
 	let reporting = $state(false);
-	const asked = question({ about: 'deletePlan' });
+	const asked = DELETE_PLAN;
 
 	/** Does one thing on the server and says what went wrong, if anything. */
 	async function act(work: () => Promise<void>, thenLeave = false) {

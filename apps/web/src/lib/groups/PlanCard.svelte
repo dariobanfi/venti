@@ -23,9 +23,11 @@
 		groups: GroupsModel;
 		/** The name the pilot of this browser is shown by, for their face. */
 		myName: string | undefined;
+		/** Told after the pilot's word went through, as a chat that shows the plan as a post. */
+		onchanged?: () => void;
 	}
 
-	let { plan, day, groups, myName }: Props = $props();
+	let { plan, day, groups, myName, onchanged }: Props = $props();
 
 	const shown = $derived(facesOf(plan.pilotsIn, plan.amIn, myName));
 	let busy = $state(false);
@@ -37,6 +39,7 @@
 		problem = undefined;
 		try {
 			await groups.setIn(plan, !plan.amIn);
+			onchanged?.();
 		} catch (error) {
 			problem = error instanceof Error ? error.message : String(error);
 		} finally {

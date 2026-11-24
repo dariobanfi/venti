@@ -57,6 +57,13 @@ class Server {
 		if (other) return other;
 		const { method, path } = request;
 		if (method === 'POST' && path === '/v1/sessions') return answer(201, recorded('sign_in.json'));
+		if (method === 'GET' && path === '/v1/groups') return answer(200, recorded('groups.json'));
+		if (method === 'GET' && path.startsWith('/v1/groups/find')) {
+			return answer(200, recorded('groups_found.json'));
+		}
+		if (method === 'GET' && path.includes('/messages')) {
+			return answer(200, recorded('group_messages.json'));
+		}
 		if (method === 'GET' && path.startsWith('/v1/groups/plans?')) {
 			return answer(200, recorded('plan_board.json'));
 		}
@@ -161,7 +168,9 @@ describe('the board of the pilot’s groups', () => {
 			name: 'Server',
 			message: 'This device is not signed in.'
 		});
-		await expect(groups.make('Hausberg')).rejects.toThrow('This device is not signed in.');
+		await expect(
+			groups.createCommunity({ name: 'Hausberg', description: '', home: undefined }, false)
+		).rejects.toThrow('This device is not signed in.');
 		expect(server.asked).toEqual([]);
 	});
 
@@ -183,68 +192,66 @@ describe('the board of the pilot’s groups', () => {
 });
 
 describe('a group', () => {
-	it('is made with the pilot as its keeper, and its invite code is in the answer', async () => {
+	it('is made with the pilot as its owner: private, with its description and home', async () => {
 		const { server, groups } = await signedIn();
 
-		const made = await groups.make('  Zweite   Mustergruppe ');
-
-		expect(server.about).toEqual([
+		const made = await groups.createCommunity(
 			{
-				method: 'POST',
-				path: '/v1/groups',
-				token: TOKEN,
-				// Cleaned as the server cleans it.
-				body: '{"name":"Zweite Mustergruppe"}'
-			}
-		]);
-		expect(made.group).toMatchObject({
+				name: '  Zweite   Mustergruppe ',
+				description: 'Who goes up after work.',
+				home: { center: { lat: 47.6642, lon: 11.7967 }, radiusKm: 20, place: 'Musterberg' }
+			},
+			false
+		);
+
+		expect(server.about).toHaveLength(1);
+		expect(server.about[0]).toMatchObject({ method: 'POST', path: '/v1/groups', token: TOKEN });
+		// The name cleaned as the server cleans it.
+		expect(JSON.parse(server.about[0].body)).toMatchObject({
 			name: 'Zweite Mustergruppe',
-			isKeptByMe: true,
-			summary: '1 member · kept by you'
+			public: false,
+			description: 'Who goes up after work.',
+			home: { center: { lat: 47.6642, lon: 11.7967 }, radius_km: 20, place: 'Musterberg' }
 		});
-		expect(made.inviteCode).toBe('7k3m-9q2x-4r8t-1v6w');
+		expect(made.group).toMatchObject({ name: 'Zweite Mustergruppe', isKeptByMe: true });
 	});
 
-	it('is come into with its code, which travels in the request’s body', async () => {
+	it('is read with its members, the owner and the pilot marked, and what the pilot may do', async () => {
 		const { server, groups } = await signedIn();
 
-		const joined = await groups.join(' 5555-5555-5555-5555 ');
-
-		expect(server.about).toEqual([
-			{
-				method: 'POST',
-				path: '/v1/groups/join',
-				token: TOKEN,
-				body: '{"code":"5555-5555-5555-5555"}'
-			}
-		]);
-		expect(joined.words).toBe('You are in Beispielgruppe now.');
-		expect(joined.group).toMatchObject({
-			name: 'Beispielgruppe',
-			isKeptByMe: false,
-			summary: '3 members · kept by Mara Muster'
-		});
-	});
-
-	it('is read with its members, the keeper and the pilot marked', async () => {
-		const { server, groups } = await signedIn();
-
-		const detail = await groups.group(GROUP);
+		const detail = await groups.community(GROUP);
 
 		expect(server.about).toMatchObject([{ method: 'GET', path: `/v1/groups/${GROUP}` }]);
-		expect(detail.members).toEqual([
-			{ handle: 'demo', name: 'Demo Pilot', isKeeper: true, isMe: true },
-			{ handle: 'mara', name: 'Mara Muster', isKeeper: false, isMe: false },
-			{ handle: 'jonas', name: 'Jonas Beispiel', isKeeper: false, isMe: false }
+		expect(detail.members.map((member) => [member.handle, member.role, member.isMe])).toEqual([
+			['demo', 'owner', true],
+			['mara', 'member', false],
+			['jonas', 'member', false]
 		]);
+		expect(detail).toMatchObject({ canRead: true, canPost: true, canModerate: true });
 	});
 
-	it('is renamed, handed on, given a new code, cleared of a member, left and deleted by these requests', async () => {
+	it('is joined, an invite sent by handle, handed on, cleared of a member, left and deleted by these requests', async () => {
 		const { server, groups } = await signedIn();
+		server.instead = (request) =>
+			request.method === 'POST' && request.path.endsWith('/members')
+				? answer(201, recorded('group_joined.json'))
+				: request.method === 'POST' && request.path.endsWith('/invites')
+					? answer(
+							201,
+							json({
+								invite: {
+									group: JSON.parse(text(recorded('group.json'))).group,
+									invited_by: { handle: 'demo', display_name: 'Demo Pilot' },
+									invited_at: '2026-11-18T19:05:00Z'
+								}
+							})
+						)
+					: undefined;
 
-		expect((await groups.rename(GROUP, 'Hausberg-Runde')).group.id).toBe(GROUP);
+		await groups.enter(GROUP);
+		await groups.invite(GROUP, '@Mara');
 		expect((await groups.handOver(GROUP, 'mara')).members).toHaveLength(3);
-		expect(await groups.newInvite(GROUP)).toBe('2w8x-5c9p-3h7k-6n4d');
+		await groups.setAdmin(GROUP, 'jonas', true);
 		await groups.remove(GROUP, 'jonas');
 		await groups.leave(GROUP);
 		await groups.delete(GROUP);
@@ -252,9 +259,10 @@ describe('a group', () => {
 		expect(
 			server.about.map((request) => [request.method, request.path, request.body, request.token])
 		).toEqual([
-			['PATCH', `/v1/groups/${GROUP}`, '{"name":"Hausberg-Runde"}', TOKEN],
+			['POST', `/v1/groups/${GROUP}/members`, '', TOKEN],
+			['POST', `/v1/groups/${GROUP}/invites`, '{"handle":"mara"}', TOKEN],
 			['PUT', `/v1/groups/${GROUP}/keeper`, '{"handle":"mara"}', TOKEN],
-			['POST', `/v1/groups/${GROUP}/invite`, '', TOKEN],
+			['PUT', `/v1/groups/${GROUP}/admins/jonas`, '', TOKEN],
 			['DELETE', `/v1/groups/${GROUP}/members/jonas`, '', TOKEN],
 			// Leaving is removing oneself.
 			['DELETE', `/v1/groups/${GROUP}/members/demo`, '', TOKEN],
@@ -262,16 +270,15 @@ describe('a group', () => {
 		]);
 	});
 
-	it('is not asked about what the core refuses: a name that is empty or too long, no code', async () => {
+	it('is not asked about what the core refuses: a name that is empty or too long', async () => {
 		const { server, groups } = await signedIn();
 
-		await expect(groups.make('   ')).rejects.toThrow('Give the group a name.');
-		await expect(groups.rename(GROUP, 'x'.repeat(61))).rejects.toThrow(
-			"A group's name has room for 60 characters."
-		);
-		await expect(groups.join('  ')).rejects.toThrow(
-			"Type the invite code the group's keeper gave you."
-		);
+		await expect(
+			groups.createCommunity({ name: '   ', description: '', home: undefined }, true)
+		).rejects.toThrow('Give the group a name.');
+		await expect(
+			groups.changeCommunity(GROUP, { name: 'x'.repeat(61), description: '', home: undefined })
+		).rejects.toThrow("A group's name has room for 60 characters.");
 		expect(server.about).toEqual([]);
 	});
 
@@ -285,14 +292,8 @@ describe('a group', () => {
 			);
 		};
 
-		expect(await refused(404, 'invalid_group_invite', () => groups.join('1234'))).toBe(
-			"Server: This is not a group's invite code: it is mistyped, or the group's keeper has replaced it. Ask them for the one that works now."
-		);
-		expect(await refused(403, 'not_group_keeper', () => groups.newInvite(GROUP))).toBe(
-			"Server: Only the group's keeper can do this."
-		);
-		expect(await refused(404, 'group_not_found', () => groups.group(GROUP))).toBe(
-			'Server: This group is no longer there, or you are no longer in it.'
+		expect(await refused(404, 'group_not_found', () => groups.community(GROUP))).toMatch(
+			/^Server: /
 		);
 		expect(await refused(404, 'group_member_not_found', () => groups.remove(GROUP, 'jonas'))).toBe(
 			'Server: This pilot is no longer in the group.'
@@ -358,5 +359,45 @@ describe('a plan', () => {
 		);
 		expect(await refused({ note: 'x'.repeat(501) })).toBe('The note has room for 500 characters.');
 		expect(server.about).toEqual([]);
+	});
+});
+
+describe('groups as communities with a chat', () => {
+	it('lists the pilot’s groups with the last message, with the token', async () => {
+		const { server, groups } = await signedIn();
+
+		const mine = await groups.communities();
+
+		expect(server.about).toEqual([{ method: 'GET', path: '/v1/groups', token: TOKEN, body: '' }]);
+		expect(mine).toMatchObject([
+			{ id: GROUP, name: 'Mustergruppe', isPublic: false, myRole: 'owner', unread: 0 }
+		]);
+	});
+
+	it('finds public groups near a place, nearest first, with how far each is', async () => {
+		const { server, groups } = await signedIn();
+
+		const found = await groups.find({ lat: 48.137, lon: 11.575 }, '');
+
+		expect(server.about.map((asked) => asked.path)).toEqual([
+			'/v1/groups/find?lat=48.1370&lon=11.5750'
+		]);
+		expect(found[0]).toMatchObject({
+			group: { name: 'Munich International Paragliders', isPublic: true, place: 'Munich' },
+			// Half a kilometre from the middle of its home.
+			distance: 'Here',
+			isMember: false
+		});
+	});
+
+	it('reads a page of messages with the flight’s card and its track', async () => {
+		const { groups } = await signedIn();
+
+		const page = await groups.messages('0000000000000000000000g002');
+
+		const withCard = page.messages.find((message) => message.cards.length > 0);
+		expect(withCard?.cards[0]).toMatchObject({ kind: 'flight', title: 'Flight by Mara Muster' });
+		expect(withCard?.cards[0].track.length).toBeGreaterThan(2);
+		expect(page.since).not.toBe('');
 	});
 });

@@ -150,14 +150,22 @@ export function openPlanHref(id: string): string {
 	return `${resolve('/plans/open')}?id=${encodeURIComponent(id)}`;
 }
 
-/** The pilot's groups. */
+/** The pilot's groups, and those near: Community's part about them. */
 export function groupsHref(): string {
-	return resolve('/plans/groups');
+	return `${resolve('/community')}#groups`;
 }
 
-/** One group, by its identifier on the server. */
+/**
+ * One group with its chat, by its identifier on the server:
+ * `/community/groups/<id>/`, opened in the browser as a pilot's page is.
+ */
 export function groupHref(id: string): string {
-	return `${resolve('/plans/groups/group')}?id=${encodeURIComponent(id)}`;
+	return `${resolve('/community/groups/[id]', { id: encodeURIComponent(id) })}/`;
+}
+
+/** A site's page: the place of its position, about the site. */
+export function siteHref(id: string, at: { lat: number; lon: number }): string {
+	return placeHref(at, id);
 }
 
 /** One of the pilot's own flights, by its address on the server. */

@@ -28,12 +28,17 @@
 		 * request of its own: given in place of `subject`.
 		 */
 		comment?: { flightId: string; commentId: string };
+		/**
+		 * A message of a group, or a picture in one (`picture` true, `id` the
+		 * picture's), reported with a form and a request of its own.
+		 */
+		message?: { group: string; id: string; picture: boolean };
 		/** What the form is called: "Report this flight". */
 		title: string;
 		onclose: () => void;
 	}
 
-	let { open, subject, comment, title, onclose }: Props = $props();
+	let { open, subject, comment, message, title, onclose }: Props = $props();
 
 	const app = getApp();
 	const account = $derived(app.account);
@@ -61,7 +66,9 @@
 		form = undefined;
 		const asked = comment
 			? app.social?.core.commentReportForm()
-			: subject && account?.reportForm(subject);
+			: message
+				? app.communities?.core.messageReportForm()
+				: subject && account?.reportForm(subject);
 		void asked?.then(
 			(known) => (form = known),
 			(error) => (problem = error instanceof Error ? error.message : String(error))
@@ -80,6 +87,9 @@
 			if (comment && app.social) {
 				const { flightId, commentId } = comment;
 				outcome = await app.social.core.reportComment(flightId, commentId, reason, words);
+			} else if (message && app.communities) {
+				const { group, id, picture } = message;
+				outcome = await app.communities.core.reportMessage(group, id, picture, reason, words);
 			} else if (subject) {
 				outcome = await account.report(subject, reason, words);
 			}

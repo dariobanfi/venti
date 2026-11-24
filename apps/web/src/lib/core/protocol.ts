@@ -66,9 +66,20 @@ import type {
 	FlightVisibility,
 	ForecastView,
 	GroundUnderFlight,
+	ChatMessage,
+	ChatPage,
+	CommunityDetail,
+	CommunityDraft,
+	CommunityInvite,
+	CommunityStanding,
+	CommunityView,
+	CommunityWords,
+	FoundCommunity,
 	GroupDetail,
 	GroupJoined,
 	GroupMade,
+	MessageDraft,
+	SentGroupPicture,
 	KeptAirspace,
 	KeptSites,
 	PilotPage,
@@ -157,10 +168,12 @@ import type {
 import {
 	allFlightsQuestion,
 	commonWords,
+	communityWords,
 	flightVisibilityWords,
 	gliderClassName,
 	gliderWords,
 	leagueHandoverFromFile,
+	messageReportForm,
 	pagesWords,
 	pictureWords,
 	pilotsAlarmNumbers,
@@ -718,17 +731,8 @@ export interface Calls {
 	 * the core's words where the server refuses.
 	 */
 	planBoard: { given: string; answer: PlanBoard };
-	/** Given a name: makes a group. The answer has its invite code, this once. */
-	makeGroup: { given: string; answer: GroupMade };
-	/** Given an invite code: takes the pilot into its group. */
-	joinGroup: { given: string; answer: GroupJoined };
-	/** Given a group's identifier: the group with its members. */
-	group: { given: string; answer: GroupDetail };
-	renameGroup: { given: { id: string; name: string }; answer: GroupDetail };
 	/** Hands the keeping of a group to the member of that handle. */
 	handOverGroup: { given: { id: string; handle: string }; answer: GroupDetail };
-	/** Given a group's identifier: a new invite code, which ends the one before. */
-	newGroupInvite: { given: string; answer: string };
 	removeGroupMember: { given: { id: string; handle: string }; answer: undefined };
 	/** Given a group's identifier: takes the pilot out of it. */
 	leaveGroup: { given: string; answer: undefined };
@@ -738,6 +742,46 @@ export interface Calls {
 	deletePlan: { given: { group: string; plan: string }; answer: undefined };
 	/** Says that the pilot is in on a plan, or takes that back. */
 	planIn: { given: { group: string; plan: string; isIn: boolean }; answer: PlanView };
+	/**
+	 * Groups as communities with a chat (docs/api.md): the words of their
+	 * screens, then the calls down to `reportMessage`, sent from the
+	 * pilot's account and failing in the core's words.
+	 */
+	communityWords: { given: undefined; answer: CommunityWords };
+	communities: { given: undefined; answer: CommunityView[] };
+	findCommunities: {
+		given: { near: Coordinate | undefined; text: string };
+		answer: FoundCommunity[];
+	};
+	communityInvites: { given: undefined; answer: CommunityInvite[] };
+	community: { given: string; answer: CommunityDetail };
+	createCommunity: { given: { draft: CommunityDraft; isPublic: boolean }; answer: GroupMade };
+	changeCommunity: { given: { id: string; draft: CommunityDraft }; answer: CommunityDetail };
+	setCommunityPublic: { given: { id: string; isPublic: boolean }; answer: CommunityDetail };
+	enterCommunity: { given: string; answer: GroupJoined };
+	inviteToCommunity: { given: { id: string; handle: string }; answer: string };
+	dropCommunityInvite: { given: { id: string; handle: string }; answer: undefined };
+	setCommunityAdmin: { given: { id: string; handle: string; admin: boolean }; answer: undefined };
+	setCommunityPicture: {
+		given: { id: string; bytes: Uint8Array; mediaType: string };
+		answer: CommunityDetail;
+	};
+	removeCommunityPicture: { given: string; answer: CommunityDetail };
+	messages: { given: { id: string; before?: string }; answer: ChatPage };
+	messagesSince: { given: { id: string; since: string }; answer: ChatPage };
+	postMessage: { given: { id: string; draft: MessageDraft }; answer: ChatMessage };
+	removeMessage: { given: { id: string; message: string }; answer: ChatMessage };
+	markCommunityRead: { given: { id: string; cursor: string }; answer: CommunityStanding };
+	muteCommunity: { given: { id: string; muted: boolean }; answer: CommunityStanding };
+	sendCommunityPicture: {
+		given: { id: string; bytes: Uint8Array; mediaType: string };
+		answer: SentGroupPicture;
+	};
+	messageReportForm: { given: undefined; answer: ReportForm };
+	reportMessage: {
+		given: { group: string; id: string; picture: boolean; reason: ReportReason; text: string };
+		answer: string;
+	};
 	/**
 	 * The open plans near a place, for everyone, from the pilot's own today
 	 * (written `2026-11-21`) on. The calls after it, down to `openPlanIn`,
@@ -1082,12 +1126,7 @@ export async function answer<Name extends CallName>(
 		reportForm: (subject) => account.reportForm(subject),
 		report: ({ subject, reason, text }) => account.report(subject, reason, text),
 		planBoard: (fromDay) => groups.board(fromDay),
-		makeGroup: (name) => groups.make(name),
-		joinGroup: (code) => groups.join(code),
-		group: (id) => groups.group(id),
-		renameGroup: ({ id, name }) => groups.rename(id, name),
 		handOverGroup: ({ id, handle }) => groups.handOver(id, handle),
-		newGroupInvite: (id) => groups.newInvite(id),
 		removeGroupMember: ({ id, handle }) => groups.remove(id, handle),
 		leaveGroup: (id) => groups.leave(id),
 		deleteGroup: (id) => groups.delete(id),
@@ -1095,6 +1134,30 @@ export async function answer<Name extends CallName>(
 		changePlan: ({ group, plan, draft }) => groups.changePlan(group, plan, draft),
 		deletePlan: ({ group, plan }) => groups.deletePlan(group, plan),
 		planIn: ({ group, plan, isIn }) => groups.setIn(group, plan, isIn),
+		communityWords: () => communityWords(),
+		communities: () => groups.communities(),
+		findCommunities: ({ near, text }) => groups.find(near, text),
+		communityInvites: () => groups.invites(),
+		community: (id) => groups.community(id),
+		createCommunity: ({ draft, isPublic }) => groups.createCommunity(draft, isPublic),
+		changeCommunity: ({ id, draft }) => groups.changeCommunity(id, draft),
+		setCommunityPublic: ({ id, isPublic }) => groups.setPublic(id, isPublic),
+		enterCommunity: (id) => groups.enter(id),
+		inviteToCommunity: ({ id, handle }) => groups.invite(id, handle),
+		dropCommunityInvite: ({ id, handle }) => groups.dropInvite(id, handle),
+		setCommunityAdmin: ({ id, handle, admin }) => groups.setAdmin(id, handle, admin),
+		setCommunityPicture: ({ id, bytes, mediaType }) => groups.setPicture(id, bytes, mediaType),
+		removeCommunityPicture: (id) => groups.removePicture(id),
+		messages: ({ id, before }) => groups.messages(id, before),
+		messagesSince: ({ id, since }) => groups.messagesSince(id, since),
+		postMessage: ({ id, draft }) => groups.postMessage(id, draft),
+		removeMessage: ({ id, message }) => groups.removeMessage(id, message),
+		markCommunityRead: ({ id, cursor }) => groups.markRead(id, cursor),
+		muteCommunity: ({ id, muted }) => groups.mute(id, muted),
+		sendCommunityPicture: ({ id, bytes, mediaType }) => groups.sendPicture(id, bytes, mediaType),
+		messageReportForm: () => messageReportForm(),
+		reportMessage: ({ group, id, picture, reason, text }) =>
+			groups.reportMessage(group, id, picture, reason, text),
 		openPlansNear: ({ place, fromDay }) => openPlans.near(place, fromDay),
 		myOpenPlans: () => openPlans.mine(),
 		openPlan: (id) => openPlans.plan(id),

@@ -18,7 +18,9 @@ import type { Box } from './takeoffs-source';
 import type {
 	AlertDraft,
 	Bounds,
+	CommunityDraft,
 	Coordinate,
+	MessageDraft,
 	FlightSearch,
 	Credit,
 	FlightVisibility,
@@ -1006,33 +1008,9 @@ export class CoreClient {
 		return this.#call('planBoard', fromDay);
 	}
 
-	/** Makes a group, kept by the pilot. The answer has its invite code, this once. */
-	makeGroup(name: string) {
-		return this.#call('makeGroup', name);
-	}
-
-	/** Takes the pilot into the group an invite code belongs to. */
-	joinGroup(code: string) {
-		return this.#call('joinGroup', code);
-	}
-
-	/** One group with its members. */
-	group(id: string) {
-		return this.#call('group', id);
-	}
-
-	renameGroup(id: string, name: string) {
-		return this.#call('renameGroup', { id, name });
-	}
-
 	/** Hands the keeping of a group to another member. */
 	handOverGroup(id: string, handle: string) {
 		return this.#call('handOverGroup', { id, handle });
-	}
-
-	/** A new invite code for a group. The one before it stops working. */
-	newGroupInvite(id: string) {
-		return this.#call('newGroupInvite', id);
 	}
 
 	removeGroupMember(id: string, handle: string) {
@@ -1062,6 +1040,111 @@ export class CoreClient {
 	/** Says that the pilot is in on a plan, or takes that back. */
 	planIn(group: string, plan: string, isIn: boolean) {
 		return this.#call('planIn', { group, plan, isIn });
+	}
+
+	// Groups as communities with a chat (docs/api.md).
+
+	/** The words of the groups' screens. */
+	communityWords() {
+		return this.#call('communityWords', undefined);
+	}
+
+	/** The pilot's groups, each with its unread messages and its last message. */
+	communities() {
+		return this.#call('communities', undefined);
+	}
+
+	/** Public groups near a place, by name or place, or both. */
+	findCommunities(near: Coordinate | undefined, text: string) {
+		return this.#call('findCommunities', { near, text });
+	}
+
+	/** The pilot's invites into private groups. */
+	communityInvites() {
+		return this.#call('communityInvites', undefined);
+	}
+
+	/** One group with its members and what the pilot may do in it. */
+	community(id: string) {
+		return this.#call('community', id);
+	}
+
+	createCommunity(draft: CommunityDraft, isPublic: boolean) {
+		return this.#call('createCommunity', { draft, isPublic });
+	}
+
+	changeCommunity(id: string, draft: CommunityDraft) {
+		return this.#call('changeCommunity', { id, draft });
+	}
+
+	setCommunityPublic(id: string, isPublic: boolean) {
+		return this.#call('setCommunityPublic', { id, isPublic });
+	}
+
+	/** Takes the pilot into a public group, or one they were invited into. */
+	enterCommunity(id: string) {
+		return this.#call('enterCommunity', id);
+	}
+
+	inviteToCommunity(id: string, handle: string) {
+		return this.#call('inviteToCommunity', { id, handle });
+	}
+
+	/** Takes an invite back, or declines it by the pilot's own handle. */
+	dropCommunityInvite(id: string, handle: string) {
+		return this.#call('dropCommunityInvite', { id, handle });
+	}
+
+	setCommunityAdmin(id: string, handle: string, admin: boolean) {
+		return this.#call('setCommunityAdmin', { id, handle, admin });
+	}
+
+	setCommunityPicture(id: string, bytes: Uint8Array, mediaType: string) {
+		return this.#call('setCommunityPicture', { id, bytes, mediaType });
+	}
+
+	removeCommunityPicture(id: string) {
+		return this.#call('removeCommunityPicture', id);
+	}
+
+	/** The newest messages of a group, or the page before `before`. */
+	messages(id: string, before?: string) {
+		return this.#call('messages', { id, before });
+	}
+
+	/** What is new in a group since a page's `since`. */
+	messagesSince(id: string, since: string) {
+		return this.#call('messagesSince', { id, since });
+	}
+
+	postMessage(id: string, draft: MessageDraft) {
+		return this.#call('postMessage', { id, draft });
+	}
+
+	removeMessage(id: string, message: string) {
+		return this.#call('removeMessage', { id, message });
+	}
+
+	markCommunityRead(id: string, cursor: string) {
+		return this.#call('markCommunityRead', { id, cursor });
+	}
+
+	muteCommunity(id: string, muted: boolean) {
+		return this.#call('muteCommunity', { id, muted });
+	}
+
+	/** Sends a picture for a message; its identifier goes into the message. */
+	sendCommunityPicture(id: string, bytes: Uint8Array, mediaType: string) {
+		return this.#call('sendCommunityPicture', { id, bytes, mediaType });
+	}
+
+	messageReportForm() {
+		return this.#call('messageReportForm', undefined);
+	}
+
+	/** Reports a message, or one of its pictures; what became of it, in a line. */
+	reportMessage(group: string, id: string, picture: boolean, reason: ReportReason, text: string) {
+		return this.#call('reportMessage', { group, id, picture, reason, text });
 	}
 
 	/**

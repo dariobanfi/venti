@@ -50,6 +50,7 @@ import { format } from '#lib/design/format.ts';
 import { ThermalMapModel } from '#lib/forecast/thermal-map.svelte.ts';
 import { RadarModel } from '#lib/radar/radar.svelte.ts';
 import { GroupsModel } from '#lib/groups/model.svelte.ts';
+import { CommunitiesModel } from '#lib/groups/communities.svelte.ts';
 import { KeptSitesModel } from '#lib/sites/kept.svelte.ts';
 import { TodayModel } from '#lib/today/model.svelte.ts';
 import { HomeModel } from '#lib/home/model.svelte.ts';
@@ -124,6 +125,12 @@ export class App {
 	 * the core has started.
 	 */
 	groups = $state.raw<GroupsModel>();
+
+	/**
+	 * The pilot's groups as communities with a chat, their invites, and the
+	 * public groups found. Nothing until the core has started.
+	 */
+	communities = $state.raw<CommunitiesModel>();
 
 	/**
 	 * The open plans near a place, for everyone flying from there. Nothing
@@ -219,7 +226,9 @@ export class App {
 				};
 				this.myFlights = myFlights;
 				this.account = account;
-				this.groups = new GroupsModel(core, account);
+				const groups = new GroupsModel(core, account);
+				this.groups = groups;
+				this.communities = new CommunitiesModel(core, account, () => void groups.load());
 				this.openPlans = new OpenPlansModel(core, account);
 				this.airspace = airspace;
 			})

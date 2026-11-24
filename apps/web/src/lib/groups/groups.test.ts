@@ -4,7 +4,7 @@ import { UNREACHABLE } from '#lib/core/protocol.ts';
 import { createFormat } from '#lib/design/format.ts';
 import { type BoardState, BoardWatch, words } from './board';
 import { dayAfter, dayOf, dayTitle } from './days';
-import { memberName, question } from './words';
+import { DELETE_PLAN, memberName, question } from './words';
 
 const british = createFormat('en-GB', 'Europe/Berlin');
 const american = createFormat('en-US', 'America/Denver');
@@ -203,37 +203,28 @@ describe('what is asked before something is done to a group', () => {
 	const mara = { name: 'Mara Muster', handle: 'mara' };
 
 	it('says what it means, each time', () => {
-		expect(question({ about: 'newCode' })).toEqual({
-			title: 'Make a new invite code?',
-			message: 'The code handed out before stops working. Members stay in the group.',
-			confirm: 'Make a new code'
+		expect(DELETE_PLAN.message).toBe('It goes for everyone in the group, with who was in.');
+		expect(question({ about: 'delete' })).toEqual({
+			title: 'Delete this group?',
+			message: 'The group goes for every member, with its chat and its plans.',
+			confirm: 'Delete the group'
 		});
-		expect(question({ about: 'delete' }).message).toBe(
-			'The group goes for every member, with all its plans.'
-		);
-		expect(question({ about: 'deletePlan' }).message).toBe(
-			'It goes for everyone in the group, with who was in.'
-		);
-		// Removing a member ends the invite code: the keeper is told before.
 		expect(question({ about: 'remove', member: mara })).toMatchObject({
 			title: 'Remove Mara Muster?',
 			confirm: 'Remove from the group'
 		});
-		expect(question({ about: 'remove', member: mara }).message).toContain(
-			'The invite code stops working too'
-		);
-		expect(question({ about: 'handOver', member: mara })).toMatchObject({
-			title: 'Hand the keeping to Mara Muster?',
-			confirm: 'Make keeper'
+		expect(question({ about: 'handOn', member: mara })).toMatchObject({
+			title: 'Hand the group to Mara Muster?',
+			confirm: 'Hand on'
 		});
 	});
 
-	it('tells a keeper who leaves what becomes of the group', () => {
-		const member = question({ about: 'leave', asKeeper: false });
-		const keeper = question({ about: 'leave', asKeeper: true });
-		expect(member.message).toBe('You will no longer see its plans, and yours are removed.');
-		expect(keeper.message).toContain(member.message);
-		expect(keeper.message).toContain('The member who has been in longest keeps the group');
+	it('tells who leaves whether they come back, and an owner what becomes of the group', () => {
+		const leaving = (asOwner: boolean, isPublic: boolean) =>
+			question({ about: 'leave', asOwner, isPublic }).message;
+		expect(leaving(false, true)).toBe('You can join it again at any time.');
+		expect(leaving(false, false)).toBe('You come back in only when invited again.');
+		expect(leaving(true, false)).toContain('The member who has been in longest becomes its owner');
 	});
 
 	it('marks the pilot among the members', () => {

@@ -15,17 +15,16 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, metric, test, withPasswordForm } from './helpers';
 
-/** The development mode's group that the demo pilot keeps, and the code that lets a pilot in. */
+/** The development mode's private group that the demo pilot keeps. */
 const MUSTERGRUPPE = {
 	id: '44444444444444444444444444',
-	name: 'Mustergruppe',
-	code: '4444-4444-4444-4444'
+	name: 'Mustergruppe'
 };
 
 const PASSWORD = 'correct horse battery staple';
 
 const NEEDS_ACCOUNT =
-	'Plans for a flying day are shared in groups on Venti, and a group is seen by its members only. Sign in under Settings, Account, then make a group or join one with the code its keeper gives you.';
+	'Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, then join a group near you or make one.';
 
 const field = (page: Page, name: string) => page.getByRole('textbox', { name });
 
@@ -114,13 +113,55 @@ async function postFromAPhone(
 	expect(posted.status()).toBe(201);
 }
 
-/** Joins a group with its code, from the list of groups. */
-async function join(page: Page, code: string): Promise<Locator> {
-	await page.getByRole('button', { name: 'Join with a code' }).click();
-	const asking = page.getByRole('alertdialog', { name: 'Join a group' });
-	await asking.getByRole('textbox', { name: 'Invite code' }).fill(code);
-	await asking.getByRole('button', { name: 'Join' }).click();
-	return asking;
+/** Signs a pilot in from the side, as a phone would, for what the browser's own pilot does not do. */
+async function tokenOf(page: Page, handle: string, password = PASSWORD): Promise<string> {
+	const signedIn = await page.request.post('/v1/sessions', {
+		data: { handle, password, device: 'A phone' }
+	});
+	return (await signedIn.json()).token;
+}
+
+/**
+ * The demo pilot, who keeps the Mustergruppe, invites the pilot by handle
+ * from a phone; the pilot accepts on Community and is on the group's page.
+ */
+async function intoMustergruppe(page: Page, handle: string): Promise<void> {
+	const token = await tokenOf(page, 'demo', 'demo-pilot-password');
+	const invited = await page.request.post(`/v1/groups/${MUSTERGRUPPE.id}/invites`, {
+		headers: { authorization: `Bearer ${token}` },
+		data: { handle }
+	});
+	expect(invited.status()).toBe(201);
+	await page.goto('/community/');
+	await accept(page, MUSTERGRUPPE.name);
+}
+
+/** Accepts an invite into a group on Community, which opens the group's page. */
+async function accept(page: Page, name: string): Promise<void> {
+	await page
+		.getByRole('list', { name: 'Invites' })
+		.getByRole('listitem')
+		.filter({ hasText: name })
+		.getByRole('button', { name: 'Accept' })
+		.click();
+	await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
+}
+
+/** Opens a group's settings from its page. */
+async function settingsOf(page: Page): Promise<Locator> {
+	await page.getByRole('button', { name: 'Settings', exact: true }).click();
+	return page.getByRole('dialog', { name: 'Group settings' });
+}
+
+/** Leaves the group whose page is open, from its settings. */
+async function leaveTheGroup(page: Page): Promise<void> {
+	const settings = await settingsOf(page);
+	await settings.getByRole('button', { name: 'Leave the group' }).click();
+	await page
+		.getByRole('alertdialog', { name: 'Leave this group?' })
+		.getByRole('button', { name: 'Leave the group' })
+		.click();
+	await expect(page.getByRole('heading', { level: 1, name: 'Community' })).toBeVisible();
 }
 
 test('signed out, Community finds a pilot and asks to sign in for the rest', async ({
@@ -154,10 +195,9 @@ test('signed out, Community finds a pilot and asks to sign in for the rest', asy
 	await expect(page).toHaveURL(/\/community\/$/);
 	await expect(page.getByRole('heading', { level: 1, name: 'Community' })).toBeVisible();
 
-	// The groups and a plan have addresses of their own, and say the same.
+	// The groups' old address leads to Community too; a plan says the same.
 	await page.goto('/plans/groups/');
-	await expect(page.getByText(NEEDS_ACCOUNT)).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Make a group' })).toBeHidden();
+	await expect(page).toHaveURL(/\/community\/#groups$/);
 	await page.goto('/plans/plan/?id=66666666666666666666666666');
 	await expect(page.getByText(NEEDS_ACCOUNT)).toBeVisible();
 
@@ -167,14 +207,12 @@ test('signed out, Community finds a pilot and asks to sign in for the rest', asy
 	expect(problems).toEqual([]);
 });
 
-test('a pilot makes a group, hands on its code, and plans a flying day with who comes in', async ({
+test('a pilot makes a private group, invites a pilot by handle, and plans a flying day with who comes in', async ({
 	browser,
-	context,
 	page,
 	keep,
 	problems
 }) => {
-	await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 	await signUp(page, 'Kira Pilot');
 
 	// Without a group there is nobody to plan with, and the board says so.
@@ -182,57 +220,36 @@ test('a pilot makes a group, hands on its code, and plans a flying day with who 
 	await expect(page.getByText('You are in no group yet.')).toBeVisible();
 	await expect(page.getByRole('button', { name: 'New plan' })).toBeHidden();
 	await keep('75-plans-no-group');
-	await page.getByRole('link', { name: 'Make or join a group' }).click();
-	await expect(page.getByRole('heading', { level: 1, name: 'Groups' })).toBeVisible();
-	await expect(
-		page.getByText('A group is seen by its members and nobody else; it cannot be searched for.')
-	).toBeVisible();
 
-	// Making one asks for its name and says what keeping it means. A name
-	// the server would refuse, the core refuses before it is asked.
-	await page.getByRole('button', { name: 'Make a group' }).click();
-	const naming = page.getByRole('alertdialog', { name: 'Make a group' });
-	await expect(naming).toContainText(
-		'You will keep it: you hand out its invite code and can remove a member.'
-	);
-	await expect(naming.getByRole('button', { name: 'Make' })).toBeDisabled();
-	await naming.getByRole('textbox', { name: 'Its name' }).fill('x'.repeat(61));
-	await naming.getByRole('button', { name: 'Make' }).click();
+	// Making one asks for its name. A name the server would refuse, the
+	// core refuses before it is asked.
+	await page.getByRole('button', { name: 'New group' }).click();
+	const naming = page.getByRole('dialog', { name: 'New group' });
+	await expect(naming.getByRole('button', { name: 'Make the group' })).toBeDisabled();
+	await naming.getByRole('textbox', { name: 'Name' }).fill('x'.repeat(61));
+	await naming.getByRole('button', { name: 'Make the group' }).click();
 	await expect(naming.getByRole('alert')).toHaveText("A group's name has room for 60 characters.");
-	await naming.getByRole('textbox', { name: 'Its name' }).fill('Hausberg-Runde');
-	await naming.getByRole('button', { name: 'Make' }).click();
+	await naming.getByRole('textbox', { name: 'Name' }).fill('Hausberg-Runde');
+	await naming.getByRole('radio', { name: 'Private' }).check();
+	await naming.getByRole('button', { name: 'Make the group' }).click();
+	await expect(page.getByRole('heading', { level: 1, name: 'Hausberg-Runde' })).toBeVisible();
+	const groupPage = new URL(page.url()).pathname;
 
-	// Its invite code is shown once, with what it is worth, and can be copied.
-	const invite = page.getByRole('dialog', { name: 'Invite code' });
-	await expect(invite.getByRole('heading', { name: 'Hausberg-Runde' })).toBeVisible();
-	const shown = invite.getByText(/^[0-9a-z]{4}(-[0-9a-z]{4}){3}$/);
-	const code = (await shown.textContent())!.trim();
-	await expect(invite).toContainText(
-		'It is shown this once: Venti keeps no copy that can be read.'
-	);
-	await invite.getByRole('button', { name: 'Copy the code' }).click();
-	await expect(invite.getByRole('status')).toHaveText('Copied.');
-	expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(code);
-	await keep('76-plans-invite-code');
-	await invite.getByRole('button', { name: 'Done' }).click();
-	const group = page.getByRole('link', { name: /^Hausberg-Runde/ });
-	await expect(group).toContainText('1 member · kept by you');
-
-	// Another pilot, in a browser of their own, comes in with the code. A
-	// code that is none is refused in the core's words.
+	// Another pilot, in a browser of their own, is invited by handle and accepts.
 	const others = await browser.newContext();
 	await withPasswordForm(others);
 	const other = await others.newPage();
-	await signUp(other, 'Mira Member');
-	await other.goto('/plans/groups/');
-	const asking = await join(other, '0000-0000-0000-0000');
-	await expect(asking.getByRole('alert')).toContainText("This is not a group's invite code");
-	await asking.getByRole('textbox', { name: 'Invite code' }).fill(code.toUpperCase());
-	await asking.getByRole('button', { name: 'Join' }).click();
-	await expect(other.getByRole('status')).toHaveText('You are in Hausberg-Runde now.');
-	await expect(other.getByRole('link', { name: /^Hausberg-Runde/ })).toContainText(
-		'2 members · kept by Kira Pilot'
-	);
+	const mira = await signUp(other, 'Mira Member');
+	const settings = await settingsOf(page);
+	await settings.getByRole('textbox', { name: 'Invite' }).fill(`@${mira}`);
+	await settings.getByRole('button', { name: 'Invite' }).click();
+	await expect(settings.getByRole('status')).toHaveText('Invited to Hausberg-Runde.');
+	await keep('76-group-invite');
+	await settings.getByRole('button', { name: 'Done' }).click();
+	await other.goto('/community/');
+	await expect(other.getByRole('list', { name: 'Invites' })).toContainText('Hausberg-Runde');
+	await accept(other, 'Hausberg-Runde');
+	await expect(other.getByText(/2 members/)).toBeVisible();
 
 	// She posts where she means to fly today.
 	await openBoard(other);
@@ -360,146 +377,98 @@ test('a pilot makes a group, hands on its code, and plans a flying day with who 
 	await expect(page.getByRole('heading', { level: 1, name: 'Community' })).toBeVisible();
 	await expect(plansOf(page, 'Today')).toHaveText([/Beispielwiese/]);
 
-	// The group: its members, and what its keeper can do.
-	await page.getByRole('link', { name: 'Groups' }).click();
-	await page.getByRole('link', { name: /^Hausberg-Runde/ }).click();
+	// The group: its members, and what its owner can do, in its settings.
+	await page
+		.getByRole('main')
+		.getByRole('link', { name: /^Hausberg-Runde/ })
+		.click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Hausberg-Runde' })).toBeVisible();
-	const members = page.getByRole('list', { name: 'Members' }).getByRole('listitem');
+	const owning = await settingsOf(page);
+	const members = owning.getByRole('list', { name: 'Members' }).getByRole('listitem');
 	await expect(members).toHaveCount(2);
-	// In the order they came in. The development mode's clock stands
-	// still, so these two came in at the same moment, and which is listed
-	// first is not for a test to say.
 	const himself = members.filter({ hasText: 'Kira Pilot (you)' });
 	const her = members.filter({ hasText: 'Mira Member' });
-	await expect(himself.getByText('Keeper', { exact: true })).toBeVisible();
-	await expect(her.getByText('Keeper', { exact: true })).toBeHidden();
-	await expect(
-		page.getByText('Removing a member ends the invite code, which they know.')
-	).toBeVisible();
-	// One's own is not reported.
-	await expect(page.getByRole('button', { name: 'Report this group' })).toBeHidden();
+	await expect(himself.getByText('Owner', { exact: true })).toBeVisible();
+	await expect(her.getByText('Owner', { exact: true })).toBeHidden();
 	await keep('80-group');
 
-	// Renaming says who will see the name.
-	await page.getByRole('button', { name: 'Rename the group' }).click();
-	const renaming = page.getByRole('alertdialog', { name: 'Rename the group' });
-	await expect(renaming.getByRole('textbox', { name: 'Its name' })).toHaveValue('Hausberg-Runde');
-	await renaming.getByRole('textbox', { name: 'Its name' }).fill('Hausberg-Runde Süd');
-	await renaming.getByRole('button', { name: 'Rename' }).click();
-	await expect(page.getByRole('heading', { level: 1, name: 'Hausberg-Runde Süd' })).toBeVisible();
-
-	// A new invite code is asked about first: it ends the one handed out.
-	await page.getByRole('button', { name: 'New invite code' }).click();
-	const newCode = page.getByRole('alertdialog', { name: 'Make a new invite code?' });
-	await expect(newCode).toContainText(
-		'The code handed out before stops working. Members stay in the group.'
-	);
-	// The safe answer has the focus: Enter leaves the code as it is.
-	await page.keyboard.press('Enter');
-	await expect(newCode).toBeHidden();
-	await expect(invite).toBeHidden();
-	await page.getByRole('button', { name: 'New invite code' }).click();
-	await newCode.getByRole('button', { name: 'Make a new code' }).click();
-	const second = (await invite.getByText(/^[0-9a-z]{4}(-[0-9a-z]{4}){3}$/).textContent())!.trim();
-	expect(second).not.toBe(code);
-	await invite.getByRole('button', { name: 'Done' }).click();
-
-	// Handing the keeping on is asked about first too, with what it means.
-	await page.getByRole('button', { name: 'More about Mira Member' }).click();
-	await page.getByRole('menuitem', { name: 'Make keeper' }).click();
-	const handing = page.getByRole('alertdialog', { name: 'Hand the keeping to Mira Member?' });
+	// Handing the group on is asked about first, with what it means.
+	await owning.getByRole('button', { name: 'More about Mira Member' }).click();
+	await page.getByRole('menuitem', { name: 'Hand the group on' }).click();
+	const handing = page.getByRole('alertdialog', { name: 'Hand the group to Mira Member?' });
 	await expect(handing).toContainText('You stay in the group as a member');
-	await handing.getByRole('button', { name: 'Make keeper' }).click();
-	await expect(her.getByText('Keeper', { exact: true })).toBeVisible();
-	await expect(himself.getByText('Keeper', { exact: true })).toBeHidden();
-	// From here on he is a member like any other: nothing of the keeper's is offered.
-	await expect(page.getByRole('button', { name: 'New invite code' })).toBeHidden();
-	await expect(page.getByRole('button', { name: 'Delete the group' })).toBeHidden();
-	await expect(page.getByRole('button', { name: /^More about/ })).toBeHidden();
-	await expect(page.getByRole('button', { name: 'Leave the group' })).toBeVisible();
+	await handing.getByRole('button', { name: 'Hand on' }).click();
+	await expect(her.getByText('Owner', { exact: true })).toBeVisible();
+	await expect(himself.getByText('Owner', { exact: true })).toBeHidden();
+	// From here on he is a member like any other: nothing of the owner's is offered.
+	await expect(owning.getByRole('textbox', { name: 'Invite' })).toBeHidden();
+	await expect(owning.getByRole('button', { name: 'Delete the group' })).toBeHidden();
+	await expect(owning.getByRole('button', { name: /^More about/ })).toBeHidden();
+	await owning.getByRole('button', { name: 'Done' }).click();
 
-	// She keeps the group now, and removes him: asked about first, with
-	// what goes with him and what becomes of the invite code.
-	await other.goto('/plans/groups/');
-	await other.getByRole('link', { name: /^Hausberg-Runde Süd/ }).click();
-	await expect(other.getByRole('list', { name: 'Members' }).getByRole('listitem')).toHaveCount(2);
-	await other.getByRole('button', { name: 'More about Kira Pilot' }).click();
+	// She owns the group now, and removes him: asked about first.
+	await other.goto(groupPage);
+	const hers = await settingsOf(other);
+	await hers.getByRole('button', { name: 'More about Kira Pilot' }).click();
 	await other.getByRole('menuitem', { name: 'Remove from the group' }).click();
-	const removing = other.getByRole('alertdialog', { name: 'Remove Kira Pilot?' });
-	await expect(removing).toContainText('The invite code stops working too, because they know it');
-	await removing.getByRole('button', { name: 'Remove from the group' }).click();
-	await expect(other.getByRole('list', { name: 'Members' }).getByRole('listitem')).toHaveText([
-		/Mira Member \(you\).*Keeper/
+	await other
+		.getByRole('alertdialog', { name: 'Remove Kira Pilot?' })
+		.getByRole('button', { name: 'Remove from the group' })
+		.click();
+	await expect(hers.getByRole('list', { name: 'Members' }).getByRole('listitem')).toHaveText([
+		/Mira Member \(you\).*Owner/
 	]);
 
 	// To him the group is gone, and the board says that he is in none.
 	await page.reload();
-	await expect(
-		page.getByText('This group is no longer there, or you are no longer in it.')
-	).toBeVisible();
+	await expect(page.getByRole('heading', { level: 1, name: 'Hausberg-Runde' })).toBeHidden();
 	await openBoard(page);
 	await expect(page.getByText('You are in no group yet.')).toBeVisible();
 
-	// The code he made lets nobody in any more: removing a member ended it.
-	await page.getByRole('link', { name: 'Make or join a group' }).click();
-	const again = await join(page, second);
-	await expect(again.getByRole('alert')).toContainText("This is not a group's invite code");
-	await again.getByRole('button', { name: 'Cancel' }).click();
-
 	// She deletes the group: asked about first, and then it is gone for her too.
-	await other.getByRole('button', { name: 'Delete the group' }).click();
+	await hers.getByRole('button', { name: 'Delete the group' }).click();
 	const ending = other.getByRole('alertdialog', { name: 'Delete this group?' });
-	await expect(ending).toContainText('The group goes for every member, with all its plans.');
+	await expect(ending).toContainText(
+		'The group goes for every member, with its chat and its plans.'
+	);
 	await ending.getByRole('button', { name: 'Delete the group' }).click();
-	await expect(other.getByRole('heading', { level: 1, name: 'Groups' })).toBeVisible();
+	await expect(other.getByRole('heading', { level: 1, name: 'Community' })).toBeVisible();
 	await expect(other.getByRole('link', { name: /^Hausberg-Runde/ })).toBeHidden();
 
 	await others.close();
 	expect(problems).toEqual([]);
 });
 
-test('a pilot comes into a group with its code, sees who is in it, and leaves it again', async ({
+test('a pilot is invited into a group, sees who is in it, and leaves it again', async ({
 	page,
 	keep
 }) => {
-	await signUp(page, 'Test Pilot');
-	await page.goto('/plans/groups/');
+	const handle = await signUp(page, 'Test Pilot');
+	await intoMustergruppe(page, handle);
 
-	// The development mode's group, which its demo pilot keeps.
-	await join(page, MUSTERGRUPPE.code);
-	await expect(page.getByRole('status')).toHaveText('You are in Mustergruppe now.');
-	const group = page.getByRole('link', { name: /^Mustergruppe/ });
-	await expect(group).toContainText('kept by Demo Pilot');
-	// The same code again changes nothing, and the answer says so.
-	await join(page, MUSTERGRUPPE.code);
-	await expect(page.getByRole('status')).toHaveText('You were in Mustergruppe already.');
-
-	// A member sees who is in the group and who keeps it, and nothing of
-	// what only the keeper can do.
-	await group.click();
-	await expect(page.getByRole('heading', { level: 1, name: 'Mustergruppe' })).toBeVisible();
-	const members = page.getByRole('list', { name: 'Members' }).getByRole('listitem');
-	await expect(members.filter({ hasText: 'Demo Pilot' })).toContainText('Keeper');
+	// A member sees who is in the group and who owns it, and nothing of
+	// what only the owner and the admins can do.
+	const settings = await settingsOf(page);
+	const members = settings.getByRole('list', { name: 'Members' }).getByRole('listitem');
+	await expect(members.filter({ hasText: 'Demo Pilot' })).toContainText('Owner');
 	await expect(members.filter({ hasText: 'Mara Muster' })).toContainText('@mara');
 	await expect(members.filter({ hasText: 'Jonas Beispiel' })).toBeVisible();
 	await expect(members.filter({ hasText: 'Test Pilot (you)' })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'New invite code' })).toBeHidden();
-	await expect(page.getByRole('button', { name: 'Rename the group' })).toBeHidden();
-	await expect(page.getByRole('button', { name: 'Delete the group' })).toBeHidden();
-	await expect(page.getByRole('button', { name: /^More about/ })).toBeHidden();
-	await expect(
-		page.getByText('Your plans, and your word on the plans of others, go with you.')
-	).toBeVisible();
+	await expect(settings.getByRole('textbox', { name: 'Invite' })).toBeHidden();
+	await expect(settings.getByRole('button', { name: 'Delete the group' })).toBeHidden();
+	await expect(settings.getByRole('button', { name: /^More about/ })).toBeHidden();
 	await keep('81-group-member');
+	await settings.getByRole('button', { name: 'Done' }).click();
 
 	// Leaving asks first, with what it means.
-	await page.getByRole('button', { name: 'Leave the group' }).click();
+	await (await settingsOf(page)).getByRole('button', { name: 'Leave the group' }).click();
 	const leaving = page.getByRole('alertdialog', { name: 'Leave this group?' });
-	await expect(leaving).toHaveText(/You will no longer see its plans, and yours are removed\./);
-	await expect(leaving).not.toContainText('keeps the group');
+	await expect(leaving).toContainText('You come back in only when invited again.');
 	await leaving.getByRole('button', { name: 'Leave the group' }).click();
-	await expect(page.getByRole('heading', { level: 1, name: 'Groups' })).toBeVisible();
-	await expect(group).toBeHidden();
+	await expect(page.getByRole('heading', { level: 1, name: 'Community' })).toBeVisible();
+	await expect(
+		page.getByRole('list', { name: 'Your groups' }).getByRole('listitem', { name: 'Mustergruppe' })
+	).toHaveCount(0);
 });
 
 test('the board is asked for from the day on the pilot’s own clock, not UTC’s', async ({
@@ -508,10 +477,7 @@ test('the board is asked for from the day on the pilot’s own clock, not UTC’
 	// Half past midnight in Munich on 21 November 2026, where the test
 	// browser's clock is: UTC still has the 20th.
 	await page.clock.setFixedTime(new Date('2026-11-20T23:30:00Z'));
-	await signUp(page, 'Night Owl');
-	await page.goto('/plans/groups/');
-	await join(page, MUSTERGRUPPE.code);
-	await expect(page.getByRole('status')).toHaveText('You are in Mustergruppe now.');
+	await intoMustergruppe(page, await signUp(page, 'Night Owl'));
 
 	const boardAsked = page.waitForRequest((request) => request.url().includes('/v1/groups/plans?'));
 	await openBoard(page);
@@ -537,14 +503,8 @@ test('the board is asked for from the day on the pilot’s own clock, not UTC’
 	await backToTheBoard(page).click();
 
 	// Leaving takes the plan along: the group is as it was.
-	await page.getByRole('link', { name: 'Groups' }).click();
-	await page.getByRole('link', { name: /^Mustergruppe/ }).click();
-	await page.getByRole('button', { name: 'Leave the group' }).click();
-	await page
-		.getByRole('alertdialog', { name: 'Leave this group?' })
-		.getByRole('button', { name: 'Leave the group' })
-		.click();
-	await expect(page.getByRole('heading', { level: 1, name: 'Groups' })).toBeVisible();
+	await page.goto(`/community/groups/${MUSTERGRUPPE.id}/`);
+	await leaveTheGroup(page);
 });
 
 test('a board of several days, and a plan that says where its place is', async ({ page, keep }) => {
@@ -553,9 +513,7 @@ test('a board of several days, and a plan that says where its place is', async (
 	// noon of that first day, so that it does not matter when this runs.
 	await page.clock.setFixedTime(new Date('2026-11-18T11:00:00Z'));
 	const handle = await signUp(page, 'Test Pilot');
-	await page.goto('/plans/groups/');
-	await join(page, MUSTERGRUPPE.code);
-	await expect(page.getByRole('status')).toHaveText('You are in Mustergruppe now.');
+	await intoMustergruppe(page, handle);
 	await openBoard(page);
 
 	// Day by day: today, tomorrow, then the weekday and the date.
@@ -618,15 +576,8 @@ test('a board of several days, and a plan that says where its place is', async (
 	await expect(page.getByRole('button', { name: 'Forecast for this place' })).toBeHidden();
 
 	// Leaving takes the plan along: the group is as it was.
-	await backToTheBoard(page).click();
-	await page.getByRole('link', { name: 'Groups' }).click();
-	await page.getByRole('link', { name: /^Mustergruppe/ }).click();
-	await page.getByRole('button', { name: 'Leave the group' }).click();
-	await page
-		.getByRole('alertdialog', { name: 'Leave this group?' })
-		.getByRole('button', { name: 'Leave the group' })
-		.click();
-	await expect(page.getByRole('heading', { level: 1, name: 'Groups' })).toBeVisible();
+	await page.goto(`/community/groups/${MUSTERGRUPPE.id}/`);
+	await leaveTheGroup(page);
 });
 
 test('a member reports a group someone else keeps, and another member’s plan', async ({
@@ -636,13 +587,9 @@ test('a member reports a group someone else keeps, and another member’s plan',
 }) => {
 	// The development mode's plans are for 18 to 20 November 2026.
 	await page.clock.setFixedTime(new Date('2026-11-18T11:00:00Z'));
-	await signUp(page, 'Test Pilot');
-	await page.goto('/plans/groups/');
-	await join(page, MUSTERGRUPPE.code);
-	await expect(page.getByRole('status')).toHaveText('You are in Mustergruppe now.');
+	await intoMustergruppe(page, await signUp(page, 'Test Pilot'));
 
-	// The group, from beside "Leave the group": the reasons of a group, not of a flight.
-	await page.getByRole('link', { name: /^Mustergruppe/ }).click();
+	// The group, from its page: the reasons of a group, not of a flight.
 	await page.getByRole('button', { name: 'Report this group' }).click();
 	const groupForm = page.getByRole('dialog', { name: 'Report this group' });
 	await expect(groupForm.getByRole('radio')).toHaveCount(5);

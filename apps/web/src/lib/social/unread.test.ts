@@ -2,8 +2,24 @@ import { describe, expect, it } from 'vitest';
 import type { CoreClient, Unread } from '#lib/core/index.ts';
 import { LEFT_AS_IT_IS, UnreadModel } from './unread.svelte';
 
-const FIVE: Unread = { notifications: 4, alarms: 1, total: 5, badge: '5', label: '5 new' };
-const NONE: Unread = { notifications: 0, alarms: 0, total: 0, badge: undefined, label: undefined };
+const FIVE: Unread = {
+	notifications: 4,
+	alarms: 1,
+	total: 5,
+	groups: 3,
+	groupsBadge: '3',
+	badge: '5',
+	label: '5 new'
+};
+const NONE: Unread = {
+	notifications: 0,
+	alarms: 0,
+	total: 0,
+	groups: 0,
+	groupsBadge: undefined,
+	badge: undefined,
+	label: undefined
+};
 
 /** A core that answers from a list, and notes what it was told was seen. */
 function fakeCore(answers: (Unread | undefined | Error)[]) {
@@ -31,6 +47,17 @@ describe('the marker of what is new', () => {
 		expect(model.label).toBe('5 new');
 		expect(model.notifications).toBe(4);
 		expect(model.alarms).toBe(1);
+	});
+
+	it('keeps the groups’ unread messages beside the marker, as a badge of their own', async () => {
+		const { core } = fakeCore([FIVE, NONE]);
+		const model = new UnreadModel(core);
+		await model.read();
+		expect(model.groupsBadge).toBe('3');
+		expect(model.groups).toBe(3);
+		await model.read();
+		expect(model.groupsBadge).toBeUndefined();
+		expect(model.groups).toBe(0);
 	});
 
 	it('shows nothing signed out, and keeps what it said when offline', async () => {

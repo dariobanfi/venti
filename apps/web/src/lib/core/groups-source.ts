@@ -13,6 +13,22 @@
  */
 
 import { type Send, sendToThisOrigin } from './account-source';
+import {
+	type ChatMessage,
+	type ChatPage,
+	type CommunityDetail,
+	type CommunityDraft,
+	type CommunityInvite,
+	type CommunityStanding,
+	type CommunityView,
+	type Coordinate,
+	type FoundCommunity,
+	type MessageDraft,
+	type ReportReason,
+	type SentGroupPicture,
+	messageReportRequest,
+	reportSent
+} from './pkg/venti_core_wasm.js';
 import type {
 	Core,
 	GroupDetail,
@@ -24,6 +40,15 @@ import type {
 	ServerRequest
 } from './pkg/venti_core_wasm.js';
 import type { CoreSession } from './session';
+
+/** `GET /v1/groups` with the session's token: the pilot's groups. */
+const GROUPS_REQUEST: ServerRequest = {
+	method: 'GET',
+	path: '/v1/groups',
+	body: undefined,
+	contentType: undefined,
+	needsToken: true
+};
 
 export class GroupsSource {
 	#session: CoreSession;
@@ -46,38 +71,6 @@ export class GroupsSource {
 		);
 	}
 
-	/** Makes a group, kept by the pilot. The answer has its invite code, this once. */
-	make(name: string): Promise<GroupMade> {
-		return this.#carry(
-			(core) => core.createGroupRequest(name),
-			(core, status, body) => core.groupMade(status, body)
-		);
-	}
-
-	/** Takes the pilot into the group an invite code belongs to. */
-	join(code: string): Promise<GroupJoined> {
-		return this.#carry(
-			(core) => core.joinGroupRequest(code),
-			(core, status, body) => core.groupJoined(status, body)
-		);
-	}
-
-	/** One group with its members. */
-	group(id: string): Promise<GroupDetail> {
-		return this.#carry(
-			(core) => core.groupRequest(id),
-			(core, status, body) => core.group(status, body)
-		);
-	}
-
-	/** Renames a group. Its keeper's to do. */
-	rename(id: string, name: string): Promise<GroupDetail> {
-		return this.#carry(
-			(core) => core.renameGroupRequest(id, name),
-			(core, status, body) => core.group(status, body)
-		);
-	}
-
 	/** Hands the keeping of a group to another member. Its keeper's to do. */
 	handOver(id: string, handle: string): Promise<GroupDetail> {
 		return this.#carry(
@@ -86,15 +79,7 @@ export class GroupsSource {
 		);
 	}
 
-	/** A new invite code for a group. The one before it stops working. */
-	newInvite(id: string): Promise<string> {
-		return this.#carry(
-			(core) => core.newGroupInviteRequest(id),
-			(core, status, body) => core.groupInvite(status, body)
-		);
-	}
-
-	/** Removes a member from a group, which also ends its invite code. Its keeper's to do. */
+	/** Removes a member who is no admin from a group. Its owner's and admins' to do. */
 	remove(id: string, handle: string): Promise<void> {
 		return this.#carry(
 			(core) => core.removeGroupMemberRequest(id, handle),
@@ -148,6 +133,186 @@ export class GroupsSource {
 			(core) => core.planInRequest(group, plan, isIn),
 			(core, status, body) => core.plan(status, body)
 		);
+	}
+
+	// Groups as communities with a chat (owner decision 26, docs/api.md
+	// "Groups as communities with a chat").
+
+	/** The pilot's groups as the groups' section shows them: unread and last message each. */
+	communities(): Promise<CommunityView[]> {
+		return this.#carry(
+			// The core has `groups_request`, but its WebAssembly binding does
+			// not hand it out yet: the same bare request, `GET /v1/groups`.
+			() => GROUPS_REQUEST,
+			(core, status, body) => core.communities(status, body)
+		);
+	}
+
+	/** Public groups near a place, by name or place, or both. */
+	find(near: Coordinate | undefined, text: string): Promise<FoundCommunity[]> {
+		return this.#carry(
+			(core) => core.findGroupsRequest(near?.lat, near?.lon, text),
+			(core, status, body) => core.foundGroups(status, body)
+		);
+	}
+
+	/** The pilot's invites into private groups. */
+	invites(): Promise<CommunityInvite[]> {
+		return this.#carry(
+			(core) => core.groupInvitesRequest(),
+			(core, status, body) => core.groupInvites(status, body)
+		);
+	}
+
+	/** One group with its members and what the pilot may do in it. */
+	community(id: string): Promise<CommunityDetail> {
+		return this.#carry(
+			(core) => core.groupRequest(id),
+			(core, status, body) => core.community(status, body)
+		);
+	}
+
+	/** Makes a group with the pilot as its owner; the answer names the group. */
+	createCommunity(draft: CommunityDraft, isPublic: boolean): Promise<GroupMade> {
+		return this.#carry(
+			(core) => core.createCommunityRequest(draft, isPublic),
+			(core, status, body) => core.groupMade(status, body)
+		);
+	}
+
+	/** Changes a group's name, description and home. */
+	changeCommunity(id: string, draft: CommunityDraft): Promise<CommunityDetail> {
+		return this.#carry(
+			(core) => core.changeCommunityRequest(id, draft),
+			(core, status, body) => core.community(status, body)
+		);
+	}
+
+	/** Makes a group public or private. Its owner's to do. */
+	setPublic(id: string, isPublic: boolean): Promise<CommunityDetail> {
+		return this.#carry(
+			(core) => core.groupPublicRequest(id, isPublic),
+			(core, status, body) => core.community(status, body)
+		);
+	}
+
+	/** Takes the pilot into a public group, or one they were invited into. */
+	enter(id: string): Promise<GroupJoined> {
+		return this.#carry(
+			(core) => core.enterGroupRequest(id),
+			(core, status, body) => core.groupJoined(status, body)
+		);
+	}
+
+	/** Invites a pilot by handle; the answer is a line to show. */
+	invite(id: string, handle: string): Promise<string> {
+		return this.#carry(
+			(core) => core.inviteToGroupRequest(id, handle),
+			(core, status, body) => core.groupInviteSent(status, body)
+		);
+	}
+
+	/** Takes an invite back, or declines one by the pilot's own handle. */
+	dropInvite(id: string, handle: string): Promise<void> {
+		return this.#carry(
+			(core) => core.dropGroupInviteRequest(id, handle),
+			(core, status, body) => core.groupDone(status, body)
+		);
+	}
+
+	/** Makes a member an admin, or an admin a member again. The owner's to do. */
+	setAdmin(id: string, handle: string, admin: boolean): Promise<void> {
+		return this.#carry(
+			(core) => core.groupAdminRequest(id, handle, admin),
+			(core, status, body) => core.groupDone(status, body)
+		);
+	}
+
+	/** Gives a group its picture, cut square by the server. */
+	setPicture(id: string, picture: Uint8Array, mediaType: string): Promise<CommunityDetail> {
+		return this.#carry(
+			(core) => core.groupOwnPictureRequest(id, picture, mediaType),
+			(core, status, body) => core.community(status, body)
+		);
+	}
+
+	/** Removes a group's picture. */
+	removePicture(id: string): Promise<CommunityDetail> {
+		return this.#carry(
+			(core) => core.removeGroupOwnPictureRequest(id),
+			(core, status, body) => core.community(status, body)
+		);
+	}
+
+	/** The newest messages of a group, or the page before `before`. */
+	messages(id: string, before?: string): Promise<ChatPage> {
+		return this.#carry(
+			(core) => core.messagesRequest(id, before),
+			(core, status, body) => core.chatPage(status, body)
+		);
+	}
+
+	/** What is new in a group since a page's `since`. */
+	messagesSince(id: string, since: string): Promise<ChatPage> {
+		return this.#carry(
+			(core) => core.messagesSinceRequest(id, since),
+			(core, status, body) => core.chatPage(status, body)
+		);
+	}
+
+	/** Posts a message; Venti's links in its text become cards. */
+	postMessage(id: string, draft: MessageDraft): Promise<ChatMessage> {
+		return this.#carry(
+			(core) => core.postMessageRequest(id, draft),
+			(core, status, body) => core.chatMessage(status, body)
+		);
+	}
+
+	/** Removes a message: the pilot's own, or as owner or admin anyone's. */
+	removeMessage(id: string, message: string): Promise<ChatMessage> {
+		return this.#carry(
+			(core) => core.removeMessageRequest(id, message),
+			(core, status, body) => core.chatMessage(status, body)
+		);
+	}
+
+	/** Marks a group read up to a message's cursor. */
+	markRead(id: string, cursor: string): Promise<CommunityStanding> {
+		return this.#carry(
+			(core) => core.groupReadRequest(id, cursor),
+			(core, status, body) => core.groupStanding(status, body)
+		);
+	}
+
+	/** Mutes a group, or unmutes it. */
+	mute(id: string, muted: boolean): Promise<CommunityStanding> {
+		return this.#carry(
+			(core) => core.groupMuteRequest(id, muted),
+			(core, status, body) => core.groupStanding(status, body)
+		);
+	}
+
+	/** Sends a picture for a message; its identifier goes into the message. */
+	sendPicture(id: string, picture: Uint8Array, mediaType: string): Promise<SentGroupPicture> {
+		return this.#carry(
+			(core) => core.sendGroupPictureRequest(id, picture, mediaType),
+			(core, status, body) => core.groupPictureSent(status, body)
+		);
+	}
+
+	/** Reports a message, or one of its pictures; what became of it, in a line. */
+	async reportMessage(
+		group: string,
+		id: string,
+		picture: boolean,
+		reason: ReportReason,
+		text: string
+	): Promise<string> {
+		const asked = await this.#session.ask(() =>
+			messageReportRequest(group, id, picture, reason, text)
+		);
+		const answer = await this.#send(asked, await this.#session.token());
+		return this.#session.ask(() => reportSent(answer.status, answer.body));
 	}
 
 	/**

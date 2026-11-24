@@ -6,7 +6,8 @@ import fly.venti.core.Coordinate
 import fly.venti.app.account.AccountModel
 import fly.venti.app.account.MemorySessionStore
 import fly.venti.app.logbook.LogbookModel
-import fly.venti.core.GroupMember
+import fly.venti.core.CommunityDraft
+import fly.venti.core.CommunityRole
 import fly.venti.core.PlanDraft
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.runBlocking
@@ -219,51 +220,28 @@ class GroupsModelTest {
         assertEquals(listOf("DELETE", "GET"), server.methods())
         assertTrue(server.sent.first().path.endsWith("/${plan.id}"))
 
-        // A group that is made shows its invite code this once.
-        server.sent.clear()
-        val made = groups.make("Zweite Mustergruppe")
-        assertEquals("7k3m-9q2x-4r8t-1v6w", made.inviteCode)
-        assertEquals("Zweite Mustergruppe", made.group.name)
-        assertEquals("POST" to "/v1/groups", server.sent.first().let { it.method to it.path })
-        assertEquals("GET", server.sent.last().method)
-
-        // Coming into one with a code says so in the core's words.
-        server.sent.clear()
-        val joined = groups.join("5555-5555-5555-5555")
-        assertTrue(joined.words, joined.words.startsWith("You are in ") || joined.words.startsWith("You were in "))
-        assertEquals(listOf("POST", "GET"), server.methods())
-
-        // A new code is asked for and read; the board has nothing to do with it.
-        server.sent.clear()
-        assertEquals("2w8x-5c9p-3h7k-6n4d", groups.newInvite(group))
-        assertEquals("POST" to "/v1/groups/$group/invite", server.sent.single().let { it.method to it.path })
-
-        // A group with its members: who keeps it, and which of them is the pilot.
+        // A group with its members: who owns it, and which of them is the pilot.
         server.sent.clear()
         val detail = groups.detail(group)
         assertEquals("GET" to "/v1/groups/$group", server.sent.single().let { it.method to it.path })
         assertEquals(listOf("demo", "mara", "jonas"), detail.members.map { it.handle })
         val me = detail.members.first()
-        assertTrue(me.isMe && me.isKeeper)
-        assertEquals("Demo Pilot (you)", GroupWords.name(me))
-        assertEquals("@demo, Keeper", GroupWords.spoken(me))
-        assertEquals("Mara Muster", GroupWords.name(detail.members[1]))
-        assertEquals("@mara", GroupWords.spoken(detail.members[1]))
+        assertTrue(me.isMe)
+        assertEquals(CommunityRole.OWNER, me.role)
+        assertEquals("Demo Pilot (you)", GroupWords.you(me.name))
+        assertTrue(detail.canModerate && detail.canPost && !detail.canJoin)
 
         // What a keeper does to a group and its members.
         server.sent.clear()
-        groups.rename(group, "Mustergruppe Süd")
-        assertEquals(listOf("PATCH", "GET"), server.methods())
-        server.sent.clear()
         groups.handOver(group, "mara")
-        assertEquals(listOf("PUT", "GET"), server.methods())
+        assertEquals(listOf("PUT", "GET", "GET", "GET"), server.methods())
         server.sent.clear()
         groups.remove("jonas", from = group)
-        assertEquals(listOf("DELETE", "GET"), server.methods())
+        assertEquals(listOf("DELETE", "GET", "GET", "GET"), server.methods())
         assertTrue(server.sent.first().path.endsWith("/jonas"))
         server.sent.clear()
         groups.leave(group)
-        assertEquals(listOf("DELETE", "GET"), server.methods())
+        assertEquals(listOf("DELETE", "GET", "GET", "GET"), server.methods())
         server.sent.clear()
         groups.deleteGroup(group)
         assertEquals("DELETE" to "/v1/groups/$group", server.sent.first().let { it.method to it.path })
@@ -277,22 +255,20 @@ class GroupsModelTest {
         assertNotNull(groups.board)
         server.sent.clear()
 
-        // A code that lets nobody in: the server's refusal in the core's words.
-        server.instead = { request -> if (request.path.endsWith("/join")) refusal(403, "invalid_group_invite") else null }
-        val refused = checkNotNull(groups.attempt { groups.join("0000-0000-0000-0000") })
-        assertTrue(refused, refused.startsWith("This is not a group's invite code"))
+        // A member who may not invite: the server's refusal in the core's words.
+        server.instead = { request -> if (request.path.endsWith("/invites")) refusal(403, "not_group_keeper") else null }
+        val refused = checkNotNull(groups.attempt { groups.invite("mara", GROUP) })
+        assertTrue(refused, refused.isNotBlank())
         // Nothing changed, so the board is not asked for again.
         assertEquals(listOf("POST"), server.methods())
-        server.instead = { request -> if (request.method == "PATCH") refusal(403, "not_group_keeper") else null }
-        assertEquals("Only the group's keeper can do this.", groups.attempt { groups.rename(GROUP, "Anders") })
 
         // A name of nothing but spaces is refused before anything is sent.
         server.instead = { null }
         server.sent.clear()
-        assertNotNull(groups.attempt { groups.make("   ") })
+        assertNotNull(groups.attempt { groups.create(CommunityDraft("   ", "", null), isPublic = true, picture = null) })
         assertTrue(server.sent.isEmpty())
         // And what works says nothing.
-        assertNull(groups.attempt { groups.newInvite(GROUP) })
+        assertNull(groups.attempt { groups.setAdmin("mara", GROUP, isAdmin = true) })
 
         // Without a network the board says so and keeps what it had.
         server.instead = { throw IOException("no route to host") }
@@ -310,7 +286,7 @@ class GroupsModelTest {
         assertNull(groups.board)
         assertNull(groups.problem)
         // And the core puts no request together for nobody.
-        assertEquals("This device is not signed in.", groups.attempt { groups.make("Zweite Mustergruppe") })
+        assertEquals("This device is not signed in.", groups.attempt { groups.find(null, "Muster") })
     }
 
     @Test
@@ -334,33 +310,6 @@ class GroupsModelTest {
         assertNull(PlanWords.time("25:00"))
         assertNull(PlanWords.time("9"))
         assertNull(PlanWords.time("nine:thirty"))
-    }
-
-    @Test
-    fun everythingDoneToAGroupIsAskedAboutWithWhatItMeans() {
-        val mara = GroupMember(handle = "mara", name = "Mara Muster", isKeeper = false, isMe = false)
-        val all = listOf(
-            GroupWords.Asking.NewCode,
-            GroupWords.Asking.Leave,
-            GroupWords.Asking.Delete,
-            GroupWords.Asking.Remove(mara),
-            GroupWords.Asking.HandOver(mara),
-        )
-        for (asking in all) {
-            assertTrue(GroupWords.question(asking).endsWith("?"))
-            assertTrue(GroupWords.consequence(asking).endsWith("."))
-            assertTrue(GroupWords.confirm(asking).isNotBlank())
-        }
-        assertEquals("Make a new invite code?", GroupWords.question(GroupWords.Asking.NewCode))
-        assertEquals("Remove Mara Muster from the group?", GroupWords.question(GroupWords.Asking.Remove(mara)))
-        assertEquals("Make Mara Muster the keeper?", GroupWords.question(GroupWords.Asking.HandOver(mara)))
-        // Removing a member ends the invite code, which they know.
-        assertTrue(GroupWords.consequence(GroupWords.Asking.Remove(mara)).contains("invite code"))
-        // What takes something away for good is set in the warning colour.
-        assertEquals(
-            listOf(false, true, true, true, false),
-            all.map(GroupWords::isDestructive),
-        )
     }
 
     private companion object {

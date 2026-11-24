@@ -43,6 +43,9 @@ class AlertsModel(
     private val clock: () -> Long = System::currentTimeMillis,
     private val background: CoroutineDispatcher = Dispatchers.IO,
 ) {
+    /** The cursor of what the alarms fired up to the last fetch, for the Community tab's mark; `null` before the first. */
+    fun firedCursor(): String? = runCatching { core.alertsFiredCursor() }.getOrNull()
+
     /** The account's alarms, the oldest first, as last fetched. */
     var held: List<AlertView> by mutableStateOf(emptyList())
         private set

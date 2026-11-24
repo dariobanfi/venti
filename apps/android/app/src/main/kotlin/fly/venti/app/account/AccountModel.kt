@@ -23,6 +23,7 @@ import fly.venti.core.SignedIn
 import fly.venti.core.SyncStep
 import fly.venti.core.SyncSummary
 import fly.venti.core.reportRequest
+import fly.venti.core.messageReportRequest
 import fly.venti.core.reportSent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -696,6 +697,16 @@ class AccountModel(
      */
     suspend fun report(subject: ReportSubject, reason: ReportReason, text: String): ReportOutcome = try {
         val answer = answer(withContext(background) { reportRequest(subject, reason, text) })
+        ReportOutcome(sent = withContext(background) { reportSent(answer.status16, answer.body) })
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        ReportOutcome(problem = words(error))
+    }
+
+    /** Reports a message of a group, or a picture sent with one (`picture`, `id` the picture's). */
+    suspend fun reportMessage(group: String, id: String, picture: Boolean, reason: ReportReason, text: String): ReportOutcome = try {
+        val answer = answer(withContext(background) { messageReportRequest(group, id, picture, reason, text) })
         ReportOutcome(sent = withContext(background) { reportSent(answer.status16, answer.body) })
     } catch (error: CancellationException) {
         throw error

@@ -126,6 +126,9 @@ fun LeagueScreen(
     /** An open plan a notification is about, to open on Community. */
     opensOpenPlan: String? = null,
     onOpenPlanOpened: () -> Unit = {},
+    /** The groups' section and a group's chat, pages of their own. */
+    onOpenGroups: () -> Unit = {},
+    onOpenChat: (String, String) -> Unit = { _, _ -> },
 ) {
     // Which list shows: Community, everyone's flights, or the ranking.
     var showing by rememberSaveable { mutableStateOf(LeagueList.Community) }
@@ -190,6 +193,8 @@ fun LeagueScreen(
                     onOpenFlight = onOpenFlight,
                     onOpenPilot = onOpenPilot,
                     onOpenPlans = { plans = it },
+                    onOpenGroups = onOpenGroups,
+                    onOpenChat = onOpenChat,
                     onOpenOpenPlan = { openPlan = it },
                     onOpenFeed = onOpenFeed,
                     onOpenNotifications = onOpenNotifications,
@@ -213,7 +218,7 @@ fun LeagueScreen(
             wind = wind,
             startAt = (opening as? PlansOpening.Plan)?.id,
             opensNewPlan = opening == PlansOpening.NewPlan,
-            opensGroups = opening == PlansOpening.Groups,
+            onOpenGroups = onOpenGroups,
         )
     }
 

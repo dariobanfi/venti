@@ -70,15 +70,15 @@ class UnreadModelTest {
         val seen = server.asked.single()
         assertEquals("PUT", seen.method)
         val body = String(checkNotNull(seen.body))
-        // The other list is named with the cursor that moves no mark.
+        // The other list is left out: its mark stays where it is.
         assertTrue(body, body.contains("\"notifications_cursor\":\"17\""))
-        assertTrue(body, body.contains("\"alarms_cursor\":\"${UnreadModel.NOT_SHOWN}\""))
+        assertTrue(body, !body.contains("alarms_cursor"))
         assertEquals("1", server.model.badge)
 
-        server.model.sawAlarms()
+        server.model.sawAlarms(upTo = "5")
         val alarms = String(checkNotNull(server.asked.last().body))
-        assertTrue(alarms, alarms.contains("\"notifications_cursor\":\"${UnreadModel.NOT_SHOWN}\""))
-        assertTrue(alarms, !alarms.contains("alarms_cursor"))
+        assertTrue(alarms, !alarms.contains("notifications_cursor"))
+        assertTrue(alarms, alarms.contains("\"alarms_cursor\":\"5\""))
     }
 
     @Test

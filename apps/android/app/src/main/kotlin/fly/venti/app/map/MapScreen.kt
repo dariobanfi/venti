@@ -163,6 +163,8 @@ fun MapScreen(
     siteEdit: SiteEditModel? = null,
     /** Leads to the account, for a pilot who must sign in to add a site. */
     onSignIn: () -> Unit = {},
+    /** Opens the groups' section on the League tab, from the plans' sheet. */
+    onOpenGroups: () -> Unit = {},
     /** The ground, for what a glide reaches from a place pressed; `null` for none. */
     terrain: TerrainModel? = null,
     /** The cables of OpenStreetMap around what is in view; `null` where the map draws none. */
@@ -1221,6 +1223,7 @@ fun MapScreen(
             waypoints = waypoints,
             wind = wind,
             startAt = planOnMap,
+            onOpenGroups = onOpenGroups,
         )
     }
 

@@ -231,7 +231,7 @@ class SiteEditModelTest {
         assertEquals("2 pilots took off here, last on 16 November 2026", listed.words)
         // The list holds them all: nothing is said under it.
         assertEquals("", listed.notWholeWords)
-        assertTrue(listed.lines.first().words, listed.lines.first().words.startsWith("Mara Muster (@mara) on Mon 16 Nov 2026"))
+        assertTrue(listed.lines.first().words, listed.lines.first().words.startsWith("Mara Muster (@mara) on 16 Nov 2026"))
         assertTrue(server.sent.all { it.headers["Authorization"] == null })
 
         // The demo pilot is a partner: everything is offered on a partner's
@@ -321,7 +321,7 @@ class SiteEditModelTest {
         val today = LocalDate.of(2026, 11, 18)
         val form = edit.confirmForm(today)
         assertEquals("I took off here and it was good", form.title)
-        assertEquals(listOf("Today", "Yesterday", "Mon 16 Nov"), form.days.take(3).map { it.words })
+        assertEquals(listOf("Today", "Yesterday", "16 Nov 2026"), form.days.take(3).map { it.words })
         assertEquals("2026-11-17", form.days[1].day)
         assertEquals("12 / 200", SiteEditWords.room(12, form.noteAtMost))
 
@@ -336,7 +336,7 @@ class SiteEditModelTest {
         val sent = server.sent.single()
         assertEquals("PUT" to "/v1/sites/$ID/confirmation", sent.method to sent.path)
         assertTrue(checkNotNull(sent.headers["Authorization"]).startsWith("Bearer "))
-        assertEquals("You confirmed this site for Tue 17 Nov.", written.words)
+        assertEquals("You confirmed this site for 17 Nov 2026.", written.words)
         assertEquals(ID, written.site.id)
         // No flight of the logbook began there: the form shows no choice of one.
         assertTrue(edit.confirmFlights(written.site, form.days[1].day).isEmpty())
@@ -348,7 +348,7 @@ class SiteEditModelTest {
         val mine = listed.copy(lines = listed.lines.map { it.copy(by = it.by.copy(handle = "demo")) }.take(1))
         val offers = checkNotNull(edit.offers(written.site, mine))
         assertTrue(offers.hasConfirmed)
-        assertEquals("You confirmed this site for Mon 16 Nov 2026.", offers.confirmedWords)
+        assertEquals("You confirmed this site for 16 Nov 2026.", offers.confirmedWords)
         assertEquals("Change the day" to "Take my confirmation back", offers.confirm.words to offers.withdraw.words)
 
         server.sent.clear()

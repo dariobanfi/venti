@@ -55,6 +55,15 @@ sealed interface LeagueRoute {
 
     /** Everything the pilot was told, from Community. */
     data object Notifications : LeagueRoute
+
+    /** The groups' section: the pilot's groups, invites, groups near and found. */
+    data object Groups : LeagueRoute
+
+    /** A group's chat: its identifier, and its name until the server has said it. */
+    data class Chat(val id: String, val name: String) : LeagueRoute
+
+    /** A group's page: its members and what the pilot may do in it. */
+    data class Group(val id: String) : LeagueRoute
 }
 
 /** A screen reached from the settings. */
@@ -240,6 +249,13 @@ class AppNavigation {
         leaguePath += route
     }
 
+    /** The groups' section, on the League tab, from wherever it was asked for. */
+    fun showGroups() {
+        tab = AppTab.League
+        leaguePath.clear()
+        leaguePath += LeagueRoute.Groups
+    }
+
     /** One of everyone's flights, on the League tab, from wherever it was found. */
     fun showPublic(flight: String) {
         tab = AppTab.League
@@ -293,6 +309,9 @@ class AppNavigation {
         private const val PILOT = "pilot:"
         private const val FEED = "feed"
         private const val NOTIFICATIONS = "notifications"
+        private const val GROUPS = "groups"
+        private const val CHAT = "chat:"
+        private const val GROUP = "group:"
 
         /** Keeps the pilot's place when Android rebuilds the screen. */
         val Saver = listSaver<AppNavigation, String>(
@@ -317,6 +336,10 @@ class AppNavigation {
                             is LeagueRoute.Pilot -> "$PILOT${route.handle} ${route.name}"
                             LeagueRoute.Feed -> FEED
                             LeagueRoute.Notifications -> NOTIFICATIONS
+                            LeagueRoute.Groups -> GROUPS
+                            // An identifier has no space in it; a name may.
+                            is LeagueRoute.Chat -> "$CHAT${route.id} ${route.name}"
+                            is LeagueRoute.Group -> GROUP + route.id
                         }
                     }
             },
@@ -332,6 +355,11 @@ class AppNavigation {
                             route == TENDENCIES -> logbookPath += LogbookRoute.Tendencies
                             route == FEED -> leaguePath += LeagueRoute.Feed
                             route == NOTIFICATIONS -> leaguePath += LeagueRoute.Notifications
+                            route == GROUPS -> leaguePath += LeagueRoute.Groups
+                            route.startsWith(CHAT) -> route.removePrefix(CHAT).let { chat ->
+                                leaguePath += LeagueRoute.Chat(chat.substringBefore(' '), chat.substringAfter(' ', ""))
+                            }
+                            route.startsWith(GROUP) -> leaguePath += LeagueRoute.Group(route.removePrefix(GROUP))
                             route.startsWith(PUBLIC_FLIGHT) -> leaguePath += LeagueRoute.PublicFlight(route.removePrefix(PUBLIC_FLIGHT))
                             route.startsWith(PILOT) -> route.removePrefix(PILOT).let { pilot ->
                                 leaguePath += LeagueRoute.Pilot(pilot.substringBefore(' '), pilot.substringAfter(' ', ""))

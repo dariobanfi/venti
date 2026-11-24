@@ -1640,41 +1640,42 @@ class VentiUiTest {
         keepScreenshot("$prefix-plans-2-plan")
         tap(described("Back"))
 
-        // The groups, and one of them with its members and what its
-        // keeper can do.
+        // The groups: the sheet's link leads to the groups' section on the
+        // League tab, where the demo pilot's own group is a card. Its page
+        // has its members with the core's words for their roles and what
+        // its owner can do.
         waitFor(hasTestTag("plans-groups"))
         screen.onNode(hasTestTag("plans-groups")).performScrollTo()
         tap(hasTestTag("plans-groups"))
-        val group = hasTestTag("group-row") and described("Mustergruppe")
+        val group = hasTestTag("community-card") and described("Mustergruppe")
         waitFor(group)
-        assertTrue(exists(hasText("Make a group")))
-        assertTrue(exists(hasText("Join with a code")))
         tap(group)
+        waitFor(hasTestTag("chat-info"))
+        tap(hasTestTag("chat-info"))
         waitFor(hasTestTag("group-member"))
-        assertTrue(exists(hasTestTag("group-member") and described("Demo Pilot (you)") and saying("Keeper")))
+        assertTrue(exists(hasTestTag("group-member") and described("Demo Pilot (you)") and saying("Owner")))
         assertTrue(exists(hasTestTag("group-member") and described("Mara Muster")))
-        assertTrue(exists(hasText("New invite code")))
+        assertTrue(exists(hasTestTag("group-invite")))
         keepScreenshot("$prefix-plans-3-group")
-        // A group one keeps is not reported: its keeper renames or deletes
-        // it. A member who does not keep a group has "Report this group".
+        // A group one owns is not reported: its owner changes or deletes
+        // it. A pilot who does not own a group has "Report this group".
         assertFalse(exists(hasTestTag("group-report")))
         tap(described("Back"))
+        waitFor(hasTestTag("chat-info"))
+        tap(described("Back"))
 
-        // The development server has a second made-up group, which another
-        // pilot keeps: the demo pilot comes into it with its invite code,
-        // which is no secret, and can then report it. The form is looked
-        // at and not sent. The pilot leaves the group again: the other
-        // appearance's test finds the server as this one did.
-        waitFor(hasTestTag("group-join"))
-        tap(hasTestTag("group-join"))
-        waitFor(hasTestTag("group-typed"))
-        screen.onNode(hasTestTag("group-typed")).performTextInput("5555-5555-5555-5555")
-        press(hasText("Join") and hasClickAction())
-        val theirGroup = hasTestTag("group-row") and described("Beispielgruppe")
+        // A public group of the development server's, found by its place:
+        // its page has "Report this group", whose form is looked at and
+        // not sent.
+        waitFor(hasTestTag("groups-search"))
+        screen.onNode(hasTestTag("groups-search")).performTextInput("Rosenheim")
+        val theirGroup = hasTestTag("found-group") and described("Rosenheimer Eagles")
         waitFor(theirGroup)
         tap(theirGroup)
+        waitFor(hasTestTag("chat-info"))
+        tap(hasTestTag("chat-info"))
         waitFor(hasTestTag("group-report"))
-        assertTrue(exists(hasTestTag("group-member") and described("Mara Muster") and saying("Keeper")))
+        assertTrue(exists(hasTestTag("group-member") and described("Jonas Beispiel") and saying("Owner")))
         screen.onNode(hasTestTag("group-report")).performScrollTo().performClick()
         waitFor(hasTestTag("report-reason"))
         assertTrue(exists(hasText("Report this group")))
@@ -1682,13 +1683,13 @@ class VentiUiTest {
         keepScreenshot("$prefix-groups-1-report")
         tap(hasTestTag("report-close"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("report-reason")) }
-        screen.onNode(hasText("Leave the group")).performScrollTo().performClick()
-        waitFor(hasTestTag("group-confirm"))
-        tap(hasTestTag("group-confirm"))
-        waitFor(hasTestTag("group-join"))
-        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(theirGroup) }
-        tap(hasText("Done") and hasClickAction())
-        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("groups")) }
+        tap(described("Back"))
+        waitFor(hasTestTag("chat-info"))
+        tap(described("Back"))
+        waitFor(hasTestTag("groups"))
+        tap(described("Back"))
+        waitFor(tab("Map"))
+        tap(tab("Map"))
 
         // Today's plan with a place on the map is marked there.
         val scenario = checkNotNull(app)
@@ -6504,6 +6505,156 @@ class VentiUiTest {
 
     @Test
     fun theCommunityGathersPlansFlightsAndPilots() = inEveryLook { walkTheCommunity("light", dark = false) }
+
+    /** Opens the groups' section from Community, signed in as the demo pilot. */
+    private fun openTheGroups() {
+        signInAsTheDemoPilot()
+        tap(described("Back"))
+        waitFor(tab("Community"))
+        tap(tab("Community"))
+        waitFor(hasTestTag("league-community") and isSelected())
+        scrollInCommunity(hasTestTag("community-groups"))
+        tap(hasTestTag("community-groups"))
+        waitFor(hasTestTag("groups"))
+    }
+
+    /** A message of the chat by what it says. */
+    private fun chatMessage(text: String) = hasTestTag("chat-message") and hasText(text, substring = true)
+
+    /**
+     * Groups as communities with a chat (owner decision 26), against the
+     * development server's six public groups: standing in Munich, the
+     * groups near; one found by its place; its chat read before joining,
+     * with "Join" in place of the field; joined, a message posted, another
+     * pilot's message reported (the form looked at, not sent), the own
+     * message removed; the group's page with its members, muted and left
+     * again, so that the next run finds the server as this one did.
+     * Skipped without a server.
+     */
+    @Test
+    fun aPublicGroupIsFoundJoinedAndTalkedIn() = inEveryLook {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        TestDevice.allowToRecordAFlight()
+        TestDevice.standAt(48.137, 11.575)
+        try {
+            launch { putExtra(LaunchOptions.SERVER, server) }
+            openTheGroups()
+            waitFor(hasTestTag("found-group") and described("Munich International Paragliders"))
+            assertTrue(exists(hasTestTag("group-join")))
+            keepScreenshot("light-groups-1-near")
+
+            screen.onNode(hasTestTag("groups-search")).performTextInput("Tegernsee")
+            val found = hasTestTag("found-group") and described("Tegernsee Thermikrunde")
+            waitFor(found)
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+                !exists(hasTestTag("found-group") and described("Munich International Paragliders"))
+            }
+            keepScreenshot("light-groups-2-found")
+            tap(found)
+
+            // Read before joining: a public group's chat, with "Join" in place of the field.
+            waitFor(chatMessage("Wallberg south looked good this morning."))
+            waitFor(hasTestTag("chat-join"))
+            assertFalse(exists(hasTestTag("chat-text")))
+            keepScreenshot("light-groups-3-before-joining")
+            tap(hasTestTag("chat-join"))
+            waitFor(hasTestTag("chat-text"))
+
+            val said = "Who flies tomorrow? ${System.currentTimeMillis() % 100_000}"
+            screen.onNode(hasTestTag("chat-text")).performTextInput(said)
+            waitFor(hasTestTag("chat-send") and isEnabled())
+            tap(hasTestTag("chat-send"))
+            waitFor(chatMessage(said))
+            keepScreenshot("light-groups-4-chat")
+
+            // Another pilot's message is reported, by a long press.
+            screen.onAllNodes(chatMessage("Wallberg south looked good this morning.")).onFirst().performTouchInput { longClick() }
+            waitFor(hasTestTag("message-report"))
+            assertFalse(exists(hasTestTag("message-remove")))
+            tap(hasTestTag("message-report"))
+            waitFor(hasTestTag("report-reason"))
+            assertTrue(exists(hasText("Report this message")))
+            assertTrue(exists(hasTestTag("report-send") and isNotEnabled()))
+            keepScreenshot("light-groups-5-report")
+            tap(hasTestTag("report-close"))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("report-reason")) }
+
+            // The pilot's own is removed, and keeps its place.
+            screen.onAllNodes(chatMessage(said)).onFirst().performTouchInput { longClick() }
+            waitFor(hasTestTag("message-remove"))
+            tap(hasTestTag("message-remove"))
+            waitFor(hasTestTag("message-remove-confirm"))
+            tap(hasTestTag("message-remove-confirm"))
+            waitFor(chatMessage("Removed by its author"))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(chatMessage(said)) }
+
+            // The group's page: its members, mute, and leaving again.
+            tap(hasTestTag("chat-info"))
+            waitFor(hasTestTag("group-member") and described("Demo Pilot (you)"))
+            assertTrue(exists(hasTestTag("group-member") and described("Timo Entwurf") and saying("Owner")))
+            assertTrue(exists(hasTestTag("group-report")))
+            assertFalse(exists(hasTestTag("group-invite")))
+            screen.onNode(hasTestTag("group-mute")).performScrollTo()
+            waitFor(hasTestTag("group-mute") and isOff())
+            tap(hasTestTag("group-mute"))
+            waitFor(hasTestTag("group-mute") and isOn())
+            keepScreenshot("light-groups-6-page")
+            screen.onNode(hasTestTag("group-leave")).performScrollTo().performClick()
+            waitFor(hasTestTag("group-confirm"))
+            tap(hasTestTag("group-confirm"))
+            waitFor(hasTestTag("groups"))
+        } finally {
+            TestDevice.noMadeUpPosition()
+        }
+    }
+
+    /**
+     * A private group made from the groups' section, without a home: its
+     * chat opens empty, its page invites a pilot by handle (the core's
+     * line of what was done), and its owner deletes it again. Skipped
+     * without a server.
+     */
+    @Test
+    fun aPrivateGroupIsMadeAndAPilotInvited() = inBothAppearances {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        openTheGroups()
+        waitFor(hasTestTag("community-card") and described("Mustergruppe"))
+        tap(hasTestTag("groups-new"))
+        waitFor(hasTestTag("group-form-name"))
+        val name = "Testgruppe ${System.currentTimeMillis() % 100_000}"
+        screen.onNode(hasTestTag("group-form-name")).performTextInput(name)
+        screen.onNode(hasTestTag("group-form-description")).performTextInput("Made by a test, and gone again.")
+        tap(hasText("Private"))
+        waitFor(hasText("Only its members read it", substring = true))
+        tap(hasText("None"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("group-form-place")) }
+        keepScreenshot("light-groups-7-new-group")
+        tap(hasTestTag("group-form-save"))
+
+        waitFor(hasTestTag("chat-empty"))
+        assertTrue(exists(hasText(name)))
+        keepScreenshot("light-groups-8-new-chat")
+        tap(hasTestTag("chat-info"))
+        waitFor(hasTestTag("group-invite"))
+        assertTrue(exists(hasTestTag("group-member") and described("Demo Pilot (you)") and saying("Owner")))
+        assertFalse(exists(hasTestTag("group-report")))
+        tap(hasTestTag("group-invite"))
+        waitFor(hasTestTag("group-invite-handle"))
+        screen.onNode(hasTestTag("group-invite-handle")).performTextInput("@Mara")
+        tap(hasTestTag("group-invite-send"))
+        waitFor(hasTestTag("group-outcome"))
+        assertTrue(exists(hasTestTag("group-outcome") and hasText("Invited to $name.")))
+        keepScreenshot("light-groups-9-invited")
+
+        screen.onNode(hasTestTag("group-delete")).performScrollTo().performClick()
+        waitFor(hasTestTag("group-confirm"))
+        tap(hasTestTag("group-confirm"))
+        waitFor(hasTestTag("groups"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("community-card") and described(name)) }
+    }
 
     /** Scrolls Community to something, once its lazy list has it. */
     private fun scrollInCommunity(what: SemanticsMatcher) {

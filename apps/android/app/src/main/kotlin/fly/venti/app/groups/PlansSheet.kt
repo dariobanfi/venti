@@ -91,10 +91,6 @@ private sealed interface Page {
     /** The form for a plan: a new one, or the pilot's own to change. */
     data class Form(val editing: String?) : Page
 
-    data object Groups : Page
-
-    data class Group(val id: String, val name: String) : Page
-
     /** The forecast for a plan's place. */
     data class Forecast(val place: ForecastPlace) : Page
 }
@@ -124,8 +120,10 @@ fun PlansSheet(
     startAt: String? = null,
     /** Opens the form for a new plan at once, as Community's "New plan" does. */
     opensNewPlan: Boolean = false,
-    /** Opens the groups at once, as Community's "Groups" does. */
-    opensGroups: Boolean = false,
+    /** The group a new plan is posted to, where the sheet was opened from its chat; else the pilot chooses. */
+    inGroup: String? = null,
+    /** Opens the groups' section, a page of the League tab: the sheet is closed first. */
+    onOpenGroups: () -> Unit = {},
 ) {
     var path by remember {
         mutableStateOf(
@@ -133,7 +131,6 @@ fun PlansSheet(
                 Page.Board,
                 startAt?.let { Page.Plan(it) },
                 Page.Form(editing = null).takeIf { opensNewPlan },
-                Page.Groups.takeIf { opensGroups },
             ),
         )
     }
@@ -177,8 +174,6 @@ fun PlansSheet(
                             Page.Board -> "Flying plans"
                             is Page.Plan -> "Plan"
                             is Page.Form -> if (page.editing == null) "New plan" else "Change the plan"
-                            Page.Groups -> "Groups"
-                            is Page.Group -> page.name
                             is Page.Forecast -> page.place.name
                         },
                         style = MaterialTheme.typography.titleLarge,
@@ -201,7 +196,15 @@ fun PlansSheet(
                     TextButton(onClick = onDismiss) { Text(Common.words.done) }
                 }
                 when (page) {
-                    Page.Board -> Board(groups, account, onPlan = { open(Page.Plan(it)) }, onGroups = { open(Page.Groups) })
+                    Page.Board -> Board(
+                        groups,
+                        account,
+                        onPlan = { open(Page.Plan(it)) },
+                        onGroups = {
+                            onDismiss()
+                            onOpenGroups()
+                        },
+                    )
                     is Page.Plan -> PlanPage(
                         page.id,
                         groups,
@@ -211,17 +214,16 @@ fun PlansSheet(
                         onForecast = wind?.let { { place -> open(Page.Forecast(place)) } },
                         onReport = { reporting = it },
                     )
-                    is Page.Form -> PlanForm(page.editing?.let(groups::plan), groups, requests, waypoints, onSaved = back)
-                    is Page.Forecast -> Unit
-                    Page.Groups -> GroupsPage(groups, requests, onGroup = { open(Page.Group(it.id, it.name)) })
-                    is Page.Group -> GroupPage(
-                        page.id,
+                    is Page.Form -> PlanForm(
+                        page.editing?.let(groups::plan),
                         groups,
                         requests,
-                        onRenamed = { name -> path = path.dropLast(1) + Page.Group(page.id, name) },
-                        onGone = back,
-                        onReport = { reporting = it },
+                        waypoints,
+                        inGroup = inGroup.takeIf { page.editing == null },
+                        // Opened at the form from a chat, the sheet closes once the plan is posted.
+                        onSaved = if (inGroup != null) onDismiss else back,
                     )
+                    is Page.Forecast -> Unit
                 }
             }
         }
@@ -512,13 +514,15 @@ private fun PlanForm(
     groups: GroupsModel,
     requests: CoroutineScope,
     waypoints: WaypointsModel?,
+    /** The group a new plan is posted to; `null` where the pilot chooses. */
+    inGroup: String? = null,
     onSaved: () -> Unit,
 ) {
     // Where the place is on the map: from the pilot's own waypoints.
     var position by remember { mutableStateOf(editing?.position) }
     var isPickingWaypoint by remember { mutableStateOf(false) }
     // Starts from the plan being changed, or from today in the first group.
-    var group by remember { mutableStateOf(editing?.groupId ?: groups.groups.firstOrNull()?.id.orEmpty()) }
+    var group by remember { mutableStateOf(editing?.groupId ?: inGroup ?: groups.groups.firstOrNull()?.id.orEmpty()) }
     var day by remember { mutableStateOf(editing?.day?.let(PlanWords::date) ?: LocalDate.now()) }
     var place by remember { mutableStateOf(editing?.place.orEmpty()) }
     var time by remember { mutableStateOf(editing?.meetAt?.let(PlanWords::time)) }
@@ -534,7 +538,7 @@ private fun PlanForm(
             .verticalScroll(rememberScrollState())
             .padding(start = 16.dp, end = 16.dp, bottom = 32.dp),
     ) {
-        if (editing == null && groups.groups.size > 1) {
+        if (editing == null && inGroup == null && groups.groups.size > 1) {
             SectionHeader("Group")
             Group {
                 for (choice in groups.groups) {

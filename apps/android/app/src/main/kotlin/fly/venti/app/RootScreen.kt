@@ -63,6 +63,9 @@ import fly.venti.app.live.LocalAir
 import fly.venti.app.airspace.AirspaceScreen
 import fly.venti.app.assistant.AssistantScreen
 import fly.venti.app.community.FeedScreen
+import fly.venti.app.groups.ChatScreen
+import fly.venti.app.groups.GroupPage
+import fly.venti.app.groups.GroupsScreen
 import fly.venti.app.community.LeagueScreen
 import fly.venti.app.community.NotificationsScreen
 import fly.venti.app.community.PilotFlightsScreen
@@ -733,6 +736,7 @@ private fun Sections(
                     terrain = session.terrain,
                     cables = session.cables,
                     air = session.air,
+                    onOpenGroups = { navigation.showGroups() },
                 )
             }
             AppTab.Fly -> when (navigation.flyRoute) {
@@ -820,6 +824,8 @@ private fun Sections(
                         onOpenHelp = { navigation.help = it },
                         opensOpenPlan = navigation.openPlanAsked,
                         onOpenPlanOpened = { navigation.openPlanAsked = null },
+                        onOpenGroups = { navigation.open(LeagueRoute.Groups) },
+                        onOpenChat = { id, name -> navigation.open(LeagueRoute.Chat(id, name)) },
                     )
                 }
                 LeagueRoute.Feed -> kept.SaveableStateProvider("feed") {
@@ -860,6 +866,93 @@ private fun Sections(
                                 terrain = session.terrain,
                             )
                         }
+                    }
+                }
+                LeagueRoute.Groups -> kept.SaveableStateProvider("groups") {
+                    GroupsScreen(
+                        session.groups,
+                        session.account,
+                        requests = session.scope,
+                        onBack = { navigation.back() },
+                        onOpenChat = { id, name -> navigation.open(LeagueRoute.Chat(id, name)) },
+                    )
+                }
+                is LeagueRoute.Group -> GroupPage(
+                    route.id,
+                    session.groups,
+                    session.account,
+                    requests = session.scope,
+                    onBack = { navigation.back() },
+                    // Left or deleted: neither its page nor its chat is the pilot's to see.
+                    onGone = {
+                        navigation.back()
+                        if (navigation.leaguePath.lastOrNull() is LeagueRoute.Chat) navigation.back()
+                    },
+                )
+                is LeagueRoute.Chat -> {
+                    ChatScreen(
+                        route.id,
+                        route.name,
+                        session.groups,
+                        session.account,
+                        session.openPlans,
+                        requests = session.scope,
+                        waypoints = session.waypoints,
+                        wind = session.wind,
+                        onBack = { navigation.back() },
+                        onInfo = { navigation.open(LeagueRoute.Group(route.id)) },
+                        onLeft = {
+                            session.scope.launch {
+                                session.unread.read()
+                                session.groups.loadChats()
+                            }
+                        },
+                        onOpenFlight = { id ->
+                            session.scope.launch {
+                                try {
+                                    session.community.publicFlightById(id)
+                                } catch (error: CancellationException) {
+                                    throw error
+                                } catch (_: Exception) {
+                                    // No longer shown to the pilot: nothing opens.
+                                    return@launch
+                                }
+                                navigation.open(LeagueRoute.PublicFlight(id))
+                            }
+                        },
+                        onOpenSite = { id, _ ->
+                            session.scope.launch {
+                                // The site as the server has it now. One it no longer has opens nothing.
+                                val site = try {
+                                    session.siteEdit.page(id).site
+                                } catch (error: CancellationException) {
+                                    throw error
+                                } catch (_: Exception) {
+                                    return@launch
+                                }
+                                session.sites.show(around(site))
+                                pilotsSite = site
+                            }
+                        },
+                        onOpenPilot = { handle, name -> navigation.open(LeagueRoute.Pilot(handle, name)) },
+                        onSignIn = { navigation.showAccount() },
+                    )
+                    pilotsSite?.let { site ->
+                        SiteSheet(
+                            sites = session.sites,
+                            waypoints = session.waypoints,
+                            own = session.keptSites,
+                            wind = session.wind,
+                            showsList = false,
+                            chosen = site,
+                            onChoose = { pilotsSite = it },
+                            onDismiss = { pilotsSite = null },
+                            community = session.community,
+                            onOpenFlight = { flight ->
+                                pilotsSite = null
+                                navigation.open(LeagueRoute.PublicFlight(flight.id))
+                            },
+                        )
                     }
                 }
                 is LeagueRoute.Pilot -> kept.SaveableStateProvider("pilot-${route.handle}") {

@@ -22,8 +22,8 @@ import kotlinx.coroutines.withContext
  *
  * No count is kept on the phone: the server keeps the mark, and this reads
  * it when the app comes to the front, after signing in and out, when a
- * push arrives, and moves it when the pilot opened the notifications or
- * the alerts. The words are the core's (`social.rs`, `unread`); as on the
+ * push arrives, and moves one list's mark when the pilot opened the
+ * notifications or the alerts, leaving the other's where it is. The words are the core's (`social.rs`, `unread`); as on the
  * iPhone (`UnreadModel.swift`).
  */
 class UnreadModel(
@@ -64,17 +64,22 @@ class UnreadModel(
         ask(unreadRequest())
     }
 
-    /** The pilot was shown the notifications up to `cursor`, the cursor of the last answer the list read. */
+    /**
+     * The pilot was shown the notifications up to `upTo`, the cursor of
+     * the last answer the list read (`null`: up to the newest). The
+     * alarms' mark stays where it is.
+     */
     suspend fun sawNotifications(upTo: String?) {
-        seen(notificationsCursor = upTo, alarmsCursor = NOT_SHOWN)
+        seen(notificationsCursor = upTo ?: NEWEST, alarmsCursor = null)
     }
 
     /**
-     * The pilot was shown what the alarms fired: the list is everything the
-     * last sync brought, so the mark goes up to the newest.
+     * The pilot was shown what the alarms fired, up to `upTo`: the core's
+     * `alertsFiredCursor` after the fetch (`null`: up to the newest). The
+     * notifications' mark stays where it is.
      */
-    suspend fun sawAlarms() {
-        seen(notificationsCursor = NOT_SHOWN, alarmsCursor = null)
+    suspend fun sawAlarms(upTo: String?) {
+        seen(notificationsCursor = null, alarmsCursor = upTo ?: NEWEST)
     }
 
     /** Moves the mark, then takes the count the answer gives; where the mark could not be moved, reads it anew. */
@@ -109,14 +114,8 @@ class UnreadModel(
     }
 
     companion object {
-        /**
-         * The cursor that moves no mark: the server's marks only move
-         * forward, so a list named with it is left as it was
-         * (`crates/server/src/api/unread.rs`, `seen`). A list the request
-         * leaves out is seen up to its newest line, which is not what the
-         * pilot saw when they opened the other list.
-         */
-        const val NOT_SHOWN = "0"
+        /** What the core takes for "up to the newest" (`unreadSeenRequest`); `null` leaves a list's mark where it is. */
+        const val NEWEST = ""
 
         /** The core's form of a badge: the count, "99+" over 99, none for 0. */
         fun badge(count: UInt): String? = when {

@@ -41,6 +41,8 @@ import fly.venti.core.ReportForm
 import fly.venti.core.ReportReason
 import fly.venti.core.ReportReasonChoice
 import fly.venti.core.ReportSubject
+import fly.venti.app.groups.GroupWords
+import fly.venti.core.messageReportForm
 import fly.venti.core.reportFormFor
 import fly.venti.core.siteWords
 import kotlinx.coroutines.CoroutineScope
@@ -52,8 +54,21 @@ data class Reported(
     val subject: ReportSubject,
     /** The form's title, and the words of the entry that opens it. */
     val title: String,
+    /** A message of a group, or a picture sent with one, where that is what is reported: the core has a request of its own for it. */
+    val message: Message? = null,
 ) {
+    /** A message of a group, or one of its pictures, by its identifier. */
+    data class Message(val group: String, val id: String, val isPicture: Boolean)
+
     companion object {
+        /** A message of a group: its words. */
+        fun message(id: String, group: String) =
+            Reported(ReportSubject.Group(group), GroupWords.REPORT_MESSAGE, Message(group, id, isPicture = false))
+
+        /** A picture sent with a message of a group. */
+        fun messagePicture(id: String, group: String) =
+            Reported(ReportSubject.Group(group), GroupWords.REPORT_THIS_PICTURE, Message(group, id, isPicture = true))
+
         fun flight(id: String) = Reported(ReportSubject.Flight(id), "Report this flight")
 
         fun pilot(handle: String) = Reported(ReportSubject.Pilot(handle), "Report this pilot")
@@ -140,11 +155,18 @@ fun ReportSheet(
     ReportSheet(
         title = reported.title,
         // The reasons and the notice for this kind of thing: a group's and a plan's are their own.
-        form = remember(reported.subject) { reportFormFor(reported.subject) },
+        form = remember(reported) { if (reported.message != null) messageReportForm() else reportFormFor(reported.subject) },
         account = account,
         server = server,
         requests = requests,
-        send = { reason, text -> account.report(reported.subject, reason, text) },
+        send = { reason, text ->
+            val message = reported.message
+            if (message == null) {
+                account.report(reported.subject, reason, text)
+            } else {
+                account.reportMessage(message.group, message.id, message.isPicture, reason, text)
+            }
+        },
         onDismiss = onDismiss,
     )
 }

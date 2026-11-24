@@ -1,6 +1,6 @@
 package fly.venti.app.groups
 
-import fly.venti.core.GroupMember
+import fly.venti.app.design.Format
 import fly.venti.core.PlanView
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -13,7 +13,7 @@ object PlanWords {
 
     const val SIGNED_OUT =
         "Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, " +
-            "then make a group or join one with the code its keeper gives you."
+            "then make a group or join one."
 
     const val NO_GROUP =
         "You are in no group yet. A group is a few pilots who tell each other where they mean to fly; " +
@@ -27,7 +27,7 @@ object PlanWords {
         "A plan is seen by the members of its group and nobody else, and is removed two days after its day."
 
     const val FORM_FOOT =
-        "The members of the group see the plan, and nobody else. It is removed two days after its day."
+        "The plan is posted in the group's chat, with \"I'm in\" on its card. It is removed two days after its day."
 
     const val GONE = "This plan is no longer there."
 
@@ -71,79 +71,106 @@ object PlanWords {
     ).joinToString(" ")
 }
 
-/** What the groups' pages say, and what each thing a pilot can do to a group means. */
+/**
+ * What the groups' screens say that neither an answer nor the core's
+ * `communityWords()` carries: the iPhone's words (`GroupsScreens.swift`,
+ * `ChatScreen.swift`), word for word.
+ */
 object GroupWords {
-    const val WHAT_A_GROUP_IS =
-        "A group is seen by its members and nobody else; it cannot be searched for. Whoever makes it keeps " +
-            "it, and hands out its invite code."
+    const val SIGNED_OUT = "Groups are shared on Venti with an account. Sign in under Settings, Account."
+    const val INVITES = "Invites"
+    const val DECLINE = "Decline"
+    const val FOUND = "Found"
+    const val NONE_YET = "You are in no group yet. Join one near you, or make one."
+    const val NONE_YET_LONG =
+        "You are in no group yet. A group is a chat of pilots who fly together: public ones near you to join, or a private one of your own."
+    const val FIND_OR_MAKE = "Find or make one"
+    const val ALL = "All"
+    const val NEW_GROUP = "New group"
+    const val CHANGE_GROUP = "Change the group"
+    const val ABOUT = "About the group"
+    const val NEW_PLAN = "New plan"
+    const val MEMBERS = "Members"
+    const val HOME = "Home"
+    const val INVITE_A_PILOT = "Invite a pilot"
+    const val INVITE_BY_HANDLE = "Invite by handle"
+    const val BY_THE_HANDLE = "By the handle on their pilot's page."
+    const val HANDLE = "@handle"
+    const val EDIT = "Change name, description and home"
+    const val GIVE_PICTURE = "Give it a picture"
+    const val CHANGE_PICTURE = "Change the picture"
+    const val ANOTHER_PICTURE = "Another picture"
+    const val REMOVE_PICTURE = "Remove the picture"
+    const val PICTURE_NOTE = "Optional. Cut square."
+    const val PUBLIC_NOTE = "Anyone signed in finds, reads and joins a public group."
+    const val PRIVATE_NOTE = "Only members read a private group; you and its admins invite pilots into it."
+    const val FORM_PUBLIC_NOTE = "Anyone signed in finds, reads and joins it."
+    const val FORM_PRIVATE_NOTE = "Only its members read it; you and its admins invite pilots by handle."
+    const val MUTE_PUBLIC = "A public group's messages reach your phone only where they mention you."
+    const val MUTE_PRIVATE = "Each new message reaches your phone unless the group is muted."
+    const val DELETE = "Delete the group"
+    const val HAND_ON_FIRST = "Tap a member to hand the group on to them before you leave."
+    const val REPORT_GROUP = "Report this group"
+    const val LEAVE_QUESTION = "Leave this group?"
+    const val DELETE_QUESTION = "Delete this group?"
+    const val LEAVE_MEANS = "Its messages stay; your plans in it go with you."
+    const val DELETE_MEANS = "The group goes for every member, with its messages and plans."
+    const val MAKE_ADMIN = "Make admin"
+    const val MAKE_MEMBER = "Make a member again"
+    const val REMOVE_MEMBER = "Remove from the group"
+    const val NAME = "Name"
+    const val ABOUT_FIELD = "What the group is about"
+    const val HOME_AS_IT_IS = "As it is"
+    const val HOME_MAP = "Where the map is"
+    const val HOME_POSITION = "My position"
+    const val HOME_NONE = "None"
+    const val PLACE_FIELD = "The place, such as Inn valley"
+    const val HOME_NOTE = "Pilots near it find the group."
+    const val NO_POSITION = "Venti may not read the position."
+    const val WAITING_FOR_POSITION = "Waiting for the position…"
+    const val POSITION_UNKNOWN = "Venti does not know the position yet."
+    const val SAVE = "Save"
+    const val REMOVE = "Remove"
+    const val REMOVE_QUESTION = "Remove this message?"
+    const val REMOVE_MEANS = "It keeps its place in the chat, without its words, pictures and links."
+    const val REPORT_MESSAGE = "Report this message"
+    const val REPORT_THE_PICTURE = "Report the picture"
+    const val REPORT_THIS_PICTURE = "Report this picture"
+    const val PICTURE = "Picture"
+    const val ADD_PHOTOS = "Add photos"
+    const val TAKE_PHOTO_OUT = "Take the photo out"
 
-    const val MAKING = "You will keep it: you hand out its invite code and can remove a member."
+    /** The radius a home can have, kilometres, and its step. */
+    const val LEAST_RADIUS = 5.0
+    const val MOST_RADIUS = 100.0
+    const val RADIUS_STEP = 5.0
 
-    const val JOINING = "The group's keeper has the code."
+    /** At most this many photos go with a message (`docs/api.md`). */
+    const val MOST_PICTURES = 4
 
-    const val THE_CODE =
-        "Whoever has this code and an account on Venti can come into the group. It is shown this " +
-            "once: Venti keeps no copy that can be read. A new code can be made at any time and ends " +
-            "this one."
+    fun owner(name: String): String = "Make $name the owner"
 
-    const val KEEPING =
-        "You keep this group. A member's menu removes them or hands the keeping on. Removing a member ends " +
-            "the invite code, which they know."
+    fun you(name: String): String = "$name (you)"
 
-    const val LEAVING_AS_KEEPER =
-        "When you leave, the member who has been in longest keeps the group. Your plans go with you."
+    fun unread(badge: String): String = "$badge unread"
 
-    const val LEAVING = "Your plans, and your word on the plans of others, go with you."
+    fun reportPicture(index: Int, count: Int): String = if (count == 1) REPORT_THE_PICTURE else "Report picture ${index + 1}"
 
-    /** Something that is asked about before it is done. */
-    sealed interface Asking {
-        data object NewCode : Asking
+    fun around(radiusKm: Double): String = "${Format.whole(radiusKm)} km around"
 
-        data object Leave : Asking
+    fun home(radiusKm: Double, place: String): String = "${Format.whole(radiusKm)} km around $place"
 
-        data object Delete : Asking
-
-        data class Remove(val member: GroupMember) : Asking
-
-        data class HandOver(val member: GroupMember) : Asking
+    /** How many links of a message's text become cards, in a line; `null` for none. */
+    fun links(count: Int): String? = when (count) {
+        0 -> null
+        1 -> "The link shows as a card."
+        else -> "$count links show as cards."
     }
 
-    fun question(asking: Asking): String = when (asking) {
-        Asking.NewCode -> "Make a new invite code?"
-        Asking.Leave -> "Leave this group?"
-        Asking.Delete -> "Delete this group?"
-        is Asking.Remove -> "Remove ${asking.member.name} from the group?"
-        is Asking.HandOver -> "Make ${asking.member.name} the keeper?"
+    /** The invites into groups in a line, on Community. */
+    fun invites(words: List<String>): String? = when (words.size) {
+        0 -> null
+        1 -> words.single()
+        else -> "${words.size} invites into groups"
     }
-
-    /** What it means, said under the question. */
-    fun consequence(asking: Asking): String = when (asking) {
-        Asking.NewCode -> "The code handed out before stops working. Members stay in the group."
-        Asking.Leave -> "You will no longer see its plans, and yours are removed."
-        Asking.Delete -> "The group goes for every member, with all its plans."
-        is Asking.Remove ->
-            "Their plans go with them, and the invite code, which they know, stops working: nobody comes " +
-                "in until you make a new one."
-        is Asking.HandOver ->
-            "They will hand out the invite code and can remove members. You stay in the group as a member."
-    }
-
-    /** The button that does it. */
-    fun confirm(asking: Asking): String = when (asking) {
-        Asking.NewCode -> "Make a new code"
-        Asking.Leave -> "Leave the group"
-        Asking.Delete -> "Delete the group"
-        is Asking.Remove -> "Remove"
-        is Asking.HandOver -> "Make keeper"
-    }
-
-    /** Whether it takes something away for good, and is set in the warning colour. */
-    fun isDestructive(asking: Asking): Boolean = asking is Asking.Leave || asking is Asking.Delete || asking is Asking.Remove
-
-    /** A member's name in the list, with who it is. */
-    fun name(member: GroupMember): String = if (member.isMe) "${member.name} (you)" else member.name
-
-    /** A member's line for someone who cannot see it. */
-    fun spoken(member: GroupMember): String =
-        listOfNotNull("@${member.handle}", "Keeper".takeIf { member.isKeeper }).joinToString(", ")
 }

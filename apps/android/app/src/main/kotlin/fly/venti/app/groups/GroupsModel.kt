@@ -7,9 +7,15 @@ import androidx.compose.runtime.setValue
 import fly.venti.app.HttpAnswer
 import fly.venti.app.account.AccountModel
 import fly.venti.core.Core
-import fly.venti.core.GroupDetail
+import fly.venti.core.CommunityDetail
+import fly.venti.core.CommunityDraft
+import fly.venti.core.CommunityInvite
+import fly.venti.core.CommunityStanding
+import fly.venti.core.CommunityView
+import fly.venti.core.CommunityWords
+import fly.venti.core.FoundCommunity
 import fly.venti.core.GroupJoined
-import fly.venti.core.GroupMade
+import fly.venti.core.communityWords
 import fly.venti.core.GroupView
 import fly.venti.core.PlanBoard
 import fly.venti.core.PlanDraft
@@ -22,10 +28,13 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 /**
- * Groups and their plans for a flying day, on the pilot's Venti server.
+ * Groups as communities with a chat (owner decision 26) and their plans for
+ * a flying day, on the pilot's Venti server: the pilot's groups as cards,
+ * their invites, the public groups near a place or found by name, what an
+ * owner, an admin and a member can do, and each group's chat ([chat]).
  *
- * Nothing of it is kept on the phone: the board is asked for when it is
- * opened and after every change. The core puts the requests together and
+ * Nothing of it is kept on the phone: the board and the groups are asked
+ * for when they are opened and after every change. The core puts the requests together and
  * reads the answers; the account sends them with the session's token.
  */
 class GroupsModel(
@@ -51,7 +60,6 @@ class GroupsModel(
 
     val groups: List<GroupView> get() = board?.groups.orEmpty()
 
-    /** The plan with an identifier, as the board has it now. */
     /**
      * The plans of today and tomorrow that say where on the map they are:
      * who flies where, for the map to mark. A plan for next week is in the
@@ -104,52 +112,151 @@ class GroupsModel(
         account.words(error)
     }
 
-    // Groups
+    // Groups as communities with a chat (owner decision 26)
 
-    suspend fun make(name: String): GroupMade {
-        val made = send({ core.createGroupRequest(name) }) { status, body -> core.groupMade(status, body) }
-        load()
-        return made
+    /** The words of the groups' screens that no answer carries: the core's. */
+    val words: CommunityWords = communityWords()
+
+    /**
+     * The pilot's groups as the groups' section shows them, each with its
+     * unread messages and its last message. `null` until Venti answered.
+     */
+    var chats: List<CommunityView>? by mutableStateOf(null)
+        private set
+
+    /** Why the pilot's groups are not there, in words for the pilot. */
+    var chatsProblem: String? by mutableStateOf(null)
+        private set
+
+    /** The pilot's invites into private groups. */
+    var invites: List<CommunityInvite> by mutableStateOf(emptyList())
+        private set
+
+    /** Asks for the pilot's groups and their invites. */
+    suspend fun loadChats() {
+        if (!account.isSignedIn) {
+            chats = null
+            invites = emptyList()
+            chatsProblem = null
+            return
+        }
+        try {
+            chats = send({ core.groupsRequest() }) { status, body -> core.communities(status, body) }
+            chatsProblem = null
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            chatsProblem = account.words(error)
+        }
+        try {
+            invites = send({ core.groupInvitesRequest() }) { status, body -> core.groupInvites(status, body) }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // The invites stay as they were: the groups' line says what went wrong.
+        }
     }
 
-    suspend fun join(code: String): GroupJoined {
-        val joined = send({ core.joinGroupRequest(code) }) { status, body -> core.groupJoined(status, body) }
-        load()
+    /** The public groups near a place, by name or place, or both. */
+    suspend fun find(near: Coordinate?, text: String): List<FoundCommunity> =
+        send({ core.findGroupsRequest(near, text) }) { status, body -> core.foundGroups(status, body) }
+
+    /** A group with its members, and what the pilot may do in it. */
+    suspend fun detail(id: String): CommunityDetail =
+        send({ core.groupRequest(id) }) { status, body -> core.community(status, body) }
+
+    /**
+     * Makes a group with the pilot as its owner, with its picture if one was
+     * chosen. The answer to the making is the group without its members, so
+     * the core's `groupMade` reads it and the group is asked for after.
+     */
+    suspend fun create(draft: CommunityDraft, isPublic: Boolean, picture: Pair<ByteArray, String>?): CommunityDetail {
+        val made = send({ core.createCommunityRequest(draft, isPublic) }) { status, body -> core.groupMade(status, body) }
+        val id = made.group.id
+        val shown = if (picture != null) setPicture(id, picture) else detail(id)
+        reloadAll()
+        return shown
+    }
+
+    /** Changes a group's name, description and home. */
+    suspend fun change(id: String, draft: CommunityDraft): CommunityDetail {
+        val changed = send({ core.changeCommunityRequest(id, draft) }) { status, body -> core.community(status, body) }
+        reloadAll()
+        return changed
+    }
+
+    /** Makes a group public or private: its owner's. */
+    suspend fun setPublic(id: String, isPublic: Boolean): CommunityDetail {
+        val changed = send({ core.groupPublicRequest(id, isPublic) }) { status, body -> core.community(status, body) }
+        loadChats()
+        return changed
+    }
+
+    /** Gives a group its picture: the bytes and their media type. */
+    suspend fun setPicture(id: String, picture: Pair<ByteArray, String>): CommunityDetail =
+        send({ core.groupOwnPictureRequest(id, picture.first, picture.second) }) { status, body -> core.community(status, body) }
+
+    suspend fun removePicture(id: String): CommunityDetail =
+        send({ core.removeGroupOwnPictureRequest(id) }) { status, body -> core.community(status, body) }
+
+    /** Takes the pilot into a public group, or one they were invited into. */
+    suspend fun enter(id: String): GroupJoined {
+        val joined = send({ core.enterGroupRequest(id) }) { status, body -> core.groupJoined(status, body) }
+        reloadAll()
         return joined
     }
 
-    suspend fun detail(id: String): GroupDetail =
-        send({ core.groupRequest(id) }) { status, body -> core.group(status, body) }
+    /** Declines an invite into a group: by the pilot's own handle. */
+    suspend fun decline(id: String) {
+        val me = account.account?.handle.orEmpty()
+        send({ core.dropGroupInviteRequest(id, me) }) { status, body -> core.groupDone(status, body) }
+        loadChats()
+    }
 
-    suspend fun rename(id: String, name: String): GroupDetail {
-        val detail = send({ core.renameGroupRequest(id, name) }) { status, body -> core.group(status, body) }
-        load()
+    /** Invites a pilot by handle: the core's line of what was done. */
+    suspend fun invite(handle: String, to: String): String =
+        send({ core.inviteToGroupRequest(to, handle) }) { status, body -> core.groupInviteSent(status, body) }
+
+    /** Makes a member an admin, or an admin a member again: the owner's. */
+    suspend fun setAdmin(handle: String, of: String, isAdmin: Boolean) {
+        send({ core.groupAdminRequest(of, handle, isAdmin) }) { status, body -> core.groupDone(status, body) }
+    }
+
+    suspend fun handOver(id: String, handle: String): CommunityDetail {
+        val detail = send({ core.handOverGroupRequest(id, handle) }) { status, body -> core.community(status, body) }
+        reloadAll()
         return detail
     }
 
-    suspend fun handOver(id: String, handle: String): GroupDetail {
-        val detail = send({ core.handOverGroupRequest(id, handle) }) { status, body -> core.group(status, body) }
-        load()
-        return detail
+    /** Mutes a group's pushes, or unmutes them. */
+    suspend fun mute(id: String, muted: Boolean): CommunityStanding {
+        val standing = send({ core.groupMuteRequest(id, muted) }) { status, body -> core.groupStanding(status, body) }
+        loadChats()
+        return standing
     }
-
-    /** A new invite code for a group. The one before it stops working. */
-    suspend fun newInvite(id: String): String =
-        send({ core.newGroupInviteRequest(id) }) { status, body -> core.groupInvite(status, body) }
 
     suspend fun remove(handle: String, from: String) {
         send({ core.removeGroupMemberRequest(from, handle) }) { status, body -> core.groupDone(status, body) }
-        load()
+        reloadAll()
     }
 
     suspend fun leave(id: String) {
         send({ core.leaveGroupRequest(id) }) { status, body -> core.groupDone(status, body) }
-        load()
+        reloadAll()
     }
 
     suspend fun deleteGroup(id: String) {
         send({ core.deleteGroupRequest(id) }) { status, body -> core.groupDone(status, body) }
+        reloadAll()
+    }
+
+    /** The model of one group's chat, sending with the account's token. */
+    fun chat(id: String): ChatModel = ChatModel(id, core, send = { account.answer(it) }, background = background, words = account::words)
+
+    /** Both lists anew after the pilot's standing in a group changed. */
+    private suspend fun reloadAll() {
         load()
+        loadChats()
     }
 
     // Plans

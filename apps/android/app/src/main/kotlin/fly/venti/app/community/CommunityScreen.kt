@@ -78,6 +78,8 @@ import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.Venti
 import fly.venti.app.design.text
 import fly.venti.app.groups.GroupsModel
+import fly.venti.app.groups.GroupWords
+import fly.venti.app.groups.CommunityCard
 import fly.venti.app.groups.PlanWords
 import fly.venti.app.logbook.TrackThumbnail
 import fly.venti.app.map.OverviewMap
@@ -148,8 +150,12 @@ fun CommunityPage(
     account: AccountModel,
     onOpenFlight: (PublicFlight) -> Unit,
     onOpenPilot: (String, String) -> Unit,
-    /** Opens the plans' sheet: at a plan, at the form for a new one, or at the groups. */
+    /** Opens the plans' sheet: at a plan, or at the form for a new one. */
     onOpenPlans: (PlansOpening) -> Unit,
+    /** The groups' section, a page of its own. */
+    onOpenGroups: () -> Unit,
+    /** A group's chat: its identifier and name. */
+    onOpenChat: (String, String) -> Unit,
     /** Opens an open plan's sheet: at a plan, or at the form for a new one. */
     onOpenOpenPlan: (OpenPlanOpening) -> Unit,
     /** The whole feed, a page of its own. */
@@ -171,8 +177,13 @@ fun CommunityPage(
     // The pilot's own picture, for their face among who is in.
     LaunchedEffect(own?.handle, own?.picturePath) { own?.let { PilotPictures.know(it.handle, it.picturePath) } }
 
-    // The plans: asked when the page shows and after every change.
-    LaunchedEffect(signedIn) { if (signedIn) groups.load() }
+    // The plans and the groups: asked when the page shows and after every change.
+    LaunchedEffect(signedIn) {
+        if (signedIn) {
+            launch { groups.loadChats() }
+            groups.load()
+        }
+    }
 
     // The feed's first page, asked when the page shows.
     var feed by remember { mutableStateOf<SocialModel.Told<fly.venti.core.Feed>?>(null) }
@@ -249,14 +260,48 @@ fun CommunityPage(
             }
         }
         if (signedIn) {
+            // The pilot's groups as cards, those with the newest messages
+            // first as Venti lists them, and the way to all of them.
+            item(key = "groups-head") {
+                PartHead(groups.words.title, Modifier.testTag("community-groups-head")) {
+                    TextButton(onClick = onOpenGroups, modifier = Modifier.testTag("community-groups")) {
+                        Text(if (groups.chats.isNullOrEmpty() && groups.invites.isEmpty()) GroupWords.FIND_OR_MAKE else GroupWords.ALL)
+                    }
+                }
+            }
+            val chats = groups.chats
+            when {
+                chats != null -> {
+                    GroupWords.invites(groups.invites.map { it.words })?.let { line ->
+                        item(key = "groups-invites") {
+                            Text(
+                                line,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = Venti.colours.link,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(role = Role.Button, onClick = onOpenGroups)
+                                    .heightIn(min = VentiSize.touch)
+                                    .testTag("community-group-invites"),
+                            )
+                        }
+                    }
+                    if (chats.isEmpty()) item(key = "groups-none") { Quietly(GroupWords.NONE_YET_LONG, Modifier.testTag("community-groups-none")) }
+                    items(chats.take(GROUP_CARDS_SHOWN), key = { "group-${it.id}" }) { group ->
+                        CommunityCard(group, Modifier.testTag("community-card"), onClick = { onOpenChat(group.id, group.name) })
+                    }
+                }
+                groups.chatsProblem != null -> item(key = "groups-problem") {
+                    Quietly(groups.chatsProblem.orEmpty(), Modifier.testTag("community-groups-problem"))
+                }
+                else -> item(key = "groups-loading") { Waiting() }
+            }
+
             // The plans of the pilot's groups.
             item(key = "plans-head") {
                 PartHead(CommunityPageWords.PLANS, Modifier.testTag("community-plans")) {
                     val board = groups.board
                     if (board != null && board.groups.isNotEmpty()) {
-                        TextButton(onClick = { onOpenPlans(PlansOpening.Groups) }, modifier = Modifier.testTag("community-groups")) {
-                            Text(CommunityPageWords.GROUPS)
-                        }
                         TextButton(onClick = { onOpenPlans(PlansOpening.NewPlan) }, modifier = Modifier.testTag("community-new-plan")) {
                             Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(VentiSpace.s5))
                             Spacer(Modifier.width(VentiSpace.s1))
@@ -276,7 +321,7 @@ fun CommunityPage(
                         Column(Modifier.fillMaxWidth().padding(VentiSpace.s4), verticalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
                             Text(PlanWords.NO_GROUP, style = MaterialTheme.typography.bodyLarge)
                             OutlinedButton(
-                                onClick = { onOpenPlans(PlansOpening.Groups) },
+                                onClick = onOpenGroups,
                                 modifier = Modifier.heightIn(min = VentiSize.touch).testTag("community-make-group"),
                             ) { Text(CommunityPageWords.MAKE_OR_JOIN) }
                         }
@@ -561,12 +606,13 @@ private fun LazyListScope.openPlansNear(
 }
 
 /** How the plans' sheet opens from Community. */
+/** How many of the pilot's groups stand on Community as cards; the rest, the groups near and the invites are a tap away. */
+private const val GROUP_CARDS_SHOWN = 3
+
 sealed interface PlansOpening {
     data class Plan(val id: String) : PlansOpening
 
     data object NewPlan : PlansOpening
-
-    data object Groups : PlansOpening
 }
 
 /** The heading of a part of the page, with what it offers at its end. */
@@ -607,7 +653,7 @@ private fun Waiting() {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PlanCard(
+internal fun PlanCard(
     plan: PlanView,
     day: String,
     myName: String?,

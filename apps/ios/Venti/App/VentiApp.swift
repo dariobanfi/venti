@@ -306,7 +306,7 @@ enum Session {
             let nearby = NearbyModel(account: account, wind: wind)
             // How much is new for the pilot, for the Community tab's badge:
             // read again after signing in and out.
-            let unread = UnreadModel(account: account)
+            let unread = UnreadModel(account: account, core: core)
             // Apple's push: the token goes to the account on sign-in and
             // comes off it before signing out.
             let push = PhonePush.shared

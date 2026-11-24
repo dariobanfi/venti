@@ -92,9 +92,10 @@ enum ThermalMapLayers {
     static let arrowSource = "thermal-hour-arrows"
     static let arrowLayer = "thermal-hour-arrows"
 
-    /// How large the forecast's arrows are against a station's: smaller,
-    /// so that the two are not taken for each other.
-    static let arrowScale = 0.6
+    /// How large the forecast's arrows are against a station's of their
+    /// band: a little smaller, so that the two are not taken for each
+    /// other, and larger as the wind is stronger, as the stations' are.
+    static let arrowScale = 0.8
     /// From this zoom a square is wide enough for its arrow's label.
     static let labelsFrom = 9.0
 
@@ -132,7 +133,17 @@ enum ThermalMapLayers {
         )
         symbols.iconRotation = NSExpression(forKeyPath: "heading")
         symbols.iconRotationAlignment = NSExpression(forConstantValue: "map")
-        symbols.iconScale = NSExpression(forConstantValue: arrowScale)
+        var sizes: [String: NSNumber] = [:]
+        for band in WindBand.all {
+            sizes[band.name] = NSNumber(value: arrowScale * band.arrowScale)
+        }
+        symbols.iconScale = NSExpression(
+            forMLNMatchingKey: NSExpression(forKeyPath: "band"),
+            in: sizes.reduce(into: [NSExpression: NSExpression]()) { all, size in
+                all[NSExpression(forConstantValue: size.key)] = NSExpression(forConstantValue: size.value)
+            },
+            default: NSExpression(forConstantValue: arrowScale)
+        )
         symbols.iconAllowsOverlap = NSExpression(forConstantValue: true)
         style.addLayer(symbols)
         // The labels, from the zoom at which a square has room for one: a
@@ -152,7 +163,8 @@ enum ThermalMapLayers {
 
     /// Draws an hour: the squares filled by their step through the key,
     /// and the arrows. Nothing for no hour, and then the day's squares
-    /// are drawn by `show(_:in:)` alone.
+    /// are drawn by `show(_:in:)` alone. On the wind's layers the screen
+    /// hands no squares: the arrows stand in their place.
     static func showHour(_ shapes: ThermalMapShapes?, key: [ThermalMapKey], in style: MLNStyle) {
         guard let squares = style.source(withIdentifier: hourSource) as? MLNShapeSource,
               let arrows = style.source(withIdentifier: arrowSource) as? MLNShapeSource
@@ -227,4 +239,102 @@ struct ForecastHourDrawing {
     /// Whether the hour has a wind direction anywhere, and so colours the
     /// fans: the map's panel then has their key.
     var colorsFans = false
+}
+
+/// What the map draws of the thermal forecast by region: the regions'
+/// outlines, the levels of the day or the hour shown by region, and the
+/// squares of the grid that lie under a region with a level, which are
+/// not drawn.
+struct RegionsDrawing {
+    /// The set of regions, the day and the hour: the map draws again
+    /// only when it changes.
+    let id: String
+    let regions: ForecastRegions
+    /// Each region's level, by its identifier; a region without one is
+    /// not filled.
+    let levels: [String: RegionLevel]
+    /// The squares of the grid, by their place among the day's cells,
+    /// that the regions' fill stands in place of.
+    let under: Set<Int>
+}
+
+/// How the thermal forecast by region is drawn (decision 27, the web's
+/// `regions.ts`): each region that has a level filled with its level's
+/// colour at the level's own opacity (design/DESIGN.md, "Day levels"), the
+/// light theme's, the map being light in both appearances; a thin edge in
+/// the labels' paper round each; over the grid's squares and under the
+/// base map's cable cars, borders and names, as a weather layer.
+@MainActor
+enum RegionLayers {
+    static let source = "forecast-regions"
+    static let fill = "forecast-regions"
+    static let edge = "forecast-regions-edge"
+
+    /// Adds the two layers, empty, over the hours' squares. Call it after
+    /// `ThermalMapLayers.addHours(to:)`.
+    static func add(to style: MLNStyle) {
+        let shapes = MLNShapeSource(identifier: source, shape: MLNShapeCollectionFeature(shapes: []), options: nil)
+        style.addSource(shapes)
+        let fill = MLNFillStyleLayer(identifier: fill, source: shapes)
+        fill.fillColor = NSExpression(forConstantValue: UIColor.clear)
+        fill.fillOpacity = NSExpression(forConstantValue: 0)
+        fill.fillAntialiased = NSExpression(forConstantValue: false)
+        let line = MLNLineStyleLayer(identifier: edge, source: shapes)
+        line.lineColor = NSExpression(forConstantValue: Palette.haloOnMap)
+        line.lineWidth = NSExpression(
+            forMLNInterpolating: .zoomLevelVariable,
+            curveType: .linear,
+            parameters: nil,
+            stops: NSExpression(forConstantValue: [7: 0.5, 11: 1.5])
+        )
+        line.lineOpacity = NSExpression(forConstantValue: 0)
+        if let hours = style.layer(withIdentifier: ThermalMapLayers.hourLayer) {
+            style.insertLayer(fill, above: hours)
+        } else {
+            style.addLayer(fill)
+        }
+        style.insertLayer(line, above: fill)
+    }
+
+    /// Sets the regions' outlines, a GeoJSON `FeatureCollection` whose
+    /// features carry their `id`; none for no regions.
+    static func showOutlines(_ geoJSON: String?, in style: MLNStyle) {
+        guard let shapes = style.source(withIdentifier: source) as? MLNShapeSource else { return }
+        shapes.shape = geoJSON.flatMap(ThermalMapLayers.shape(from:)) ?? MLNShapeCollectionFeature(shapes: [])
+    }
+
+    /// Fills each region by its level, and leaves out the grid's squares
+    /// under them; nothing filled and the whole grid for no levels.
+    static func show(levels: [String: RegionLevel], under: Set<Int>, in style: MLNStyle) {
+        if let fill = style.layer(withIdentifier: fill) as? MLNFillStyleLayer {
+            fill.fillColor = byRegion(levels, { NSExpression(forConstantValue: UIColor($0.colorOnMap)) }, otherwise: UIColor.clear)
+            fill.fillOpacity = byRegion(levels, { NSExpression(forConstantValue: $0.fillOpacityOnMap) }, otherwise: 0)
+        }
+        if let line = style.layer(withIdentifier: edge) as? MLNLineStyleLayer {
+            line.lineOpacity = byRegion(levels, { _ in NSExpression(forConstantValue: 0.9) }, otherwise: 0)
+        }
+        let cells = under.sorted()
+        if let day = style.layer(withIdentifier: ThermalMapLayers.layer) as? MLNFillStyleLayer {
+            day.predicate = cells.isEmpty ? nil : NSPredicate(format: "NOT (id IN %@)", cells.map(String.init))
+        }
+        if let hour = style.layer(withIdentifier: ThermalMapLayers.hourLayer) as? MLNFillStyleLayer {
+            hour.predicate = cells.isEmpty ? nil : NSPredicate(format: "NOT (cell IN %@)", cells.map { NSNumber(value: $0) })
+        }
+    }
+
+    /// A value by the region's `id`: its level's, or `otherwise`.
+    private static func byRegion(
+        _ levels: [String: RegionLevel], _ value: (RegionLevel) -> NSExpression, otherwise: Any
+    ) -> NSExpression {
+        guard !levels.isEmpty else { return NSExpression(forConstantValue: otherwise) }
+        var values: [NSExpression: NSExpression] = [:]
+        for (id, level) in levels {
+            values[NSExpression(forConstantValue: id)] = value(level)
+        }
+        return NSExpression(
+            forMLNMatchingKey: NSExpression(forKeyPath: "id"),
+            in: values,
+            default: NSExpression(forConstantValue: otherwise)
+        )
+    }
 }

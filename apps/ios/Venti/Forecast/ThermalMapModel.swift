@@ -54,6 +54,8 @@ final class ThermalMapModel {
         let date: String
         let layer: ThermalHoursLayer
         let heightM: Int32?
+        /// For the wind, the height above the model's ground: 250.
+        var aboveGroundM: Int32? = nil
     }
 
     enum HoursState: Equatable {
@@ -103,8 +105,15 @@ final class ThermalMapModel {
     /// Whether the last asking failed.
     @ObservationIgnored private var hasFailed = false
 
+    /// The thermal forecast by region over the same days, asked of the
+    /// same server by the same clock.
+    let regions: RegionForecastModel
+
     init(transport: @escaping Transport = WindModel.fetch) {
         self.transport = transport
+        regions = RegionForecastModel(transport: transport)
+        regions.server = { [weak self] in self?.server() }
+        regions.clock = { [weak self] in await self?.clock() ?? Int64(Date().timeIntervalSince1970) }
     }
 
     /// Whether the map shown is this server's and younger than half an hour.
@@ -259,7 +268,9 @@ extension ThermalMapModel {
         if let kept = read[key] {
             return kept
         }
-        let path = try thermalHoursPath(date: key.date, layer: key.layer, heightM: key.heightM)
+        let path = try thermalHoursPath(
+            date: key.date, layer: key.layer, heightM: key.heightM, aboveGroundM: key.aboveGroundM
+        )
         let answer: (status: UInt16, body: Data)
         if let kept = bodies[path] {
             answer = kept
@@ -285,21 +296,24 @@ extension ThermalMapModel {
     struct LineKey: Hashable {
         let layer: ThermalHoursLayer
         let heightM: Int32?
+        var aboveGroundM: Int32? = nil
         let computed: Int64
     }
 
     /// Asks for the hours of every day of the map for one layer, for the
     /// map tab's one line of time, the first day first; each day's hours
     /// join `line` as they come. A day that cannot be had is left out.
-    func loadLine(layer: ThermalHoursLayer, heightM: Int32?) async {
+    func loadLine(layer: ThermalHoursLayer, heightM: Int32?, aboveGroundM: Int32? = nil) async {
         guard let map else { return }
-        let key = LineKey(layer: layer, heightM: heightM, computed: map.computedUnixS)
+        let key = LineKey(layer: layer, heightM: heightM, aboveGroundM: aboveGroundM, computed: map.computedUnixS)
         if lineKey != key {
             lineKey = key
             line = [:]
         }
         for day in map.days where line[day.date] == nil {
-            let hours = try? await hours(of: HoursKey(date: day.date, layer: layer, heightM: heightM))
+            let hours = try? await hours(
+                of: HoursKey(date: day.date, layer: layer, heightM: heightM, aboveGroundM: aboveGroundM)
+            )
             if Task.isCancelled || lineKey != key {
                 return
             }
@@ -324,6 +338,7 @@ extension ThermalMapModel {
     private func forgetHours() {
         bodies = [:]
         read = [:]
+        regions.forget()
         hours = nil
         line = [:]
         lineKey = nil

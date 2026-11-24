@@ -14,6 +14,7 @@ final class UnreadModelTests: XCTestCase {
         var signedIn = true
         var answer = #"{"notifications": 4, "alarms": 1, "total": 5}"#
         var fails = false
+        var alarmsCursor: String?
     }
 
     private func model(_ noted: Noted) -> UnreadModel {
@@ -25,7 +26,8 @@ final class UnreadModelTests: XCTestCase {
                 }
                 return AccountModel.Answer(status: 200, body: Data(noted.answer.utf8), retryAfter: nil)
             },
-            isSignedIn: { noted.signedIn }
+            isSignedIn: { noted.signedIn },
+            alarmsCursor: { noted.alarmsCursor }
         )
     }
 
@@ -63,25 +65,23 @@ final class UnreadModelTests: XCTestCase {
         let seen = try XCTUnwrap(noted.requests.last)
         XCTAssertEqual(seen.method, "PUT")
         XCTAssertEqual(seen.path, "/v1/account/unread")
-        // The alarms' mark is named with the cursor that moves nothing.
-        XCTAssertEqual(
-            try body(of: seen),
-            ["notifications_cursor": "1795026000000000", "alarms_cursor": UnreadModel.notShown]
-        )
+        // The alarms' mark is left out: it stays where it is.
+        XCTAssertEqual(try body(of: seen), ["notifications_cursor": "1795026000000000"])
         // The answer is the count after it: no second request.
         XCTAssertEqual(noted.requests.count, 2)
         XCTAssertEqual(unread.badge, "1")
     }
 
-    func testOpeningTheAlertsMovesTheirMarkToTheNewest() async throws {
+    func testOpeningTheAlertsMovesTheirMarkToTheirFetch() async throws {
         let noted = Noted()
+        noted.alarmsCursor = "1795026000000001"
         let unread = model(noted)
         noted.answer = #"{"notifications": 4, "alarms": 0, "total": 4}"#
         await unread.sawAlarms()
         let seen = try XCTUnwrap(noted.requests.last)
         XCTAssertEqual(seen.method, "PUT")
-        // Left out: up to the newest.
-        XCTAssertEqual(try body(of: seen), ["notifications_cursor": UnreadModel.notShown])
+        // Up to the fetch the list shows; the notifications' mark left out.
+        XCTAssertEqual(try body(of: seen), ["alarms_cursor": "1795026000000001"])
         XCTAssertEqual(unread.badge, "4")
     }
 

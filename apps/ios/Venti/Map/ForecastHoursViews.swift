@@ -1,8 +1,9 @@
 import SwiftUI
 import VentiCore
 
-/// The parts of the forecast's hours on the map tab: the level of the wind,
-/// and a tapped square of an hour with its sheet.
+/// The parts of the forecast's hours on the map tab: the heights of the
+/// wind, a tapped square of an hour with its sheet, and a tapped region of
+/// the forecast by region with its sheet.
 
 extension ThermalHoursLayer {
     /// The layer as the preference keeps it.
@@ -28,45 +29,77 @@ extension ThermalHoursLayer {
     }
 }
 
-/// The height of the wind: the seven levels are more than a row of chips
-/// takes, so a menu, its label the level chosen.
-struct ForecastLevelMenu: View {
+/// A height the forecast's wind can be shown at: above the sea, above
+/// the model's ground, or neither for the ground itself.
+struct ForecastWindLevel: Hashable {
+    var heightM: Int32?
+    var aboveGroundM: Int32?
+
+    static let ground = ForecastWindLevel()
+
+    init(heightM: Int32? = nil, aboveGroundM: Int32? = nil) {
+        self.heightM = heightM
+        self.aboveGroundM = aboveGroundM
+    }
+
+    init(_ level: ThermalMapLevel) {
+        self.init(heightM: level.heightM, aboveGroundM: level.aboveGroundM)
+    }
+
+    /// Whether this is the wind at the ground, which the take-offs' fans
+    /// are coloured by.
+    var isGround: Bool { heightM == nil && aboveGroundM == nil }
+}
+
+/// The heights of the forecast's wind, a short list at the map's right
+/// under the chips (the web's `HeightList.svelte`, after Burnair's weather
+/// map): the ground, the heights above it, then those above the sea, each
+/// by the core's name, the chosen one in the primary colour with the
+/// pack's tick.
+struct ForecastHeightList: View {
     let levels: [ThermalMapLevel]
-    /// The height of the wind above the sea, metres; `nil` at the ground.
-    @Binding var heightM: Int32?
+    let chosen: ForecastWindLevel
+    let choose: (ForecastWindLevel) -> Void
 
     var body: some View {
-        let chosen = levels.first { $0.heightM == heightM } ?? levels.first
-        Menu {
+        VStack(alignment: .trailing, spacing: 0) {
             ForEach(levels, id: \.name) { level in
+                let isChosen = ForecastWindLevel(level) == chosen
                 Button {
-                    heightM = level.heightM
+                    choose(ForecastWindLevel(level))
                 } label: {
-                    if level.heightM == chosen?.heightM {
-                        Label(level.name, systemImage: "checkmark")
-                    } else {
+                    HStack(spacing: VentiSpace.s1) {
+                        if isChosen {
+                            ChipTick()
+                        }
                         Text(level.name)
+                            .font(.ventiType(.label))
+                            .fontWeight(.semibold)
+                            .monospacedDigit()
+                            .lineLimit(1)
                     }
+                    .padding(.horizontal, VentiSpace.s2)
+                    .frame(maxWidth: .infinity, minHeight: VentiSize.touch, alignment: .trailing)
+                    .foregroundStyle(.venti(isChosen ? .onPrimary : .text))
+                    .background {
+                        if isChosen {
+                            RoundedRectangle(cornerRadius: VentiRadius.s)
+                                .fill(.venti(.primary))
+                        }
+                    }
+                    .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(level.name)
+                .accessibilityValue(level.words)
+                .accessibilityAddTraits(isChosen ? .isSelected : [])
             }
-        } label: {
-            HStack(spacing: VentiSpace.s1) {
-                Text(chosen?.name ?? "")
-                    .font(.ventiType(.label))
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.ventiType(.caption))
-                    .accessibilityHidden(true)
-            }
-            .padding(.horizontal, VentiSpace.s3)
-            .frame(height: 36)
-            .foregroundStyle(.venti(.text))
-            .ventiFloating(in: .capsule)
-            .frame(minHeight: VentiSize.touch)
-            .contentShape(.rect)
         }
+        .fixedSize(horizontal: true, vertical: false)
+        .padding(VentiSpace.s1)
+        .ventiFloating(in: .rect(cornerRadius: VentiRadius.m))
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("Height")
-        .accessibilityValue(chosen?.words ?? "")
         .accessibilityIdentifier("forecast-level")
     }
 }
@@ -270,5 +303,66 @@ struct ForecastArrow: View {
         case .calm: WindSymbols.dot(color: WindBand.light.uiColor)
         case .old: WindSymbols.dot(color: Palette.quietOnMap)
         }
+    }
+}
+
+/// A region of the forecast by region that the pilot tapped: its name,
+/// its level in the core's words, and what the day's level is judged from.
+struct ChosenRegion: Identifiable {
+    let id: String
+    let name: String
+    let level: RegionLevel
+    /// "Not flyable: rain".
+    let words: String
+    /// "From 3 take-offs", "From the model's ground".
+    let detail: String
+}
+
+/// A tapped region: its name, a mark in its level's colour beside the
+/// core's words, and where the level comes from. Small, the region in view
+/// above it.
+struct ForecastRegionSheet: View {
+    let region: ChosenRegion
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VentiList {
+                Section {
+                    HStack(spacing: VentiSpace.s2) {
+                        Rectangle()
+                            .fill(region.level.colorOnMap)
+                            .overlay {
+                                Rectangle()
+                                    .strokeBorder(.venti(.borderStrong), lineWidth: 1)
+                            }
+                            .frame(width: VentiSpace.s3, height: VentiSpace.s3)
+                            .accessibilityHidden(true)
+                        Text(region.words)
+                            .font(.venti(.headline))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("forecast-region-words")
+                    if !region.detail.isEmpty {
+                        Text(region.detail)
+                            .font(.venti(.subheadline))
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("forecast-region-detail")
+                    }
+                }
+            }
+            .navigationTitle(region.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+        .accessibilityIdentifier("forecast-region")
     }
 }

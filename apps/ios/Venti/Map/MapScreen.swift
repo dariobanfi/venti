@@ -101,6 +101,7 @@ struct MapScreen: View {
     @State private var chosenSquare: ChosenSquare?
     /// The wind's level, as the pilot left it; the hour is chosen anew.
     @AppStorage(Preferences.mapForecastLevelM) private var forecastLevelStored = -1
+    @AppStorage(Preferences.mapForecastAboveGroundM) private var forecastAboveGroundStored = -1
     /// The hour of the layer chosen, by its place in the day's hours;
     /// `nil` for the day as a whole.
     @State private var forecastHour: Int?
@@ -111,6 +112,10 @@ struct MapScreen: View {
     @State private var hourDrawing: ForecastHourDrawing?
     /// A square of an hour the pilot tapped.
     @State private var chosenHourSquare: ChosenHourSquare?
+    /// A region of the forecast by region the pilot tapped.
+    @State private var chosenRegion: ChosenRegion?
+    /// How high the panel at the map's foot and the credits stand.
+    @State private var footHeight: CGFloat = 0
     /// A place where airspace is drawn, tapped.
     @State private var chosenAirspace: ChosenAirspacePlace?
     /// Who made the photographs in view on the map.
@@ -226,6 +231,10 @@ struct MapScreen: View {
                 onHourPlace: { place in
                     openHourSquare(at: place)
                 },
+                forecastRegions: regionsDrawing,
+                onForecastRegion: { id in
+                    openRegion(id)
+                },
                 radar: showsRadarPictures ? radar.pictures : [],
                 reach: reachDrawing,
                 cables: hidesCables ? [] : cables.lines,
@@ -301,6 +310,26 @@ struct MapScreen: View {
                 zoomInNotice
             }
         }
+        // The heights of the forecast's wind, at the map's right under the
+        // chips and over the round buttons, scrolling where the screen
+        // has not the room.
+        .overlay(alignment: .topTrailing) {
+            if !windLevels.isEmpty {
+                ViewThatFits(in: .vertical) {
+                    heightList
+                    ScrollView {
+                        heightList
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .fixedSize(horizontal: true, vertical: false)
+                }
+                .padding(.top, VentiSize.touch + VentiSpace.s3)
+                .padding(.trailing, VentiSpace.s4)
+                // Over the round buttons and the panel, whichever stands
+                // higher.
+                .padding(.bottom, max(3 * VentiSize.touch + 2 * VentiSpace.s3 + 2 * VentiSpace.s4, footHeight + 2 * VentiSpace.s2))
+            }
+        }
         // Airspace switched on: asked for at once around the map, which
         // has not moved.
         .onChange(of: showsAirspace) { _, isOn in
@@ -319,6 +348,11 @@ struct MapScreen: View {
                     sitesFilterLine
                 }
                 credits
+            }
+            // How high the panel and the credits stand, which the heights
+            // of the wind keep clear of.
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                footHeight = height
             }
             .padding(.leading, VentiSpace.s2)
             .padding(.bottom, VentiSpace.s2)
@@ -340,10 +374,15 @@ struct MapScreen: View {
         }
         // The hours of every day for the line of time, for the layer shown.
         .task(id: LineRequest(
-            isWanted: isForecastWanted, layer: forecastLayer, heightM: windHeightM, map: thermals.map?.computedUnixS
+            isWanted: isForecastWanted, layer: forecastLayer, level: windLevel, map: thermals.map?.computedUnixS
         )) {
             guard isForecastWanted else { return }
-            await thermals.loadLine(layer: forecastLayer, heightM: windHeightM)
+            await thermals.loadLine(layer: forecastLayer, heightM: windLevel.heightM, aboveGroundM: windLevel.aboveGroundM)
+        }
+        // The forecast by region of the day the thermals show.
+        .task(id: regionsRequest) {
+            guard let date = regionsDate else { return }
+            await thermals.regions.load(date: date)
         }
         // The rain radar: asked for when the rain is chosen, again every
         // five minutes while it is and the map in front, and when the app
@@ -376,6 +415,12 @@ struct MapScreen: View {
         }
         .onChange(of: forecastLevelStored) { _, _ in
             openedHours = hoursKey
+        }
+        .onChange(of: forecastAboveGroundStored) { _, _ in
+            openedHours = hoursKey
+        }
+        .sheet(item: $chosenRegion) { region in
+            ForecastRegionSheet(region: region)
         }
         .sheet(item: $chosenHourSquare) { chosen in
             ForecastHourSquareSheet(chosen: chosen, choose: { date in
@@ -828,6 +873,11 @@ struct MapScreen: View {
         if forecastDay != nil, let map = thermals.map, !map.credits.isEmpty {
             parts.append("Forecast: \(map.credits.map(\.provider).formatted(.list(type: .and)))")
         }
+        // The regions' own credit, while they are drawn: "Regions: EAWS
+        // (CC0)".
+        if regionsDrawing != nil, let regions = thermals.regions.regions {
+            parts.append(contentsOf: regions.credits().map(\.text).filter { !parts.contains($0) })
+        }
         // A radar's source asks for its credit at the data: here by
         // name, for every layer drawn, and in full behind the panel's "i".
         if showsRadarPictures, !radar.pictures.isEmpty {
@@ -913,13 +963,31 @@ struct MapScreen: View {
         return ThermalSquares.anyDrawn(of: day, in: region)
     }
 
-    /// The height of the wind chosen; `nil` at the ground.
-    private var forecastLevel: Binding<Int32?> {
-        Binding {
-            forecastLevelStored < 0 ? nil : Int32(forecastLevelStored)
-        } set: { height in
-            forecastLevelStored = height.map(Int.init) ?? -1
-        }
+    /// The height of the wind the pilot chose, as kept.
+    private var chosenWindLevel: ForecastWindLevel {
+        ForecastWindLevel(
+            heightM: forecastLevelStored < 0 ? nil : Int32(forecastLevelStored),
+            aboveGroundM: forecastAboveGroundStored < 0 ? nil : Int32(forecastAboveGroundStored)
+        )
+    }
+
+    /// Keeps the height of the wind the pilot chose.
+    private func chooseWindLevel(_ level: ForecastWindLevel) {
+        forecastLevelStored = level.heightM.map(Int.init) ?? -1
+        forecastAboveGroundStored = level.aboveGroundM.map(Int.init) ?? -1
+    }
+
+    /// The heights the forecast's mean wind can be shown at, while it is
+    /// shown; none for the gusts and every other layer.
+    private var windLevels: [ThermalMapLevel] {
+        guard what == .wind, showsForecast, !gusts, let map = thermals.map,
+              map.layers.contains(where: { $0.layer == .wind && $0.hasLevels })
+        else { return [] }
+        return map.levels
+    }
+
+    private var heightList: some View {
+        ForecastHeightList(levels: windLevels, chosen: windLevel, choose: chooseWindLevel)
     }
 
     /// The layer of the day to ask for, where the map offers layers.
@@ -931,15 +999,17 @@ struct MapScreen: View {
     /// The layer shown of a day, where the map offers layers.
     private func hoursKey(of date: String) -> ThermalMapModel.HoursKey? {
         guard let map = thermals.map, !map.layers.isEmpty else { return nil }
-        return ThermalMapModel.HoursKey(date: date, layer: forecastLayer, heightM: windHeightM)
+        return ThermalMapModel.HoursKey(
+            date: date, layer: forecastLayer, heightM: windLevel.heightM, aboveGroundM: windLevel.aboveGroundM
+        )
     }
 
-    /// The height of the wind shown, where the map offers it; `nil` at the
-    /// ground and for every other layer.
-    private var windHeightM: Int32? {
-        guard forecastLayer == .wind, let map = thermals.map else { return nil }
-        let level = forecastLevel.wrappedValue
-        return map.levels.contains { $0.heightM == level } ? level : nil
+    /// The height of the wind shown, where the map offers it; the ground
+    /// otherwise and for every other layer.
+    private var windLevel: ForecastWindLevel {
+        guard forecastLayer == .wind, let map = thermals.map else { return .ground }
+        let level = chosenWindLevel
+        return map.levels.contains { ForecastWindLevel($0) == level } ? level : .ground
     }
 
     /// The day's squares, where the map shows the thermals' day as a
@@ -979,11 +1049,18 @@ struct MapScreen: View {
             hourDrawing = nil
             return
         }
-        let shapes = hours.shapes(hour: UInt32(hour))
-        // The hour's wind square by square, for the take-offs' fans.
-        let from = SiteFans.windFrom(arrows: shapes.arrows)
+        var shapes = hours.shapes(hour: UInt32(hour))
+        // On the wind's layers the arrows stand in place of the squares.
+        if choice.hasArrows {
+            shapes.squares = #"{"type":"FeatureCollection","features":[]}"#
+        }
+        // The hour's wind at the ground square by square, for the
+        // take-offs' fans.
+        let isGround = key.heightM == nil && key.aboveGroundM == nil
+        let from = isGround ? SiteFans.windFrom(arrows: shapes.arrows) : [:]
+        let height = key.heightM.map { "\($0)" } ?? key.aboveGroundM.map { "\($0) agl" } ?? "ground"
         hourDrawing = ForecastHourDrawing(
-            id: "\(key.date) \(key.layer.stored) \(key.heightM.map(String.init) ?? "ground") \(hour)",
+            id: "\(key.date) \(key.layer.stored) \(height) \(hour)",
             shapes: shapes, key: choice.legend,
             windFrom: { place in
                 from.isEmpty ? nil : hours.cellAt(lat: place.lat, lon: place.lon).flatMap { from[$0] }
@@ -1013,6 +1090,74 @@ struct MapScreen: View {
                 id: "\(key.date)-\(cell)-\(hour)"
             )
         }
+    }
+
+    // MARK: The thermal forecast by region
+
+    /// The day whose forecast by region is wanted: the thermals' day
+    /// shown, while the thermals are.
+    private var regionsDate: String? {
+        guard what == .thermals, showsForecast else { return nil }
+        return forecastDay?.date
+    }
+
+    /// What the forecast by region is asked by: the day, the server, and
+    /// the map of the days, a new one of which asks again.
+    private var regionsRequest: String {
+        "\(regionsDate ?? "") \(wind.address) \(thermals.map?.computedUnixS ?? 0)"
+    }
+
+    /// The forecast by region of the thermals' day shown, once it is there.
+    private var regionDay: RegionForecast? {
+        regionsDate.flatMap { thermals.regions.days[$0] }
+    }
+
+    /// The regions' levels shown: those of the forecast by region's hour
+    /// at the moment of the thermals' hour, else of the day. None where
+    /// the forecast by region has no such hour, or the thermals' hours are
+    /// not there yet.
+    private var regionReadings: [RegionReadingView] {
+        guard let regionDay else { return [] }
+        guard let hour = forecastHour else { return regionDay.day() }
+        guard thermals.hoursState == .loaded, let key = thermals.hoursKey, key.layer == .thermals,
+              let marks = thermals.hours?.view().hours, marks.indices.contains(hour),
+              let index = regionDay.view().hours.firstIndex(where: { $0.timeUnixS == marks[hour].timeUnixS })
+        else { return [] }
+        return regionDay.hour(hour: UInt32(index))
+    }
+
+    /// What the map draws of the forecast by region: the regions with a
+    /// level, and the squares of the grid they stand in place of. Nothing
+    /// where no region has a level, and the grid then stands alone.
+    private var regionsDrawing: RegionsDrawing? {
+        guard let regionDay, let regions = thermals.regions.regions, let day = forecastDay else { return nil }
+        let readings = regionReadings
+        guard !readings.isEmpty else { return nil }
+        var levels: [String: RegionLevel] = [:]
+        for reading in readings {
+            levels[reading.id] = reading.level
+        }
+        return RegionsDrawing(
+            id: "\(regions.version()) \(ObjectIdentifier(regionDay).hashValue) \(day.date) \(forecastHour.map(String.init) ?? "day")",
+            regions: regions,
+            levels: levels,
+            under: thermals.regions.cellsUnder(Set(levels.keys), in: day)
+        )
+    }
+
+    /// A tap on a region that has a level: its name, its level in words,
+    /// and what the day's level is judged from.
+    private func openRegion(_ id: String) {
+        guard let reading = regionReadings.first(where: { $0.id == id }) else { return }
+        chosenSquare = nil
+        chosenHourSquare = nil
+        chosenRegion = ChosenRegion(
+            id: id,
+            name: thermals.regions.regions?.nameOf(id: id) ?? id,
+            level: reading.level,
+            words: reading.words,
+            detail: regionDay?.day().first { $0.id == id }?.detail ?? ""
+        )
     }
 
     // MARK: What the map shows, along one line of time
@@ -1089,6 +1234,7 @@ struct MapScreen: View {
         openedHours = nil
         chosenSquare = nil
         chosenHourSquare = nil
+        chosenRegion = nil
         radar.stop()
     }
 
@@ -1096,11 +1242,15 @@ struct MapScreen: View {
     /// every day as far as they are there, and the day's on the map.
     private var lineHours: [String: ThermalMapHoursView] {
         var hours: [String: ThermalMapHoursView] = [:]
-        if let key = thermals.lineKey, key.layer == forecastLayer, key.heightM == windHeightM {
+        let level = windLevel
+        if let key = thermals.lineKey, key.layer == forecastLayer, key.heightM == level.heightM,
+           key.aboveGroundM == level.aboveGroundM
+        {
             hours = thermals.line
         }
         if thermals.hoursState == .loaded, let key = thermals.hoursKey, key.layer == forecastLayer,
-           key.heightM == windHeightM, hours[key.date] == nil, let view = thermals.hours?.view()
+           key.heightM == level.heightM, key.aboveGroundM == level.aboveGroundM, hours[key.date] == nil,
+           let view = thermals.hours?.view()
         {
             hours[key.date] = view
         }
@@ -1187,7 +1337,8 @@ struct MapScreen: View {
                 }
             },
             measured: measured, radar: radar, thermals: thermals, day: forecastDay, hours: dayHours,
-            hour: forecastHour, gusts: $gusts, heightM: forecastLevel,
+            hour: forecastHour, gusts: $gusts,
+            regionLevels: regionsDrawing == nil ? [] : regionLevels(),
             isInView: what == .thermals && forecastHour == nil ? isForecastInView : true,
             showsFansKey: !hidesSites && hourDrawing?.colorsFans == true,
             tryRadarAgain: {
@@ -1301,7 +1452,7 @@ private struct HoursRequest: Hashable {
 private struct LineRequest: Hashable {
     let isWanted: Bool
     let layer: ThermalHoursLayer
-    let heightM: Int32?
+    let level: ForecastWindLevel
     let map: Int64?
 }
 

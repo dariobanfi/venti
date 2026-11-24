@@ -6,9 +6,10 @@ import VentiCore
 /// shown and when ("Rain, 14:15, measured"; "Wind at the ground, 13:00,
 /// forecast, ICON-D2"), the one line of time from what was measured
 /// through "Now" to the forecast's hours and days, the key as a short
-/// strip, and an "i" with the whole key and the notes, folded until the
-/// pilot asks. The wind's height and its gusts are two small controls of
-/// the wind's forecast. What the pilot has to be told about the data as it
+/// strip, or with the thermals by region the five levels by name, and an
+/// "i" with the whole key and the notes, folded until the pilot asks. The
+/// wind's gusts are a small control of the wind's forecast; its heights
+/// stand at the map's side (`ForecastHeightList`). What the pilot has to be told about the data as it
 /// stands is never folded away: rain that is not the rain of now, a part
 /// of the map with nothing forecast, and what could not be had, with "Try
 /// again". Every word about the data is the core's.
@@ -32,8 +33,9 @@ struct WhatPanel: View {
     let hour: Int?
     /// The wind's gusts in place of its mean.
     @Binding var gusts: Bool
-    /// The wind's height above the sea; `nil` at the ground.
-    @Binding var heightM: Int32?
+    /// The key of the forecast by region, the best first, while its
+    /// regions are drawn; empty otherwise.
+    var regionLevels: [RegionLevelKey] = []
     /// Whether the forecast shown has squares in the part of the map in view.
     let isInView: Bool
     /// Whether the hour's wind colours the take-offs' fans, which then
@@ -67,7 +69,9 @@ struct WhatPanel: View {
                 MapTimeStrip(cells: cells, chosen: chosen, choose: choose)
             }
             controls
-            if !key.steps.isEmpty {
+            if !levels.isEmpty {
+                LevelsStrip(levels: levels)
+            } else if !key.steps.isEmpty {
                 KeyStrip(steps: key.steps, veil: key.veil)
             }
             if showsFansKey {
@@ -171,17 +175,12 @@ struct WhatPanel: View {
 
     // MARK: The wind's two controls
 
-    /// The heights the wind can be shown at, with its mean, and the gusts:
-    /// for the wind's forecast only.
+    /// The gusts in place of the mean: for the wind's forecast only.
     @ViewBuilder private var controls: some View {
         if what == .wind, !measured, let map = thermals.map,
            let gustsName = map.layers.first(where: { $0.layer == .gusts })?.name
         {
             HStack(spacing: VentiSpace.s2) {
-                if !gusts, choice?.hasLevels == true, !map.levels.isEmpty {
-                    ForecastLevelMenu(levels: map.levels, heightM: $heightM)
-                        .fixedSize()
-                }
                 VentiChip(title: gustsName, isOn: $gusts)
                     .accessibilityIdentifier("what-gusts")
                 Spacer(minLength: 0)
@@ -248,6 +247,15 @@ struct WhatPanel: View {
             return (steps, veil)
         }
         return ([], nil)
+    }
+
+    /// The regions' five levels, the worst first as the key's steps are,
+    /// each with its name, and its fuller words for behind the "i".
+    private var levels: [KeyLine] {
+        guard !measured, what == .thermals else { return [] }
+        return regionLevels.reversed().map { one in
+            KeyLine(colour: one.level.colorOnMap, short: one.name, whole: "\(one.name): \(one.words)")
+        }
     }
 
     // MARK: What the pilot has to be told
@@ -338,7 +346,7 @@ struct WhatPanel: View {
 
     /// The whole key, a line each, and the notes.
     private var folded: some View {
-        let lines = key.steps.reversed() + (key.veil.map { [$0] } ?? [])
+        let lines = levels + key.steps.reversed() + (key.veil.map { [$0] } ?? [])
         return VStack(alignment: .leading, spacing: VentiSpace.s3) {
             if !lines.isEmpty {
                 VStack(alignment: .leading, spacing: VentiSpace.s1) {
@@ -418,6 +426,39 @@ private struct KeyStrip: View {
                     .strokeBorder(.venti(.borderStrong), lineWidth: 1)
             }
             .frame(height: VentiSpace.s3)
+    }
+}
+
+/// The key of the forecast by region: five columns, a bar of each level's
+/// colour over its name, the worst first.
+private struct LevelsStrip: View {
+    let levels: [WhatPanel.KeyLine]
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 2) {
+            ForEach(levels, id: \.whole) { level in
+                VStack(alignment: .leading, spacing: VentiSpace.s1) {
+                    Rectangle()
+                        .fill(level.colour)
+                        .overlay {
+                            Rectangle()
+                                .strokeBorder(.venti(.borderStrong), lineWidth: 1)
+                        }
+                        .frame(height: VentiSpace.s3)
+                    Text(level.short)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .font(.ventiType(.caption))
+        .foregroundStyle(.venti(.textSecondary))
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Key")
+        .accessibilityValue(levels.map(\.short).joined(separator: ", "))
+        .accessibilityIdentifier("what-levels")
     }
 }
 

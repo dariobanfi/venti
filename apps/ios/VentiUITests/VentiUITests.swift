@@ -2312,15 +2312,93 @@ final class VentiUITests: XCTestCase {
         XCTAssertEqual(more.value as? String, shown ? "Shown" : "Hidden")
     }
 
-    /// Chooses the height of the forecast's wind from its menu.
+    /// Chooses the height of the forecast's wind from the list at the
+    /// map's right.
     private func chooseForecastLevel(_ name: String, in app: XCUIApplication) {
         let level = element("forecast-level", in: app)
         XCTAssertTrue(level.appears(timeout: 15))
-        level.tap()
-        let height = app.buttons[name]
+        let height = level.buttons[name]
         XCTAssertTrue(height.appears(timeout: 10))
         height.tap()
         usleep(700_000)
+    }
+
+    /// The thermal forecast by region and the wind 250 m above the ground,
+    /// against the development server, whose forecast by region has two
+    /// regions by the Tegernsee, both "Not flyable: rain" by the model's
+    /// ground: the day filled by region, light and dark, the key of the
+    /// five levels, a region tapped with its words, its detail and its
+    /// credit behind the map's (i); then the wind's arrows at 250 m above
+    /// the ground, chosen from the heights at the map's right, light and
+    /// dark, and the heights gone with the gusts. It leaves the wind at
+    /// the ground, its mean.
+    func testTheForecastMapShowsRegionsAndTheWindAboveTheGround() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server, "--map-at", "47.62,11.8,8.6"])
+        XCTAssertTrue(app.buttons["Show my position"].appears(timeout: 90))
+        let others = ["layer-sites", "layer-pilots"]
+        for layer in others {
+            setLayer(layer, on: false, in: app)
+        }
+        setLayer("layer-airspace", on: false, in: app)
+
+        // The day by region: the two regions filled, the key of the five
+        // levels, worst first.
+        showWhat("what-thermals", in: app)
+        let levels = element("what-levels", in: app)
+        XCTAssertTrue(levels.appears(timeout: 60))
+        XCTAssertEqual(levels.value as? String, "Not flyable, Glides only, Weak, Good, Very good")
+        XCTAssertTrue(waitUntil(timeout: 15) {
+            (app.buttons["map-credits"].value as? String)?.contains("Regions: EAWS (CC0)") == true
+        })
+        sleep(3)
+        keepScreenshots(light: "map-regions-1-day", dark: "map-regions-dark-day")
+
+        // A region tapped: the Bavarian Prealps under the map's middle.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let words = element("forecast-region-words", in: app)
+        XCTAssertTrue(words.appears(timeout: 10))
+        XCTAssertTrue(words.label.contains("Not flyable: rain"), words.label)
+        XCTAssertEqual(element("forecast-region-detail", in: app).label, "From the model's ground")
+        usleep(500_000)
+        keepScreenshots(light: "map-regions-2-region", dark: "map-regions-dark-region")
+        app.buttons["Done"].tap()
+        _ = words.vanishes(timeout: 5)
+
+        // The whole key behind the "i": each level in its fuller words.
+        showWhatsKeyAndNotes(true, in: app)
+        XCTAssertTrue(element("what-key-whole", in: app).appears(timeout: 15))
+        usleep(400_000)
+        keepScreenshot("map-regions-3-key")
+        showWhatsKeyAndNotes(false, in: app)
+
+        // The wind at one o'clock, 250 m above the ground: arrows only.
+        showWhat("layer-wind", in: app)
+        XCTAssertTrue(chooseTime(endingWith: ", 13:00", in: app))
+        chooseForecastLevel("250 m AGL", in: app)
+        let line = element("what-line", in: app)
+        XCTAssertTrue(waitUntil(timeout: 30) { line.label.contains("250") && line.label.contains("13:00, forecast") }, line.label)
+        XCTAssertTrue(element("forecast-level", in: app).buttons["250 m AGL"].isSelected)
+        sleep(3)
+        keepScreenshots(light: "map-wind-1-250-agl", dark: "map-wind-dark-250-agl")
+
+        // The gusts have no heights.
+        let gusts = element("what-gusts", in: app)
+        XCTAssertTrue(gusts.appears(timeout: 15))
+        gusts.tap()
+        XCTAssertTrue(element("forecast-level", in: app).vanishes(timeout: 10))
+        sleep(2)
+        keepScreenshot("map-wind-2-gusts")
+        gusts.tap()
+
+        // As the other tests expect it: the wind at the ground.
+        chooseForecastLevel("Ground", in: app)
+        for layer in others {
+            setLayer(layer, on: true, in: app)
+        }
+        XCTAssertTrue(element("layer-wind", in: app).isSelected)
     }
 
     /// The forecast by the hour, against the stand-in with a made-up day

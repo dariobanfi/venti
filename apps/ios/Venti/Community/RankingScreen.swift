@@ -144,7 +144,9 @@ private struct RankedPilotHead: View {
             PilotFace(name: pilot.name, picturePath: pilot.picturePath, size: VentiSpace.s6)
                 .alignmentGuide(.firstTextBaseline) { $0[.bottom] * 0.7 }
             VStack(alignment: .leading, spacing: 2) {
-                Text(pilot.name)
+                // The flag of the pilot's country beside the name, once
+                // set.
+                Text([Countries.flag(pilot.country), pilot.name].compactMap { $0 }.joined(separator: " "))
                     .font(.venti(.headline))
                     .lineLimit(1)
                 Text(pilot.counted)
@@ -163,7 +165,9 @@ private struct RankedPilotHead: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Place \(Format.count(pilot.place)), \(pilot.name)")
+        .accessibilityLabel(
+            "Place \(Format.count(pilot.place)), \(pilot.name)" + (pilot.country.map { ", \(Countries.name($0))" } ?? "")
+        )
         .accessibilityValue("\(Format.decimal(pilot.points, places: 2)) points, \(pilot.counted)")
     }
 }

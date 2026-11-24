@@ -87,6 +87,12 @@ struct OverviewMap: UIViewRepresentable {
     /// is drawn, where nothing else the app draws lies: the screen finds
     /// the square from the place, drawn or not.
     var onHourPlace: (Coordinate) -> Void = { _ in }
+    /// The thermal forecast by region, while the map shows the thermals
+    /// and the regions have levels; nothing otherwise.
+    var forecastRegions: RegionsDrawing?
+    /// Called with a region's identifier when the pilot taps a region
+    /// that has a level, where nothing else the app draws lies.
+    var onForecastRegion: (String) -> Void = { _ in }
     /// The rain radar's pictures to draw, the first at the bottom; none
     /// while the layer is off.
     var radar: [RadarPicture] = []
@@ -170,6 +176,7 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.onSquare = onSquare
         coordinator.onAirspace = onAirspace
         coordinator.onHourPlace = onHourPlace
+        coordinator.onForecastRegion = onForecastRegion
         coordinator.onCable = onCable
         coordinator.showCables(cables, on: map)
         coordinator.onClimb = onClimb
@@ -178,6 +185,7 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.showFlown(flown, on: map)
         coordinator.showForecast(forecast, on: map)
         coordinator.showHour(forecastHour, on: map)
+        coordinator.showRegions(forecastRegions, on: map)
         coordinator.showRadar(radar, on: map)
         coordinator.showReach(reach, on: map)
         coordinator.show(plans, on: map)
@@ -229,6 +237,12 @@ struct OverviewMap: UIViewRepresentable {
         private var hour: ForecastHourDrawing?
         /// What was drawn of an hour: its identity, `nil` for none.
         private var drawnHour: String??
+        var onForecastRegion: (String) -> Void = { _ in }
+        private var regions: RegionsDrawing?
+        /// What was drawn of the regions: its identity, `nil` for none.
+        private var drawnRegions: String??
+        /// Which set of regions' outlines the map holds.
+        private var drawnRegionsVersion: String?
 
         private var radar: [RadarPicture] = []
         /// Which pictures of the radar were drawn; `nil` before the first
@@ -327,6 +341,26 @@ struct OverviewMap: UIViewRepresentable {
         func showHour(_ hour: ForecastHourDrawing?, on map: MLNMapView) {
             self.hour = hour
             drawHour(on: map)
+        }
+
+        func showRegions(_ regions: RegionsDrawing?, on map: MLNMapView) {
+            self.regions = regions
+            drawRegions(on: map)
+        }
+
+        /// Draws the regions' levels, once the style is there and only
+        /// when the regions, the day or the hour have changed; the
+        /// outlines only when the set of regions has.
+        private func drawRegions(on map: MLNMapView) {
+            guard isStyleLoaded, let style = map.style else { return }
+            let id = regions?.id
+            if let drawn = drawnRegions, drawn == id { return }
+            drawnRegions = .some(id)
+            if let regions, regions.regions.version() != drawnRegionsVersion {
+                drawnRegionsVersion = regions.regions.version()
+                RegionLayers.showOutlines(regions.regions.outlines(), in: style)
+            }
+            RegionLayers.show(levels: regions?.levels ?? [:], under: regions?.under ?? [], in: style)
         }
 
         func showRadar(_ pictures: [RadarPicture], on map: MLNMapView) {
@@ -556,6 +590,7 @@ struct OverviewMap: UIViewRepresentable {
             drawAirspace(on: mapView)
             drawForecast(on: mapView)
             drawHour(on: mapView)
+            drawRegions(on: mapView)
             drawRadar(on: mapView)
             drawReach(on: mapView)
             drawCables(on: mapView)
@@ -656,6 +691,15 @@ struct OverviewMap: UIViewRepresentable {
                 onFlownCell(index)
                 return
             }
+            // A region of the forecast by region with a level, over the
+            // grid's squares.
+            if let levels = regions?.levels, !levels.isEmpty {
+                let hits = map.visibleFeatures(in: under, styleLayerIdentifiers: [RegionLayers.fill])
+                if let id = hits.compactMap({ $0.attribute(forKey: "id") as? String }).first(where: { levels[$0] != nil }) {
+                    onForecastRegion(id)
+                    return
+                }
+            }
             // Nothing of those: the forecast map's square under the finger
             // itself, if one is drawn there.
             let squares = map.visibleFeatures(in: under, styleLayerIdentifiers: [ThermalMapLayers.layer])
@@ -710,6 +754,7 @@ struct OverviewMap: UIViewRepresentable {
         private func prepare(_ style: MLNStyle) {
             ThermalMapLayers.add(to: style)
             ThermalMapLayers.addHours(to: style)
+            RegionLayers.add(to: style)
             // Where thermals have been, under the airspace and all the
             // app's lines and signs.
             AirLayers.addFlown(to: style)

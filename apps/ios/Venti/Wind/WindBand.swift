@@ -53,8 +53,9 @@ extension WindBand {
         }
     }
 
-    /// The band in the name of its picture.
-    fileprivate var name: String {
+    /// The band in the name of its picture, as the core names it in the
+    /// forecast's arrows (`band`).
+    var name: String {
         switch self {
         case .light: "light"
         case .moderate: "moderate"

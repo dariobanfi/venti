@@ -212,7 +212,7 @@ final class SiteEditTests: XCTestCase {
         )
         let confirmed = try await editing(answering: 200, Self.written, noting: sent)
             .confirm(request, day: "2026-11-20")
-        XCTAssertEqual(confirmed.words, "You confirmed this site for Fri 20 Nov.")
+        XCTAssertEqual(confirmed.words, "You confirmed this site for 20 Nov 2026.")
         XCTAssertEqual(confirmed.site.id, id)
 
         // Taken back.

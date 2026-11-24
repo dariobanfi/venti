@@ -22,24 +22,28 @@ final class UnreadModel {
     /// answer. Kept as it was when a read fails: a badge is no promise.
     private(set) var unread: Unread?
 
-    /// The cursor that moves no mark: the server's marks only move
-    /// forward, so a list named with it is left as it was
-    /// (`crates/server/src/api/unread.rs`, `seen`). A list the request
-    /// leaves out is seen up to its newest line, which is not what the
-    /// pilot saw when they opened the other list.
-    static let notShown = "0"
-
     @ObservationIgnored private let send: Send
     @ObservationIgnored private let isSignedIn: @MainActor () -> Bool
+    /// The cursor of the last fetch of what the alarms fired, which the
+    /// alerts' list shows (the core's `alertsFiredCursor`); `nil` before
+    /// the first.
+    @ObservationIgnored private let alarmsCursor: @MainActor () -> String?
 
-    init(send: @escaping Send, isSignedIn: @escaping @MainActor () -> Bool) {
+    init(
+        send: @escaping Send, isSignedIn: @escaping @MainActor () -> Bool,
+        alarmsCursor: @escaping @MainActor () -> String? = { nil }
+    ) {
         self.send = send
         self.isSignedIn = isSignedIn
+        self.alarmsCursor = alarmsCursor
     }
 
-    /// With the app's account.
-    convenience init(account: AccountModel) {
-        self.init(send: { try await account.answer(to: $0) }, isSignedIn: { account.isSignedIn })
+    /// With the app's account and its core.
+    convenience init(account: AccountModel, core: Core) {
+        self.init(
+            send: { try await account.answer(to: $0) }, isSignedIn: { account.isSignedIn },
+            alarmsCursor: { try? core.alertsFiredCursor() }
+        )
     }
 
     /// What the badge says: "3", "99+"; `nil` for none. The groups' unread
@@ -73,16 +77,17 @@ final class UnreadModel {
     }
 
     /// The pilot was shown the notifications up to `cursor`, the cursor
-    /// of the last answer the list read.
+    /// of the last answer the list read; the alarms' mark stays where it
+    /// is (`nil`).
     func sawNotifications(upTo cursor: String) async {
-        await seen(notificationsCursor: cursor, alarmsCursor: Self.notShown)
+        await seen(notificationsCursor: cursor, alarmsCursor: nil)
     }
 
-    /// The pilot was shown what the alarms fired: the core keeps that
-    /// fetch's cursor to itself, and the list is everything the last sync
-    /// brought, so the mark goes up to the newest.
+    /// The pilot was shown what the alarms fired, up to the cursor of the
+    /// fetch the list shows; the notifications' mark stays where it is.
+    /// Before the first fetch nothing was shown, and neither mark moves.
     func sawAlarms() async {
-        await seen(notificationsCursor: Self.notShown, alarmsCursor: nil)
+        await seen(notificationsCursor: nil, alarmsCursor: alarmsCursor())
     }
 
     /// Moves the mark, then reads the count the answer gives; where the

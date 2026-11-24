@@ -69,6 +69,9 @@ enum Preferences {
     /// The height of the forecast map's wind above the sea, metres; -1
     /// for the ground. Kept as the pilot left it.
     static let mapForecastLevelM = "VentiMapForecastLevelM"
+    /// The height of the forecast map's wind above the model's ground,
+    /// metres (250); -1 where the height is not one above the ground.
+    static let mapForecastAboveGroundM = "VentiMapForecastAboveGroundM"
     /// What the pilot asks of the flying sites, on the map and in their
     /// list: which sites ("all", "takeoffs", "landings"), the wind a
     /// take-off is to work in ("any", "measured", or where it comes from

@@ -817,6 +817,26 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
     ("report.json", "post", "/v1/reports", Answer(201)),
     ("groups.json", "get", "/v1/groups", Answer(200)),
     ("group.json", "get", "/v1/groups/{id}", Answer(200)),
+    ("group_public.json", "get", "/v1/groups/{id}", Answer(200)),
+    ("groups_found.json", "get", "/v1/groups/find", Answer(200)),
+    (
+        "group_messages.json",
+        "get",
+        "/v1/groups/{id}/messages",
+        Answer(200),
+    ),
+    (
+        "group_plan_posts.json",
+        "get",
+        "/v1/groups/{id}/messages",
+        Answer(200),
+    ),
+    (
+        "group_message_request.json",
+        "post",
+        "/v1/groups/{id}/messages",
+        Request,
+    ),
     ("group_create_request.json", "post", "/v1/groups", Request),
     ("group_created.json", "post", "/v1/groups", Answer(201)),
     (
@@ -901,26 +921,44 @@ const SCHEMAS_NO_GOLDEN_FILE_REACHES: &[&str] = &[
     "DeleteAccountRequest",
     "DeletedFlight",
     "Frequency",
+    // The chat's answers and requests the tests read in Rust, which
+    // carry identifiers made anew on every run (group_chat.rs).
+    "GoneCard",
     "GoogleSignInRequest",
+    "GroupInvite",
+    "GroupInviteAnswer",
+    "GroupInvitesResponse",
+    "GroupMeRequest",
+    "GroupMeResponse",
     "HandOverGroupRequest",
     // The tests read the list of requests for help in Rust and keep no
     // file of it; its records are those of `help_asked.json`.
     "HelpListResponse",
+    "InviteRequest",
     "LinkGoogleRequest",
+    "MessagePicture",
+    "MessageResponse",
+    "OpenPlanCard",
     "OperatingHours",
+    "PilotCard",
     "RemoveSiteRequest",
+    "Removed",
     // The development mode's region has one source of sites and no place
     // it shares with Venti's own made-up sites: no answer names one.
     "SamePlace",
+    "SentPicture",
+    "SentPictureResponse",
     "SignInRequest",
+    "SiteCard",
     "TokenClient",
     "UpdateGroupRequest",
 ];
 
 /// The keywords of a schema that are read past: they say something to a
 /// person or to a generator, and no golden answer is checked against
-/// them.
-const KEYWORDS_NOT_CHECKED: [&str; 1] = ["description"];
+/// them. The bounds are the server's, which its own tests hold it to.
+const KEYWORDS_NOT_CHECKED: [&str; 5] =
+    ["description", "maxLength", "maxItems", "minimum", "maximum"];
 
 struct Validator<'a> {
     document: &'a Value,

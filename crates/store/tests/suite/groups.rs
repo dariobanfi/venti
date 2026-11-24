@@ -49,6 +49,7 @@ fn new_group(name: &str, keeper: &Account, invite: u8, made_at: Timestamp) -> Ne
         created_at: made_at,
         keeper_id: keeper.id.clone(),
         invite: code(invite),
+        profile: venti_store::GroupProfile::default(),
     }
 }
 
@@ -253,6 +254,7 @@ pub(crate) async fn a_group_is_made_with_its_maker_as_keeper_and_only_member(sto
         created_at: at(10, 0),
         keeper: pilot(&dario),
         members: 1,
+        profile: Box::default(),
     };
     assert_eq!(made, GroupCreation::Created(expected.clone()));
     let seen = read(store, "g1", &dario).await.unwrap();
@@ -359,6 +361,7 @@ pub(crate) async fn a_pilot_comes_into_a_group_with_its_invite_code(store: &impl
                 display_name: "Pilot dario".to_owned(),
             },
             members,
+            profile: Box::default(),
         }
     }
 }

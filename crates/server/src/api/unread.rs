@@ -48,7 +48,16 @@ async fn count<S: Store>(api: &Api<S>, signed: &Signed) -> Result<UnreadResponse
     } else {
         0
     };
-    Ok(UnreadResponse::of(notifications, alarms))
+    // The groups' messages are read by the app's own sign-in, and so
+    // counted for it alone.
+    let groups = if matches!(signed.by, super::auth::By::Session(_)) {
+        api.store
+            .group_unread(&signed.account.id, UNREAD_COUNTED_UP_TO)
+            .await?
+    } else {
+        0
+    };
+    Ok(UnreadResponse::of(notifications, alarms).with_groups(groups))
 }
 
 /// A cursor of `GET /v1/account/notifications` or of `GET

@@ -40,15 +40,18 @@ use crate::{
     MemberRemoval, NewGroup, NewPlan, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom,
     PlanSaving, RemovedGroup, SecretHash, StoreError,
 };
+use crate::{GroupProfile, HomeArea};
 
 /// Everything [`group_from`] reads: a group `g` and its keeper's account
 /// `k`.
-const GROUP_COLUMNS: &str = "
+pub(super) const GROUP_COLUMNS: &str = "
     g.id, g.name, g.created_at, g.keeper_id, k.handle AS keeper_handle,
     k.display_name AS keeper_name,
-    (SELECT count(*) FROM group_members c WHERE c.group_id = g.id) AS members";
+    (SELECT count(*) FROM group_members c WHERE c.group_id = g.id) AS members,
+    g.public, g.description, g.picture_id, g.home_lat, g.home_lon, g.home_radius_km,
+    g.home_place";
 
-const GROUP_FROM: &str = "FROM groups g JOIN accounts k ON k.id = g.keeper_id";
+pub(super) const GROUP_FROM: &str = "FROM groups g JOIN accounts k ON k.id = g.keeper_id";
 
 /// Everything [`plan_from`] reads: a plan `p` and its author's account `a`.
 const PLAN_COLUMNS: &str = "
@@ -73,7 +76,24 @@ fn bound(day: NaiveDate) -> NaiveDate {
     day.clamp(first, last)
 }
 
-fn group_from(row: &Row) -> Group {
+pub(super) fn group_from(row: &Row) -> Group {
+    let (lat, lon, radius): (Option<f64>, Option<f64>, Option<f64>) = (
+        row.get("home_lat"),
+        row.get("home_lon"),
+        row.get("home_radius_km"),
+    );
+    // A home whose point is not one is no home; the constraint and the
+    // writers keep that from happening.
+    let home = lat
+        .zip(lon)
+        .zip(radius)
+        .and_then(|((lat, lon), radius_km)| {
+            Some(HomeArea {
+                center: GeoPoint::new(lat, lon).ok()?,
+                radius_km,
+                place: row.get("home_place"),
+            })
+        });
     Group {
         id: row.get("id"),
         name: row.get("name"),
@@ -84,6 +104,12 @@ fn group_from(row: &Row) -> Group {
             display_name: row.get("keeper_name"),
         },
         members: count(row.get("members")),
+        profile: Box::new(GroupProfile {
+            public: row.get("public"),
+            description: row.get("description"),
+            picture: row.get("picture_id"),
+            home,
+        }),
     }
 }
 
@@ -115,7 +141,7 @@ fn plan_from(row: &Row) -> Result<Plan, StoreError> {
     })
 }
 
-fn is(error: &tokio_postgres::Error, state: &SqlState) -> bool {
+pub(super) fn is(error: &tokio_postgres::Error, state: &SqlState) -> bool {
     error.code() == Some(state)
 }
 
@@ -135,7 +161,10 @@ pub(super) fn is_a_race(error: &tokio_postgres::Error) -> bool {
 
 // --- Reading ------------------------------------------------------------------
 
-async fn read_group(db: &impl GenericClient, id: &str) -> Result<Option<Group>, StoreError> {
+pub(super) async fn read_group(
+    db: &impl GenericClient,
+    id: &str,
+) -> Result<Option<Group>, StoreError> {
     let query = format!("SELECT {GROUP_COLUMNS} {GROUP_FROM} WHERE g.id = $1");
     let statement = db.prepare_cached(&query).await.map_err(db_error)?;
     let row = db.query_opt(&statement, &[&id]).await.map_err(db_error)?;
@@ -143,13 +172,16 @@ async fn read_group(db: &impl GenericClient, id: &str) -> Result<Option<Group>, 
 }
 
 /// A group that the calling transaction holds or has just made.
-async fn held_group(tx: &Transaction<'_>, id: &str) -> Result<Group, StoreError> {
+pub(super) async fn held_group(tx: &Transaction<'_>, id: &str) -> Result<Group, StoreError> {
     read_group(tx, id)
         .await?
         .ok_or_else(|| corrupt("group", "it is gone while its row is held"))
 }
 
-async fn read_members(db: &impl GenericClient, id: &str) -> Result<Vec<GroupPilot>, StoreError> {
+pub(super) async fn read_members(
+    db: &impl GenericClient,
+    id: &str,
+) -> Result<Vec<GroupPilot>, StoreError> {
     let statement = db
         .prepare_cached(
             "SELECT m.account_id, a.handle, a.display_name
@@ -171,7 +203,10 @@ async fn read_members(db: &impl GenericClient, id: &str) -> Result<Vec<GroupPilo
 }
 
 /// A group with its members, counted as they are listed.
-async fn held_with_members(tx: &Transaction<'_>, id: &str) -> Result<GroupMembers, StoreError> {
+pub(super) async fn held_with_members(
+    tx: &Transaction<'_>,
+    id: &str,
+) -> Result<GroupMembers, StoreError> {
     let mut group = held_group(tx, id).await?;
     let members = read_members(tx, id).await?;
     group.members = count(i64::try_from(members.len()).unwrap_or(i64::MAX));
@@ -228,7 +263,7 @@ async fn held_plan(tx: &Transaction<'_>, id: &str) -> Result<Plan, StoreError> {
 }
 
 /// A transaction that reads everything as of one moment.
-async fn at_one_moment(client: &mut Client) -> Result<Transaction<'_>, StoreError> {
+pub(super) async fn at_one_moment(client: &mut Client) -> Result<Transaction<'_>, StoreError> {
     client
         .build_transaction()
         .isolation_level(IsolationLevel::RepeatableRead)
@@ -242,7 +277,10 @@ async fn at_one_moment(client: &mut Client) -> Result<Transaction<'_>, StoreErro
 
 /// Locks an account's row for the rest of the transaction. `false` if
 /// there is no such account.
-async fn lock_account(tx: &Transaction<'_>, id: &str) -> Result<bool, tokio_postgres::Error> {
+pub(super) async fn lock_account(
+    tx: &Transaction<'_>,
+    id: &str,
+) -> Result<bool, tokio_postgres::Error> {
     let row = tx
         .query_opt("SELECT 1 FROM accounts WHERE id = $1 FOR UPDATE", &[&id])
         .await?;
@@ -251,7 +289,10 @@ async fn lock_account(tx: &Transaction<'_>, id: &str) -> Result<bool, tokio_post
 
 /// Locks a group's row for the rest of the transaction and returns the
 /// account that keeps it. `None` if there is no such group.
-async fn lock_group(tx: &Transaction<'_>, id: &str) -> Result<Option<String>, StoreError> {
+pub(super) async fn lock_group(
+    tx: &Transaction<'_>,
+    id: &str,
+) -> Result<Option<String>, StoreError> {
     let statement = tx
         .prepare_cached("SELECT keeper_id FROM groups WHERE id = $1 FOR UPDATE")
         .await
@@ -262,7 +303,11 @@ async fn lock_group(tx: &Transaction<'_>, id: &str) -> Result<Option<String>, St
 
 /// Whether an account is in a group. The member's row is held against
 /// deletion for the rest of the transaction.
-async fn is_member(tx: &Transaction<'_>, id: &str, account_id: &str) -> Result<bool, StoreError> {
+pub(super) async fn is_member(
+    tx: &Transaction<'_>,
+    id: &str,
+    account_id: &str,
+) -> Result<bool, StoreError> {
     let statement = tx
         .prepare_cached(
             "SELECT 1 FROM group_members WHERE group_id = $1 AND account_id = $2 FOR KEY SHARE",
@@ -278,7 +323,7 @@ async fn is_member(tx: &Transaction<'_>, id: &str, account_id: &str) -> Result<b
 
 /// Locks a group's row for one of its members and returns the account that
 /// keeps it. `None` if there is no such group or the account is not in it.
-async fn lock_as_member(
+pub(super) async fn lock_as_member(
     tx: &Transaction<'_>,
     id: &str,
     account_id: &str,
@@ -309,7 +354,7 @@ async fn lock_as_keeper<T>(
 /// The account of the member of a group with this handle. With `hold`,
 /// the member's row is held against deletion for the rest of the
 /// transaction.
-async fn member_with(
+pub(super) async fn member_with(
     tx: &Transaction<'_>,
     id: &str,
     handle: &str,
@@ -332,7 +377,7 @@ async fn member_with(
 }
 
 /// How many groups an account is in.
-async fn groups_with(tx: &Transaction<'_>, account_id: &str) -> Result<i64, StoreError> {
+pub(super) async fn groups_with(tx: &Transaction<'_>, account_id: &str) -> Result<i64, StoreError> {
     let row = tx
         .query_one(
             "SELECT count(*) FROM group_members WHERE account_id = $1",
@@ -360,16 +405,24 @@ pub(super) async fn create(
     if groups_with(&tx, &new.keeper_id).await? >= i64::from(room.groups_per_account) {
         return Ok(GroupCreation::TooManyGroups);
     }
+    let home = new.profile.home.as_ref();
     let stored = tx
         .execute(
-            "INSERT INTO groups (id, name, created_at, keeper_id, invite_hash)
-             VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO groups (id, name, created_at, keeper_id, invite_hash, public,
+                                 description, home_lat, home_lon, home_radius_km, home_place)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
             &[
                 &new.id,
                 &new.name,
                 &new.created_at,
                 &new.keeper_id,
                 &new.invite.0.as_slice(),
+                &new.profile.public,
+                &new.profile.description,
+                &home.map(|home| home.center.lat()),
+                &home.map(|home| home.center.lon()),
+                &home.map(|home| home.radius_km),
+                &home.and_then(|home| home.place.as_deref()),
             ],
         )
         .await;
@@ -558,6 +611,14 @@ pub(super) async fn hand_over(
     )
     .await
     .map_err(db_error)?;
+    // The owner before is a member like any other from then on; the new
+    // one is more than an admin.
+    tx.execute(
+        "UPDATE group_members SET admin = false WHERE group_id = $1 AND account_id = $2",
+        &[&id, &member],
+    )
+    .await
+    .map_err(db_error)?;
     let group = held_with_members(&tx, id).await?;
     tx.commit().await.map_err(db_error)?;
     Ok(KeeperAct::Done(group))
@@ -618,6 +679,11 @@ async fn release_keeper(
                 &[&id, &next],
             )
             .await?;
+            tx.execute(
+                "UPDATE group_members SET admin = false WHERE group_id = $1 AND account_id = $2",
+                &[&id, &next],
+            )
+            .await?;
             Ok(false)
         }
         None => {
@@ -641,7 +707,24 @@ pub(super) async fn remove_member(
     };
     let member = member_with(&tx, id, member_handle, false).await?;
     let leaving = member.as_deref() == Some(by_account_id);
-    if !leaving && keeper != by_account_id {
+    // An admin removes members who are neither the owner nor admins.
+    let by_admin = match &member {
+        Some(member) if !leaving && *member != keeper && keeper != by_account_id => {
+            let row = tx
+                .query_one(
+                    "SELECT
+                         (SELECT admin FROM group_members WHERE group_id = $1 AND account_id = $2),
+                         (SELECT admin FROM group_members WHERE group_id = $1 AND account_id = $3)",
+                    &[&id, &by_account_id, member],
+                )
+                .await
+                .map_err(db_error)?;
+            let (asker, named): (Option<bool>, Option<bool>) = (row.get(0), row.get(1));
+            asker == Some(true) && named == Some(false)
+        }
+        _ => false,
+    };
+    if !leaving && keeper != by_account_id && !by_admin {
         return Ok(MemberRemoval::NotKeeper);
     }
     let Some(member) = member else {
@@ -787,6 +870,17 @@ pub(super) async fn save_plan(
     )
     .await
     .map_err(db_error)?;
+    // The plan is a post of the group's chat too.
+    tx.execute(
+        "WITH n AS (SELECT nextval('group_message_numbers') AS n)
+         INSERT INTO group_messages (id, group_id, number, version, author_id, kind, plan_id,
+                                     created_at)
+         SELECT $1, $2, n.n, n.n, $3, 'plan', $1, $4 FROM n
+         ON CONFLICT (id) DO NOTHING",
+        &[&new.id, &new.group_id, &new.author_id, &new.created_at],
+    )
+    .await
+    .map_err(db_error)?;
     let plan = held_plan(&tx, &new.id).await?;
     tx.commit().await.map_err(db_error)?;
     Ok(PlanSaving::Stored(Box::new(plan)))
@@ -850,6 +944,7 @@ pub(super) async fn change_plan(
     )
     .await
     .map_err(db_error)?;
+    super::group_chat::plan_changed(&tx, plan_id).await?;
     let plan = held_plan(&tx, plan_id).await?;
     tx.commit().await.map_err(db_error)?;
     Ok(PlanChange::Now(Box::new(plan)))
@@ -885,6 +980,7 @@ pub(super) async fn delete_plan(
     if author != by_account_id && keeper != by_account_id {
         return Ok(PlanRemoval::NotAllowed);
     }
+    super::group_chat::plan_changed(&tx, plan_id).await?;
     tx.execute("DELETE FROM group_plans WHERE id = $1", &[&plan_id])
         .await
         .map_err(db_error)?;
@@ -936,6 +1032,7 @@ pub(super) async fn set_in(
         .await
         .map_err(db_error)?;
     }
+    super::group_chat::plan_changed(&tx, plan_id).await?;
     let plan = held_plan(&tx, plan_id).await?;
     tx.commit().await.map_err(db_error)?;
     Ok(PlanChange::Now(Box::new(plan)))
@@ -952,14 +1049,18 @@ pub(super) async fn plans_of_group(
         return Ok(None);
     }
     let tx = at_one_moment(client).await?;
-    let member = tx
+    // A member reads them, and anyone a public group's.
+    let reads = tx
         .query_opt(
-            "SELECT 1 FROM group_members WHERE group_id = $1 AND account_id = $2",
+            "SELECT 1 FROM groups g
+             WHERE g.id = $1
+               AND (g.public OR EXISTS (SELECT 1 FROM group_members m
+                                        WHERE m.group_id = g.id AND m.account_id = $2))",
             &[&group_id, &account_id],
         )
         .await
         .map_err(db_error)?;
-    if member.is_none() {
+    if reads.is_none() {
         return Ok(None);
     }
     Ok(Some(plans_in(&tx, group_id, from, to).await?))

@@ -58,7 +58,7 @@ use std::sync::Arc;
 use chrono::{Duration, NaiveDate, NaiveTime};
 use tokio_util::sync::CancellationToken;
 use venti_api_types::v1::{Password, Scope};
-use venti_domain::Timestamp;
+use venti_domain::{GeoPoint, Timestamp};
 use venti_flight::igc::{self, IgcFile};
 use venti_flight::testing::synthetic_flight;
 use venti_regions::RegionPack;
@@ -335,6 +335,7 @@ async fn add_demo_groups(
                     created_at: at,
                     keeper_id: member.id.clone(),
                     invite,
+                    profile: venti_store::GroupProfile::default(),
                 };
                 let made = store.create_group(&new, &room).await;
                 matches!(made, Ok(GroupCreation::Created(_)))
@@ -391,7 +392,257 @@ async fn add_demo_groups(
             }
         }
     }
+    // As migration 35 left the groups of before: what was there counts
+    // as read.
+    for (id, members) in [
+        (DEMO_GROUP, [DEMO_HANDLE, "mara", "jonas"].as_slice()),
+        (DEMO_OTHER_GROUP, ["mara", "jonas"].as_slice()),
+    ] {
+        for handle in members {
+            store
+                .set_group_standing(id, &account(handle)?.id, None, Some(i64::MAX), 0)
+                .await
+                .map_err(|error| error.to_string())?;
+        }
+    }
     add_demo_open_plans(store, accounts, now).await
+}
+
+/// One public group of the development mode, as [`add_demo_communities`]
+/// stores it. Names, places and words are made up; no group is a real
+/// club or school.
+struct DemoCommunity {
+    id: &'static str,
+    name: &'static str,
+    description: &'static str,
+    /// The middle of the home area, its radius in kilometres and its place.
+    home: (f64, f64, f64, &'static str),
+    /// Its members by handle, the owner first, and how many days ago each
+    /// came in.
+    members: &'static [(&'static str, i64)],
+    /// The members who are admins.
+    admins: &'static [&'static str],
+    /// Its messages, the oldest first: author, minutes ago, text.
+    messages: &'static [(&'static str, i64, &'static str)],
+}
+
+/// The identifiers of the public groups the development mode starts with,
+/// in the order of [`DEMO_COMMUNITIES`].
+pub const DEMO_PUBLIC_GROUPS: [&str; 6] = [
+    "0000000000000000000000g001",
+    "0000000000000000000000g002",
+    "0000000000000000000000g003",
+    "0000000000000000000000g004",
+    "0000000000000000000000g005",
+    "0000000000000000000000g006",
+];
+
+/// The public groups of the development mode, around Munich and the
+/// mountains south of it. The first message of the Rosenheimer Eagles
+/// carries a public flight of `mara`'s, shown as a card.
+const DEMO_COMMUNITIES: [DemoCommunity; 6] = [
+    DemoCommunity {
+        id: DEMO_PUBLIC_GROUPS[0],
+        name: "Munich International Paragliders",
+        description: "Pilots in and around Munich, in English. Car shares to the mountains, \
+                      weekend trips, beers after.",
+        home: (48.137, 11.575, 40.0, "Munich"),
+        members: &[("mara", 60), ("jonas", 50), ("lena", 40)],
+        admins: &["jonas"],
+        messages: &[
+            (
+                "mara",
+                300,
+                "Welcome to everyone new! Tell us where you fly.",
+            ),
+            (
+                "lena",
+                120,
+                "Anyone driving to the Wallberg on Saturday? I have two seats.",
+            ),
+            ("jonas", 45, "@lena count me in, I'll bring the radio."),
+        ],
+    },
+    DemoCommunity {
+        id: DEMO_PUBLIC_GROUPS[1],
+        name: "Rosenheimer Eagles",
+        description: "Flying from the Chiemgau's hills. Thermal days, glider talk, and \
+                      who is going up.",
+        home: (47.856, 12.128, 30.0, "Rosenheim and the Chiemgau"),
+        members: &[("jonas", 90), ("mara", 80), ("timo", 20)],
+        admins: &[],
+        messages: &[
+            (
+                "mara",
+                200,
+                "My flight from yesterday, the inversion broke late.",
+            ),
+            ("timo", 90, "Nice line! How was the wind on top?"),
+        ],
+    },
+    DemoCommunity {
+        id: DEMO_PUBLIC_GROUPS[2],
+        name: "Hochries Flugschule Musterwind",
+        description: "A made-up flying school at the Hochries: training days, the \
+                      weather for students, the cable car's times.",
+        home: (47.748, 12.247, 15.0, "Hochries"),
+        members: &[("lena", 120), ("ines", 60), ("timo", 30)],
+        admins: &["ines"],
+        messages: &[
+            (
+                "lena",
+                600,
+                "Training day on Sunday if the wind stays west. Meet at the valley station at 9.",
+            ),
+            ("ines", 400, "The cable car runs from 9:00 this week."),
+        ],
+    },
+    DemoCommunity {
+        id: DEMO_PUBLIC_GROUPS[3],
+        name: "Tegernsee Thermikrunde",
+        description: "Wallberg, Baumgartenschneid and the lake. Who flies today?",
+        home: (47.712, 11.758, 20.0, "Tegernsee"),
+        members: &[("timo", 70), ("lena", 30), ("mara", 10)],
+        admins: &[],
+        messages: &[
+            ("timo", 240, "Wallberg south looked good this morning."),
+            ("mara", 30, "Up there at noon, the base was at 2100 m."),
+        ],
+    },
+    DemoCommunity {
+        id: DEMO_PUBLIC_GROUPS[4],
+        name: "Inntal Cross-Country",
+        description: "Long lines along the Inn valley, from Kufstein to Innsbruck and back.",
+        home: (47.42, 11.95, 50.0, "Inn valley"),
+        members: &[("ines", 100), ("jonas", 40)],
+        admins: &[],
+        messages: &[(
+            "ines",
+            1000,
+            "Task idea for Friday: Hochries – Kufstein – Wörgl and back.",
+        )],
+    },
+    DemoCommunity {
+        id: DEMO_PUBLIC_GROUPS[5],
+        name: "Garmisch Gleitschirm Treff",
+        description: "Wank, Osterfelder and the Zugspitze's valleys.",
+        home: (47.492, 11.095, 25.0, "Garmisch-Partenkirchen"),
+        members: &[("lena", 50), ("ines", 45)],
+        admins: &[],
+        messages: &[(
+            "lena",
+            2000,
+            "The Wank cable car is closed for repairs until Friday.",
+        )],
+    },
+];
+
+/// Puts the public groups of [`DEMO_COMMUNITIES`] into the store, with
+/// their members, admins and messages.
+async fn add_demo_communities(store: &MemoryStore, now: Timestamp) -> Result<(), String> {
+    use venti_store::{GroupProfile, HomeArea, LinkKind, MessageLink, MessagePosting, NewMessage};
+    let room = crate::groups::Limits::none().room();
+    let handles = DEMO_PILOTS
+        .iter()
+        .chain(&DEMO_TAKEOFF_PILOTS)
+        .map(|pilot| (pilot.handle, pilot.id));
+    let handles: Vec<(&str, &str)> = handles.collect();
+    let id_of = |handle: &str| {
+        handles
+            .iter()
+            .find(|(known, _)| *known == handle)
+            .map(|(_, id)| (*id).to_owned())
+            .ok_or_else(|| format!("the development mode has no pilot {handle}"))
+    };
+    // A public flight of mara's, for the card.
+    let flight = store
+        .flights_of(DEMO_PILOTS[0].id, Listing::Public, None, 1)
+        .await
+        .map_err(|error| error.to_string())?
+        .into_iter()
+        .next()
+        .ok_or("mara has no public flight to show as a card")?;
+    for (index, group) in DEMO_COMMUNITIES.iter().enumerate() {
+        let (lat, lon, radius_km, place) = group.home;
+        let (owner, made_days_ago) = group.members[0];
+        let new = NewGroup {
+            id: group.id.to_owned(),
+            name: group.name.to_owned(),
+            created_at: now - Duration::days(made_days_ago),
+            keeper_id: id_of(owner)?,
+            // No code lets anyone into a public group; this one is the
+            // hash of nothing anyone was given.
+            invite: SecretHash([u8::try_from(index).unwrap_or(0) + 0xC0; 32]),
+            profile: GroupProfile {
+                public: true,
+                description: Some(group.description.to_owned()),
+                picture: None,
+                home: Some(HomeArea {
+                    center: GeoPoint::new(lat, lon).map_err(|error| error.to_string())?,
+                    radius_km,
+                    place: Some(place.to_owned()),
+                }),
+            },
+        };
+        if !matches!(
+            store.create_group(&new, &room).await,
+            Ok(GroupCreation::Created(_))
+        ) {
+            return Err(format!("the group {} could not be made", group.name));
+        }
+        for (handle, days_ago) in &group.members[1..] {
+            let entered = store
+                .enter_group(
+                    group.id,
+                    &id_of(handle)?,
+                    &room,
+                    now - Duration::days(*days_ago),
+                )
+                .await;
+            if !matches!(entered, Ok(GroupJoining::Joined(_))) {
+                return Err(format!("{handle} could not come into {}", group.name));
+            }
+        }
+        for admin in group.admins {
+            let made = store
+                .set_group_admin(group.id, &id_of(owner)?, admin, true)
+                .await;
+            if !matches!(made, Ok(venti_store::GroupAct::Done(()))) {
+                return Err(format!(
+                    "{admin} could not be made an admin of {}",
+                    group.name
+                ));
+            }
+        }
+        for (number, (author, minutes_ago, text)) in group.messages.iter().enumerate() {
+            let links = if group.id == DEMO_PUBLIC_GROUPS[1] && number == 0 {
+                vec![MessageLink {
+                    kind: LinkKind::Flight,
+                    id: flight.id.clone(),
+                }]
+            } else {
+                Vec::new()
+            };
+            let new = NewMessage {
+                // `0000000000000000000g001m00`: the group's own number and
+                // the message's.
+                id: format!("0000000000000000000{}m{number:02}", &group.id[22..]),
+                group_id: group.id.to_owned(),
+                author_id: id_of(author)?,
+                text: (*text).to_owned(),
+                pictures: Vec::new(),
+                links,
+                created_at: now - Duration::minutes(*minutes_ago),
+            };
+            if !matches!(
+                store.post_message(&new).await,
+                Ok(MessagePosting::Posted(_))
+            ) {
+                return Err(format!("a message of {} could not be posted", group.name));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The development mode's open plans ([`DEMO_OPEN_PLANS`]), at the sample
@@ -511,7 +762,7 @@ async fn add_demo_sites(
     accounts: &[Account],
     now: Timestamp,
 ) -> Result<(), String> {
-    use venti_domain::{GeoPoint, Site, SiteUse, WindSector};
+    use venti_domain::{Site, SiteUse, WindSector};
     use venti_store::{NewPilotSite, SiteAct, SiteRevising, SiteVia, SiteWrite};
 
     use crate::pilot_sites::APART_M;
@@ -1237,6 +1488,7 @@ async fn add_demo_account(
     add_demo_groups(store, &pilots, now).await?;
     add_demo_sites(store, &pilots, now).await?;
     add_demo_takeoffs(store, password_cost).await?;
+    add_demo_communities(store, now).await?;
     add_demo_alerts(store, &account.id, now).await?;
     add_demo_social(store, now).await?;
 

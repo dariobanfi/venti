@@ -192,6 +192,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "flights searched by area, class, kind, distance and country",
         sql: include_str!("../../migrations/0034_flight_search.sql"),
     },
+    Migration {
+        version: 35,
+        name: "groups as communities with a chat",
+        sql: include_str!("../../migrations/0035_group_chat.sql"),
+    },
 ];
 
 /// Applies every migration the database has not seen yet.

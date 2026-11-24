@@ -383,6 +383,21 @@ Owner decision 24 and open question 7, on the server and in the core. [api.md](a
 
 Not built in this piece: any app screen or the apps' registering with APNs and FCM (the core has the requests, the answers and the words: `device_register_request`, `nearby_settings_change_request`, `position_request`, `help_ask_request`, `help_answer_request`, `help_requests`, `help_emergency_words`, `phone_message_target`); Web Push for open plans and calls for help; a word to the caller's own friends; a second answer beyond "I can help" (a chat); a scope for programs.
 
+## Groups as communities with a chat: what stands (2026-11-24)
+
+Owner decision 26, step (a) of item 7 in [plan.md](plan.md): the server and the core. [api.md](api.md#groups-as-communities-with-a-chat) has it for the maker of another program.
+
+**What was run.** The store's suite against the in-memory store and against PostgreSQL 16 with PostGIS in a container, with the migration `0035` (`crates/store/tests/suite/group_chat.rs`), and the migration of a group of before with a plan (`crates/store/tests/postgres.rs`); the API through the real router over the development mode's data (`crates/server/tests/group_chat.rs`), with golden answers; the core against those answers (`crates/core/src/group_chat.rs`). No app has a screen for it yet.
+
+- **Conversation, not data** (decision 26, and the exception to principles 6 and 7 that it makes): messages and their pictures are read and written with a session of Venti's own apps only, never with a token for a program, and are in no public read, dump, archive or tool of the connector. The groups themselves (name, description, picture, home, members) stay behind `groups:read` and `groups:write` as before.
+- **The record** (principles 1 and 2): a group keeps its owner, its creation and its home; a message its author, its time, its kind and who removed it and when; a picture who sent it and when. A message stays when its author leaves the group and goes with the account (`ON DELETE CASCADE`), as do its pictures. *Not kept:* through what (app or token) a message came in; an edit of a message, which has none.
+- **Who may read** (principle 5): `groups.public`, held by the database; a private group answers as no group to anyone but its members and those invited, who read the group and not its messages.
+- **Pictures** are the server's own WebP copies without metadata, at most 1600 pixels on the longer side, served by an identifier of 26 random characters without a sign-in.
+- **Bounds** (principle 12): 2000 characters, 4 pictures and 4 links a message; 500 messages, 60 pictures and 50 invites an account a day; 200 open invites a group; 50 members a group, as before; a page of 1 to 100 messages; a search of 1 to 50 groups within 150 km.
+- **Moderation**: a message and a picture are reported as `group_message` and `group_picture`, the message's words kept with the report; the owner and the admins remove messages and members. *Not built:* a command for whoever runs the server that removes one message (the group can be removed whole, as before).
+
+Not built in this piece: any app screen (steps b and c); Web Push of a message; a search that resolves a place's name against Venti's sites and regions (the home's own place name is searched); the pilot's own messages in the archive; removing the invite codes, which the apps of before still use; pictures sent and never posted, which stay until their group or account goes; the sample pilots of item 8.
+
 ## A description for programs, and open reads: what stands (2026-11-21)
 
 Piece 4, on the server. [api.md](api.md#writing-a-program-against-venti) has a part for the maker of another program and says how to read the description; [architecture.md](architecture.md#the-description-of-the-api) how it is made and why.

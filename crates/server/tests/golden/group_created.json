@@ -7,7 +7,8 @@
       "handle": "demo",
       "display_name": "Demo Pilot"
     },
-    "member_count": 1
+    "member_count": 1,
+    "public": false
   },
   "invite_code": "7k3m-9q2x-4r8t-1v6w"
 }

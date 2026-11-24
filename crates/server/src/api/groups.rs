@@ -38,8 +38,8 @@ use venti_api_types::v1::{
 };
 use venti_domain::Timestamp;
 use venti_store::{
-    GroupCreation, GroupJoining, GroupMembers, KeeperAct, MemberRemoval, NewGroup, NewPlan,
-    PlanChange, PlanDetails, PlanRemoval, PlanSaving, Store,
+    GroupCreation, GroupJoining, KeeperAct, MemberRemoval, NewGroup, NewPlan, PlanChange,
+    PlanDetails, PlanRemoval, PlanSaving, Store,
 };
 
 use super::auth::{May, ReadGroups, Signed, WriteGroups};
@@ -56,8 +56,14 @@ pub(crate) struct Groups {
     pub(crate) limits: Limits,
     /// Groups made, by account.
     made: Throttle,
-    /// Invite codes tried, by account.
-    joins: Throttle,
+    /// Invite codes tried and groups come into, by account.
+    pub(crate) joins: Throttle,
+    /// Messages posted, by account.
+    pub(crate) messages: Throttle,
+    /// Pictures sent to groups, by account.
+    pub(crate) pictures: Throttle,
+    /// Pilots invited, by account.
+    pub(crate) invites: Throttle,
     /// Plans posted or changed, by account.
     plans: Throttle,
     /// Open plans posted or changed, by account.
@@ -71,6 +77,9 @@ impl Groups {
             limits,
             made: Throttle::new("accounts that made groups", a_day, watched_keys),
             joins: Throttle::new("accounts that tried invite codes", a_day, watched_keys),
+            messages: Throttle::new("accounts that posted messages", a_day, watched_keys),
+            pictures: Throttle::new("accounts that sent pictures to groups", a_day, watched_keys),
+            invites: Throttle::new("accounts that invited pilots", a_day, watched_keys),
             plans: Throttle::new("accounts that posted plans", a_day, watched_keys),
             open_plans: Throttle::new("accounts that posted open plans", a_day, watched_keys),
         }
@@ -187,22 +196,6 @@ pub(crate) struct DayParams {
 }
 
 impl<S: Store> Api<S> {
-    /// A group with its members, as the asker reads it: what
-    /// `GET /v1/groups/{id}` shows a member, and that endpoint's answer
-    /// for everyone else. Text that is no identifier is the identifier of
-    /// no group.
-    pub(crate) async fn group_as_member(
-        &self,
-        id: &str,
-        signed: &Signed,
-    ) -> Result<GroupMembers, ApiError> {
-        let id = group_id(id)?;
-        self.store
-            .group(id.as_str(), &signed.account.id)
-            .await?
-            .ok_or_else(no_such_group)
-    }
-
     /// One plan of a group, as the asker reads it: found in what
     /// `GET /v1/groups/{id}/plans` lists for a member, from the first day
     /// whose plans are still there. An account that is not in the group
@@ -354,6 +347,12 @@ pub(crate) async fn create<S: Store>(
 
     let request: CreateGroupRequest = body::json(&headers, &body)?;
     let name = parse_group_name(&request.name).map_err(invalid_name)?;
+    let profile = venti_store::GroupProfile {
+        public: request.public,
+        description: super::group_chat::description(request.description.as_deref())?,
+        picture: None,
+        home: super::group_chat::home_area(request.home.as_ref())?,
+    };
     // The code is shown in this answer and nowhere else: the store is
     // handed its hash.
     let code = InviteCode::new()?;
@@ -363,6 +362,7 @@ pub(crate) async fn create<S: Store>(
         created_at: now,
         keeper_id: signed.account.id.clone(),
         invite: code.group_hash(),
+        profile,
     };
     match api.store.create_group(&new, &limits.room()).await? {
         GroupCreation::Created(group) => {
@@ -381,10 +381,29 @@ pub(crate) async fn list<S: Store>(
     State(api): State<Arc<Api<S>>>,
     May(signed, ..): May<ReadGroups>,
 ) -> Result<Response, ApiError> {
-    let groups = api.store.groups_of(&signed.account.id).await?;
-    let answer = GroupsResponse {
-        groups: wire::groups(&groups)?,
-    };
+    let listed = api
+        .store
+        .group_list(
+            &signed.account.id,
+            venti_api_types::v1::UNREAD_COUNTED_UP_TO,
+        )
+        .await?;
+    let mut groups = Vec::with_capacity(listed.len());
+    let mut chats = Vec::with_capacity(listed.len());
+    for listed in &listed {
+        let group = wire::group(&listed.group)?;
+        chats.push(venti_api_types::v1::GroupChat {
+            group: group.id.clone(),
+            me: wire::group_me(&listed.standing),
+            last_message: listed
+                .last
+                .as_ref()
+                .map(super::group_chat::last_message)
+                .transpose()?,
+        });
+        groups.push(group);
+    }
+    let answer = GroupsResponse { groups, chats };
     Ok(cache::private_json(StatusCode::OK, &answer))
 }
 
@@ -443,19 +462,21 @@ pub(crate) async fn join<S: Store>(
     Ok(cache::private_json(status, &answer))
 }
 
-/// `GET /v1/groups/{id}`: a group and its members, for one of them.
+/// `GET /v1/groups/{id}`: a group and its members, for one of them, for
+/// anyone if it is public, and for a pilot invited into it.
 pub(crate) async fn show<S: Store>(
     State(api): State<Arc<Api<S>>>,
     May(signed, ..): May<ReadGroups>,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
-    let seen = api.group_as_member(&id, &signed).await?;
-    let answer = wire::group_with_members(&seen)?;
+    let seen = api.group_seen_by(&id, &signed.account.id).await?;
+    let answer = wire::group_seen(&seen)?;
     Ok(cache::private_json(StatusCode::OK, &answer))
 }
 
-/// `PATCH /v1/groups/{id}`: the keeper gives the group a new name.
-pub(crate) async fn rename<S: Store>(
+/// `PATCH /v1/groups/{id}`: the owner or an admin changes the group's
+/// name, description or home; the owner makes it public or private.
+pub(crate) async fn change<S: Store>(
     State(api): State<Arc<Api<S>>>,
     May(signed, ..): May<WriteGroups>,
     Path(id): Path<String>,
@@ -464,13 +485,29 @@ pub(crate) async fn rename<S: Store>(
 ) -> Result<Response, ApiError> {
     let id = group_id(&id)?;
     let request: UpdateGroupRequest = body::json(&headers, &body)?;
-    let name = parse_group_name(&request.name).map_err(invalid_name)?;
-    let renamed = api
-        .store
-        .rename_group(id.as_str(), &signed.account.id, &name)
-        .await?;
-    let answer = wire::group_with_members(&kept(renamed)?)?;
-    Ok(cache::private_json(StatusCode::OK, &answer))
+    let name = request
+        .name
+        .as_deref()
+        .map(|name| parse_group_name(name).map_err(invalid_name))
+        .transpose()?;
+    let description = request
+        .description
+        .as_ref()
+        .map(|description| super::group_chat::description(description.as_deref()))
+        .transpose()?;
+    let home = request
+        .home
+        .as_ref()
+        .map(|home| super::group_chat::home_area(home.as_ref()))
+        .transpose()?;
+    let change = venti_store::ProfileChange {
+        name,
+        public: request.public,
+        description,
+        picture: None,
+        home,
+    };
+    super::group_chat::change_profile(&api, &signed, &id, change).await
 }
 
 /// `DELETE /v1/groups/{id}`: the keeper deletes the group, with its plans.

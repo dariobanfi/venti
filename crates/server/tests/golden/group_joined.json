@@ -7,7 +7,8 @@
       "handle": "mara",
       "display_name": "Mara Muster"
     },
-    "member_count": 3
+    "member_count": 3,
+    "public": false
   },
   "joined": true
 }

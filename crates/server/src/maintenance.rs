@@ -545,6 +545,7 @@ mod tests {
             created_at: now,
             keeper_id: account.id.clone(),
             invite: SecretHash([1; 32]),
+            profile: venti_store::GroupProfile::default(),
         };
         let room = GroupRoom {
             groups_per_account: 20,

@@ -448,6 +448,40 @@ pub fn comment_report_request(
     request_about(subject, reason, &text)
 }
 
+/// The form for a report about a message of a group, or a picture in
+/// one: the reasons, and what the pilot is told before sending it.
+#[uniffi::export]
+pub fn message_report_form() -> ReportForm {
+    form(Reported::Comment)
+}
+
+/// The request that reports a message of a group (`picture` false) or a
+/// picture sent with one (`id` the picture's): its words, or the picture.
+/// The answer is read by [`report_sent`].
+///
+/// # Errors
+///
+/// As [`report_request`].
+#[uniffi::export]
+pub fn message_report_request(
+    group_id: String,
+    id: String,
+    picture: bool,
+    reason: ReportReason,
+    text: String,
+) -> Result<ServerRequest, CoreError> {
+    let named = api::ReportedMessage {
+        group: group_id.trim().to_owned(),
+        id: id.trim().to_owned(),
+    };
+    let subject = if picture {
+        api::ReportSubject::GroupPicture(named)
+    } else {
+        api::ReportSubject::GroupMessage(named)
+    };
+    request_about(subject, reason, &text)
+}
+
 /// The request that reports `subject`, checked as the server checks it.
 fn request_about(
     subject: api::ReportSubject,
@@ -479,6 +513,9 @@ fn request_about(
         }
         api::ReportSubject::Comment(comment) => {
             comment.flight.parse::<api::FlightId>().is_ok() && comment.id.len() == 26
+        }
+        api::ReportSubject::GroupMessage(named) | api::ReportSubject::GroupPicture(named) => {
+            named.group.parse::<GroupId>().is_ok() && !named.id.is_empty() && named.id.len() <= 64
         }
         // Only a site that pilots made is reported, as it stands or at a
         // revision it has had.

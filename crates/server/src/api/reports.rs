@@ -131,8 +131,9 @@ pub(crate) async fn create<S: Store>(
         }
         ReportSubject::Group(id) => {
             // The report is about the group as its keeper keeps it, and
-            // takes the name along as it stands.
-            let group = api.group_as_member(id, &signed).await?.group;
+            // takes the name along as it stands. A public group is read,
+            // and reported, by anyone.
+            let group = api.group_seen_by(id, &signed.account.id).await?.group.group;
             let subject = venti_store::ReportSubject::Group {
                 id: group.id,
                 name: group.name,
@@ -201,6 +202,45 @@ pub(crate) async fn create<S: Store>(
                 text: comment.text,
             };
             (Some(comment.author_id), subject, flights::no_such_flight())
+        }
+        ReportSubject::GroupMessage(named) => {
+            // A message is read by the group's members, and by anyone in a
+            // public group. Its words go along as they stand.
+            let message = api
+                .store
+                .group_message(&named.group, &named.id, &signed.account.id)
+                .await?
+                .ok_or_else(groups::no_such_group)?;
+            let subject = venti_store::ReportSubject::GroupMessage {
+                id: message.id,
+                group_id: message.group_id,
+                text: message.text,
+            };
+            (
+                Some(message.author.account_id),
+                subject,
+                groups::no_such_group(),
+            )
+        }
+        ReportSubject::GroupPicture(named) => {
+            // A picture is read where its messages are.
+            let seen = api.group_seen_by(&named.group, &signed.account.id).await?;
+            let reads = seen.group.group.profile.public || seen.standing.role.is_some();
+            let picture = api
+                .store
+                .group_picture(&named.id)
+                .await?
+                .filter(|picture| reads && picture.group_id == seen.group.group.id)
+                .ok_or_else(super::pictures::no_such_picture)?;
+            let subject = venti_store::ReportSubject::GroupPicture {
+                id: picture.id,
+                group_id: picture.group_id,
+            };
+            (
+                Some(picture.account_id),
+                subject,
+                super::pictures::no_such_picture(),
+            )
         }
         ReportSubject::Site(named) => {
             // A site that pilots made is nobody's: the report names no

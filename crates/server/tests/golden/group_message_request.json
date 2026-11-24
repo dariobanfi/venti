@@ -1,0 +1,17 @@
+{
+  "text": "Tomorrow at the Hochries? @mara\nSee the plan.",
+  "links": [
+    {
+      "kind": "open_plan",
+      "id": "aaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "kind": "pilot",
+      "id": "mara"
+    },
+    {
+      "kind": "site",
+      "id": "venti:0000000000000000000000s001"
+    }
+  ]
+}

@@ -1488,6 +1488,25 @@ async fn described(
                 None,
             )
         }
+        ReportSubject::GroupMessage { id, group_id, text } => {
+            labelled(&mut kept, "Words then:", text);
+            (
+                format!(
+                    "message {} of {about}, in group {}",
+                    on_one_line(id),
+                    on_one_line(group_id)
+                ),
+                None,
+            )
+        }
+        ReportSubject::GroupPicture { id, group_id } => (
+            format!(
+                "picture {} sent by {about} to group {}",
+                on_one_line(id),
+                on_one_line(group_id)
+            ),
+            None,
+        ),
         ReportSubject::Comment {
             id,
             flight_id,

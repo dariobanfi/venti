@@ -1,6 +1,7 @@
 mod accounts;
 mod alerts;
 mod flights;
+mod group_chat;
 mod groups;
 mod kept_sites;
 mod live;
@@ -1904,6 +1905,185 @@ impl Store for MemoryStore {
 
     async fn delete_group(&self, id: &str, keeper_id: &str) -> Result<KeeperAct<()>, StoreError> {
         Ok(self.lock().groups.delete(id, keeper_id))
+    }
+
+    async fn find_groups(
+        &self,
+        account_id: &str,
+        search: &crate::GroupSearch,
+    ) -> Result<Vec<crate::FoundGroup>, StoreError> {
+        let inner = &*self.lock();
+        Ok(inner.groups.find(account_id, search, &inner.accounts))
+    }
+
+    async fn group_seen(
+        &self,
+        id: &str,
+        account_id: &str,
+        most_unread: u32,
+    ) -> Result<Option<crate::GroupSeen>, StoreError> {
+        let inner = &*self.lock();
+        Ok(inner
+            .groups
+            .seen(id, account_id, most_unread, &inner.accounts))
+    }
+
+    async fn group_list(
+        &self,
+        account_id: &str,
+        most_unread: u32,
+    ) -> Result<Vec<crate::ListedGroup>, StoreError> {
+        let inner = &*self.lock();
+        Ok(inner.groups.list(account_id, most_unread, &inner.accounts))
+    }
+
+    async fn change_group(
+        &self,
+        id: &str,
+        by_account_id: &str,
+        change: &crate::ProfileChange,
+    ) -> Result<crate::GroupAct<GroupMembers>, StoreError> {
+        let inner = &mut *self.lock();
+        inner
+            .groups
+            .change(id, by_account_id, change, &inner.accounts)
+    }
+
+    async fn set_group_admin(
+        &self,
+        id: &str,
+        owner_id: &str,
+        member_handle: &str,
+        admin: bool,
+    ) -> Result<crate::GroupAct<()>, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner
+            .groups
+            .set_admin(id, owner_id, member_handle, admin, &inner.accounts))
+    }
+
+    async fn invite_to_group(
+        &self,
+        id: &str,
+        by_account_id: &str,
+        handle: &str,
+        now: Timestamp,
+        room: &crate::InviteRoom,
+    ) -> Result<crate::GroupAct<crate::GroupInvite>, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner
+            .groups
+            .invite((id, by_account_id), handle, now, room, &inner.accounts))
+    }
+
+    async fn drop_group_invite(
+        &self,
+        id: &str,
+        by_account_id: &str,
+        handle: &str,
+    ) -> Result<crate::GroupAct<()>, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner
+            .groups
+            .drop_invite(id, by_account_id, handle, &inner.accounts))
+    }
+
+    async fn invites_of(&self, account_id: &str) -> Result<Vec<crate::GroupInvite>, StoreError> {
+        let inner = &*self.lock();
+        Ok(inner.groups.invites_for(account_id, &inner.accounts))
+    }
+
+    async fn enter_group(
+        &self,
+        id: &str,
+        account_id: &str,
+        room: &GroupRoom,
+        now: Timestamp,
+    ) -> Result<GroupJoining, StoreError> {
+        let inner = &mut *self.lock();
+        inner
+            .groups
+            .enter(id, account_id, room, now, &inner.accounts)
+    }
+
+    async fn post_message(
+        &self,
+        new: &crate::NewMessage,
+    ) -> Result<crate::MessagePosting, StoreError> {
+        let inner = &mut *self.lock();
+        if inner.accounts.by_id(&new.author_id).is_none() {
+            return Ok(crate::MessagePosting::NoSuchGroup);
+        }
+        inner.groups.post(new, &inner.accounts)
+    }
+
+    async fn messages(
+        &self,
+        group_id: &str,
+        account_id: &str,
+        page: crate::MessagePage,
+        limit: usize,
+    ) -> Result<Option<Vec<crate::Message>>, StoreError> {
+        let inner = &*self.lock();
+        Ok(inner
+            .groups
+            .page(group_id, account_id, page, limit, &inner.accounts))
+    }
+
+    async fn group_message(
+        &self,
+        group_id: &str,
+        message_id: &str,
+        account_id: &str,
+    ) -> Result<Option<crate::Message>, StoreError> {
+        let inner = &*self.lock();
+        Ok(inner
+            .groups
+            .message(group_id, message_id, account_id, &inner.accounts))
+    }
+
+    async fn remove_message(
+        &self,
+        group_id: &str,
+        message_id: &str,
+        by_account_id: &str,
+        now: Timestamp,
+    ) -> Result<crate::MessageRemoval, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner
+            .groups
+            .remove_message((group_id, message_id), by_account_id, now, &inner.accounts))
+    }
+
+    async fn set_group_standing(
+        &self,
+        id: &str,
+        account_id: &str,
+        muted: Option<bool>,
+        read_up_to: Option<i64>,
+        most_unread: u32,
+    ) -> Result<Option<crate::GroupStanding>, StoreError> {
+        Ok(self
+            .lock()
+            .groups
+            .set_standing(id, account_id, (muted, read_up_to), most_unread))
+    }
+
+    async fn listeners(&self, group_id: &str) -> Result<Vec<crate::Listener>, StoreError> {
+        let inner = &*self.lock();
+        Ok(inner.groups.listeners(group_id, &inner.accounts))
+    }
+
+    async fn save_group_picture(&self, picture: &crate::GroupPicture) -> Result<bool, StoreError> {
+        self.lock().groups.save_picture(picture)
+    }
+
+    async fn group_picture(&self, id: &str) -> Result<Option<crate::GroupPicture>, StoreError> {
+        Ok(self.lock().groups.picture(id))
+    }
+
+    async fn group_unread(&self, account_id: &str, most: u32) -> Result<u32, StoreError> {
+        Ok(self.lock().groups.unread_of(account_id, most))
     }
 
     async fn save_plan(&self, new: &NewPlan, room: &PlanRoom) -> Result<PlanSaving, StoreError> {

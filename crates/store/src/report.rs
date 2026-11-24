@@ -45,6 +45,10 @@ pub(crate) fn check(new: &NewReport) -> Result<(), StoreError> {
             ("", [place.as_str(), note.as_deref().unwrap_or_default()])
         }
         ReportSubject::HelpRequest { note, .. } => ("", [note.as_deref().unwrap_or_default(), ""]),
+        ReportSubject::GroupMessage { group_id, text, .. } => {
+            (group_id.as_str(), [text.as_str(), ""])
+        }
+        ReportSubject::GroupPicture { group_id, .. } => (group_id.as_str(), ["", ""]),
     };
     let texts = [
         new.id.as_str(),
@@ -177,6 +181,23 @@ pub enum ReportSubject {
         /// Its words as they stood when the report was made.
         text: String,
     },
+    /// A message of a group. The report's other account is its author.
+    GroupMessage {
+        /// The message's identifier.
+        id: String,
+        /// The group it was posted to.
+        group_id: String,
+        /// Its words as they stood when the report was made.
+        text: String,
+    },
+    /// A picture sent to a group. The report's other account is who sent
+    /// it. Nothing of the picture is kept with the report.
+    GroupPicture {
+        /// The picture's identifier.
+        id: String,
+        /// The group it was sent to.
+        group_id: String,
+    },
 }
 
 /// What a report kept of a group or a plan, as the database holds it
@@ -213,6 +234,8 @@ impl ReportSubject {
             Self::HelpRequest { .. } => "help_request",
             Self::Site { .. } => "site",
             Self::Comment { .. } => "comment",
+            Self::GroupMessage { .. } => "group_message",
+            Self::GroupPicture { .. } => "group_picture",
         }
     }
 
@@ -228,7 +251,9 @@ impl ReportSubject {
             | Self::OpenPlan { id, .. }
             | Self::HelpRequest { id, .. }
             | Self::Site { id, .. }
-            | Self::Comment { id, .. } => id,
+            | Self::Comment { id, .. }
+            | Self::GroupMessage { id, .. }
+            | Self::GroupPicture { id, .. } => id,
             Self::Pilot => "",
         }
     }
@@ -283,6 +308,15 @@ impl ReportSubject {
                 site_revision: Some(*revision),
                 ..ReportedWords::default()
             },
+            Self::GroupMessage { group_id, text, .. } => ReportedWords {
+                group_id: Some(group_id.clone()),
+                comment: Some(text.clone()),
+                ..ReportedWords::default()
+            },
+            Self::GroupPicture { group_id, .. } => ReportedWords {
+                group_id: Some(group_id.clone()),
+                ..ReportedWords::default()
+            },
         }
     }
 
@@ -322,6 +356,15 @@ impl ReportSubject {
                 id: id.to_owned(),
                 flight_id: words.flight_id?,
                 text: words.comment?,
+            }),
+            "group_message" => Some(Self::GroupMessage {
+                id: id.to_owned(),
+                group_id: words.group_id?,
+                text: words.comment?,
+            }),
+            "group_picture" => Some(Self::GroupPicture {
+                id: id.to_owned(),
+                group_id: words.group_id?,
             }),
             _ => None,
         }

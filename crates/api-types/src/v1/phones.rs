@@ -170,6 +170,8 @@ pub enum PhoneMessageKind {
     /// A pilot answered "I can help" on the pilot's own request; `id` is
     /// the request's.
     HelpAnswer,
+    /// A new message in one of the pilot's groups; `id` is the group's.
+    GroupMessage,
 }
 
 impl PhoneMessageKind {
@@ -181,6 +183,7 @@ impl PhoneMessageKind {
             Self::OpenPlan => "open_plan",
             Self::HelpRequest => "help_request",
             Self::HelpAnswer => "help_answer",
+            Self::GroupMessage => "group_message",
         }
     }
 }

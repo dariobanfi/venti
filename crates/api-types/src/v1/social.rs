@@ -392,11 +392,28 @@ pub struct UnreadResponse {
     /// Lines of `GET /v1/account/alerts/fired` after the pilot's mark, of
     /// the days they are kept. Zero for a token without `alerts:read`.
     pub alarms: u32,
-    /// The two together, stopping at [`UNREAD_COUNTED_UP_TO`].
+    /// The two together, stopping at [`UNREAD_COUNTED_UP_TO`]: the
+    /// notification marker. The groups' messages are not in it.
     pub total: u32,
+    /// Messages of others in the pilot's groups that they have not read,
+    /// those of muted groups included, up to [`UNREAD_COUNTED_UP_TO`]:
+    /// the marker of the groups, beside the notifications'. Each group's
+    /// own count is in `GET /v1/groups`. Since 2026-11-24.
+    #[serde(default)]
+    pub groups: u32,
 }
 
 impl UnreadResponse {
+    /// The same answer with the groups' count, cut at
+    /// [`UNREAD_COUNTED_UP_TO`].
+    #[must_use]
+    pub fn with_groups(self, groups: u32) -> Self {
+        Self {
+            groups: groups.min(UNREAD_COUNTED_UP_TO),
+            ..self
+        }
+    }
+
     /// The answer for two counts, each and their sum cut at
     /// [`UNREAD_COUNTED_UP_TO`].
     #[must_use]
@@ -407,6 +424,7 @@ impl UnreadResponse {
             notifications,
             alarms,
             total: (notifications + alarms).min(UNREAD_COUNTED_UP_TO),
+            groups: 0,
         }
     }
 }

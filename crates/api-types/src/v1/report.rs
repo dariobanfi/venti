@@ -54,6 +54,13 @@ pub enum ReportSubject {
     Site(ReportedSite),
     /// A comment on a public flight. What is reported is its words.
     Comment(ReportedComment),
+    /// A message of a group the reporter reads: a member's, or any
+    /// pilot's of a public group. What is reported is its words. Since
+    /// 2026-11-24.
+    GroupMessage(super::ReportedMessage),
+    /// A picture sent to a group the reporter reads, by the group and the
+    /// picture's identifier. Since 2026-11-24.
+    GroupPicture(super::ReportedMessage),
 }
 
 /// A comment, as a report names it: by its identifier and its flight's,
@@ -105,7 +112,9 @@ impl ReportSubject {
             | Self::OpenPlan(_)
             | Self::HelpRequest(_)
             | Self::Comment(_)
-            | Self::Picture(_) => &ReportReason::ABOUT_WORDS,
+            | Self::Picture(_)
+            | Self::GroupMessage(_)
+            | Self::GroupPicture(_) => &ReportReason::ABOUT_WORDS,
             Self::Site(_) => &ReportReason::ABOUT_A_SITE,
         }
     }

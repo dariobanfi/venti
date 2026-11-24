@@ -1,0 +1,148 @@
+{
+  "groups": [
+    {
+      "group": {
+        "id": "0000000000000000000000g001",
+        "name": "Munich International Paragliders",
+        "created_at": "2026-09-19T19:05:00Z",
+        "keeper": {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        },
+        "member_count": 3,
+        "public": true,
+        "description": "Pilots in and around Munich, in English. Car shares to the mountains, weekend trips, beers after.",
+        "home": {
+          "center": {
+            "lat": 48.137,
+            "lon": 11.575
+          },
+          "radius_km": 40.0,
+          "place": "Munich"
+        }
+      },
+      "distance_km": 0.5,
+      "member": false
+    },
+    {
+      "group": {
+        "id": "0000000000000000000000g004",
+        "name": "Tegernsee Thermikrunde",
+        "created_at": "2026-09-09T19:05:00Z",
+        "keeper": {
+          "handle": "timo",
+          "display_name": "Timo Entwurf"
+        },
+        "member_count": 3,
+        "public": true,
+        "description": "Wallberg, Baumgartenschneid and the lake. Who flies today?",
+        "home": {
+          "center": {
+            "lat": 47.712,
+            "lon": 11.758
+          },
+          "radius_km": 20.0,
+          "place": "Tegernsee"
+        }
+      },
+      "distance_km": 49.4,
+      "member": false
+    },
+    {
+      "group": {
+        "id": "0000000000000000000000g002",
+        "name": "Rosenheimer Eagles",
+        "created_at": "2026-08-20T19:05:00Z",
+        "keeper": {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        },
+        "member_count": 3,
+        "public": true,
+        "description": "Flying from the Chiemgau's hills. Thermal days, glider talk, and who is going up.",
+        "home": {
+          "center": {
+            "lat": 47.856,
+            "lon": 12.128
+          },
+          "radius_km": 30.0,
+          "place": "Rosenheim and the Chiemgau"
+        }
+      },
+      "distance_km": 51.6,
+      "member": false
+    },
+    {
+      "group": {
+        "id": "0000000000000000000000g003",
+        "name": "Hochries Flugschule Musterwind",
+        "created_at": "2026-07-21T19:05:00Z",
+        "keeper": {
+          "handle": "lena",
+          "display_name": "Lena Probe"
+        },
+        "member_count": 3,
+        "public": true,
+        "description": "A made-up flying school at the Hochries: training days, the weather for students, the cable car's times.",
+        "home": {
+          "center": {
+            "lat": 47.748,
+            "lon": 12.247
+          },
+          "radius_km": 15.0,
+          "place": "Hochries"
+        }
+      },
+      "distance_km": 66.1,
+      "member": false
+    },
+    {
+      "group": {
+        "id": "0000000000000000000000g006",
+        "name": "Garmisch Gleitschirm Treff",
+        "created_at": "2026-09-29T19:05:00Z",
+        "keeper": {
+          "handle": "lena",
+          "display_name": "Lena Probe"
+        },
+        "member_count": 2,
+        "public": true,
+        "description": "Wank, Osterfelder and the Zugspitze's valleys.",
+        "home": {
+          "center": {
+            "lat": 47.492,
+            "lon": 11.095
+          },
+          "radius_km": 25.0,
+          "place": "Garmisch-Partenkirchen"
+        }
+      },
+      "distance_km": 80.6,
+      "member": false
+    },
+    {
+      "group": {
+        "id": "0000000000000000000000g005",
+        "name": "Inntal Cross-Country",
+        "created_at": "2026-08-10T19:05:00Z",
+        "keeper": {
+          "handle": "ines",
+          "display_name": "Ines Vorlage"
+        },
+        "member_count": 2,
+        "public": true,
+        "description": "Long lines along the Inn valley, from Kufstein to Innsbruck and back.",
+        "home": {
+          "center": {
+            "lat": 47.42,
+            "lon": 11.95
+          },
+          "radius_km": 50.0,
+          "place": "Inn valley"
+        }
+      },
+      "distance_km": 84.7,
+      "member": false
+    }
+  ]
+}

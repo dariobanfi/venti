@@ -326,6 +326,16 @@ impl<S: Store, N: Needs> FromRequestParts<Arc<Api<S>>> for Viewing<N> {
     }
 }
 
+impl OwnSession {
+    /// The same caller, as a request with a token would be.
+    pub(crate) fn signed(&self) -> Signed {
+        Signed {
+            account: self.account.clone(),
+            by: By::Session(self.session.clone()),
+        }
+    }
+}
+
 impl<S: Store> FromRequestParts<Arc<Api<S>>> for OwnSession {
     type Rejection = ApiError;
 

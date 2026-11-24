@@ -787,6 +787,7 @@
     "200": {
       "unread": {
         "alarms": 1,
+        "groups": 0,
         "notifications": 4,
         "total": 5
       }
@@ -2997,6 +2998,30 @@
   "get /v1/groups": {
     "200": {
       "groups": {
+        "chats": [
+          {
+            "group": "44444444444444444444444444",
+            "last_message": {
+              "author": {
+                "display_name": "Jonas Beispiel",
+                "handle": "jonas"
+              },
+              "created_at": "2026-11-18T18:05:00Z",
+              "cursor": "6",
+              "group": "44444444444444444444444444",
+              "id": "88888888888888888888888888",
+              "kind": "plan",
+              "text": ""
+            },
+            "me": {
+              "invited": false,
+              "muted": false,
+              "read_up_to": "6",
+              "role": "owner",
+              "unread": 0
+            }
+          }
+        ],
         "groups": [
           {
             "created_at": "2026-10-19T19:05:00Z",
@@ -3006,7 +3031,160 @@
               "handle": "demo"
             },
             "member_count": 3,
-            "name": "Mustergruppe"
+            "name": "Mustergruppe",
+            "public": false
+          }
+        ]
+      }
+    }
+  },
+  "get /v1/groups/find": {
+    "200": {
+      "groups_found": {
+        "groups": [
+          {
+            "distance_km": 0.5,
+            "group": {
+              "created_at": "2026-09-19T19:05:00Z",
+              "description": "Pilots in and around Munich, in English. Car shares to the mountains, weekend trips, beers after.",
+              "home": {
+                "center": {
+                  "lat": 48.137,
+                  "lon": 11.575
+                },
+                "place": "Munich",
+                "radius_km": 40.0
+              },
+              "id": "0000000000000000000000g001",
+              "keeper": {
+                "display_name": "Mara Muster",
+                "handle": "mara"
+              },
+              "member_count": 3,
+              "name": "Munich International Paragliders",
+              "public": true
+            },
+            "member": false
+          },
+          {
+            "distance_km": 49.4,
+            "group": {
+              "created_at": "2026-09-09T19:05:00Z",
+              "description": "Wallberg, Baumgartenschneid and the lake. Who flies today?",
+              "home": {
+                "center": {
+                  "lat": 47.712,
+                  "lon": 11.758
+                },
+                "place": "Tegernsee",
+                "radius_km": 20.0
+              },
+              "id": "0000000000000000000000g004",
+              "keeper": {
+                "display_name": "Timo Entwurf",
+                "handle": "timo"
+              },
+              "member_count": 3,
+              "name": "Tegernsee Thermikrunde",
+              "public": true
+            },
+            "member": false
+          },
+          {
+            "distance_km": 51.6,
+            "group": {
+              "created_at": "2026-08-20T19:05:00Z",
+              "description": "Flying from the Chiemgau's hills. Thermal days, glider talk, and who is going up.",
+              "home": {
+                "center": {
+                  "lat": 47.856,
+                  "lon": 12.128
+                },
+                "place": "Rosenheim and the Chiemgau",
+                "radius_km": 30.0
+              },
+              "id": "0000000000000000000000g002",
+              "keeper": {
+                "display_name": "Jonas Beispiel",
+                "handle": "jonas"
+              },
+              "member_count": 3,
+              "name": "Rosenheimer Eagles",
+              "public": true
+            },
+            "member": false
+          },
+          {
+            "distance_km": 66.1,
+            "group": {
+              "created_at": "2026-07-21T19:05:00Z",
+              "description": "A made-up flying school at the Hochries: training days, the weather for students, the cable car's times.",
+              "home": {
+                "center": {
+                  "lat": 47.748,
+                  "lon": 12.247
+                },
+                "place": "Hochries",
+                "radius_km": 15.0
+              },
+              "id": "0000000000000000000000g003",
+              "keeper": {
+                "display_name": "Lena Probe",
+                "handle": "lena"
+              },
+              "member_count": 3,
+              "name": "Hochries Flugschule Musterwind",
+              "public": true
+            },
+            "member": false
+          },
+          {
+            "distance_km": 80.6,
+            "group": {
+              "created_at": "2026-09-29T19:05:00Z",
+              "description": "Wank, Osterfelder and the Zugspitze's valleys.",
+              "home": {
+                "center": {
+                  "lat": 47.492,
+                  "lon": 11.095
+                },
+                "place": "Garmisch-Partenkirchen",
+                "radius_km": 25.0
+              },
+              "id": "0000000000000000000000g006",
+              "keeper": {
+                "display_name": "Lena Probe",
+                "handle": "lena"
+              },
+              "member_count": 2,
+              "name": "Garmisch Gleitschirm Treff",
+              "public": true
+            },
+            "member": false
+          },
+          {
+            "distance_km": 84.7,
+            "group": {
+              "created_at": "2026-08-10T19:05:00Z",
+              "description": "Long lines along the Inn valley, from Kufstein to Innsbruck and back.",
+              "home": {
+                "center": {
+                  "lat": 47.42,
+                  "lon": 11.95
+                },
+                "place": "Inn valley",
+                "radius_km": 50.0
+              },
+              "id": "0000000000000000000000g005",
+              "keeper": {
+                "display_name": "Ines Vorlage",
+                "handle": "ines"
+              },
+              "member_count": 2,
+              "name": "Inntal Cross-Country",
+              "public": true
+            },
+            "member": false
           }
         ]
       }
@@ -3024,7 +3202,8 @@
               "handle": "demo"
             },
             "member_count": 3,
-            "name": "Mustergruppe"
+            "name": "Mustergruppe",
+            "public": false
           }
         ],
         "plans": [
@@ -3068,6 +3247,7 @@
   "get /v1/groups/{id}": {
     "200": {
       "group": {
+        "admins": [],
         "group": {
           "created_at": "2026-10-19T19:05:00Z",
           "id": "44444444444444444444444444",
@@ -3076,7 +3256,15 @@
             "handle": "demo"
           },
           "member_count": 3,
-          "name": "Mustergruppe"
+          "name": "Mustergruppe",
+          "public": false
+        },
+        "me": {
+          "invited": false,
+          "muted": false,
+          "read_up_to": "6",
+          "role": "owner",
+          "unread": 0
         },
         "members": [
           {
@@ -3092,6 +3280,272 @@
             "handle": "jonas"
           }
         ]
+      },
+      "group_public": {
+        "admins": [
+          "jonas"
+        ],
+        "group": {
+          "created_at": "2026-09-19T19:05:00Z",
+          "description": "Pilots in and around Munich, in English. Car shares to the mountains, weekend trips, beers after.",
+          "home": {
+            "center": {
+              "lat": 48.137,
+              "lon": 11.575
+            },
+            "place": "Munich",
+            "radius_km": 40.0
+          },
+          "id": "0000000000000000000000g001",
+          "keeper": {
+            "display_name": "Mara Muster",
+            "handle": "mara"
+          },
+          "member_count": 3,
+          "name": "Munich International Paragliders",
+          "public": true
+        },
+        "me": {
+          "invited": false,
+          "muted": false,
+          "read_up_to": "0",
+          "unread": 0
+        },
+        "members": [
+          {
+            "display_name": "Mara Muster",
+            "handle": "mara"
+          },
+          {
+            "display_name": "Jonas Beispiel",
+            "handle": "jonas"
+          },
+          {
+            "display_name": "Lena Probe",
+            "handle": "lena"
+          }
+        ]
+      }
+    }
+  },
+  "get /v1/groups/{id}/messages": {
+    "200": {
+      "group_messages": {
+        "messages": [
+          {
+            "author": {
+              "display_name": "Timo Entwurf",
+              "handle": "timo"
+            },
+            "created_at": "2026-11-18T17:35:00Z",
+            "cursor": "14",
+            "group": "0000000000000000000000g002",
+            "id": "0000000000000000000g002m01",
+            "kind": "text",
+            "text": "Nice line! How was the wind on top?"
+          },
+          {
+            "author": {
+              "display_name": "Mara Muster",
+              "handle": "mara"
+            },
+            "cards": [
+              {
+                "date": "2026-08-16",
+                "distance_km": 12.0,
+                "id": "fbyw03atd9qdt5bfe177ra1k94",
+                "kind": "flight",
+                "pilot": {
+                  "display_name": "Mara Muster",
+                  "handle": "mara",
+                  "picture": "/v1/pictures/0000000000000000000000p001"
+                },
+                "track": [
+                  [
+                    47.6642,
+                    11.7967
+                  ],
+                  [
+                    47.6697,
+                    11.78986
+                  ],
+                  [
+                    47.67054,
+                    11.78942
+                  ],
+                  [
+                    47.67075,
+                    11.79003
+                  ],
+                  [
+                    47.67073,
+                    11.79875
+                  ],
+                  [
+                    47.68876,
+                    11.75225
+                  ],
+                  [
+                    47.68935,
+                    11.75136
+                  ],
+                  [
+                    47.68954,
+                    11.75173
+                  ],
+                  [
+                    47.68932,
+                    11.75721
+                  ],
+                  [
+                    47.66357,
+                    11.74306
+                  ],
+                  [
+                    47.69144,
+                    11.75818
+                  ],
+                  [
+                    47.6922,
+                    11.75985
+                  ],
+                  [
+                    47.69217,
+                    11.76748
+                  ]
+                ]
+              }
+            ],
+            "created_at": "2026-11-18T15:45:00Z",
+            "cursor": "13",
+            "group": "0000000000000000000000g002",
+            "id": "0000000000000000000g002m00",
+            "kind": "text",
+            "text": "My flight from yesterday, the inversion broke late."
+          }
+        ],
+        "more": false,
+        "since": "14"
+      },
+      "group_plan_posts": {
+        "messages": [
+          {
+            "author": {
+              "display_name": "Jonas Beispiel",
+              "handle": "jonas"
+            },
+            "created_at": "2026-11-18T18:05:00Z",
+            "cursor": "6",
+            "group": "44444444444444444444444444",
+            "id": "88888888888888888888888888",
+            "kind": "plan",
+            "plan": {
+              "author": {
+                "display_name": "Jonas Beispiel",
+                "handle": "jonas"
+              },
+              "changed_at": "2026-11-18T18:05:00Z",
+              "created_at": "2026-11-18T18:05:00Z",
+              "day": "2026-11-20",
+              "group": "44444444444444444444444444",
+              "id": "88888888888888888888888888",
+              "in": [
+                {
+                  "display_name": "Jonas Beispiel",
+                  "handle": "jonas"
+                },
+                {
+                  "display_name": "Demo Pilot",
+                  "handle": "demo"
+                }
+              ],
+              "place": "Musterberg"
+            },
+            "text": ""
+          },
+          {
+            "author": {
+              "display_name": "Mara Muster",
+              "handle": "mara"
+            },
+            "created_at": "2026-11-18T16:05:00Z",
+            "cursor": "4",
+            "group": "44444444444444444444444444",
+            "id": "77777777777777777777777777",
+            "kind": "plan",
+            "plan": {
+              "author": {
+                "display_name": "Mara Muster",
+                "handle": "mara"
+              },
+              "changed_at": "2026-11-18T16:05:00Z",
+              "created_at": "2026-11-18T16:05:00Z",
+              "day": "2026-11-19",
+              "group": "44444444444444444444444444",
+              "id": "77777777777777777777777777",
+              "in": [
+                {
+                  "display_name": "Mara Muster",
+                  "handle": "mara"
+                },
+                {
+                  "display_name": "Jonas Beispiel",
+                  "handle": "jonas"
+                }
+              ],
+              "meet_at": "09:00",
+              "note": "A made-up plan. Ground handling if the wind allows, coffee if not.",
+              "place": "Beispielwiese"
+            },
+            "text": ""
+          },
+          {
+            "author": {
+              "display_name": "Demo Pilot",
+              "handle": "demo"
+            },
+            "created_at": "2026-11-17T17:05:00Z",
+            "cursor": "1",
+            "group": "44444444444444444444444444",
+            "id": "66666666666666666666666666",
+            "kind": "plan",
+            "plan": {
+              "author": {
+                "display_name": "Demo Pilot",
+                "handle": "demo"
+              },
+              "changed_at": "2026-11-17T17:05:00Z",
+              "created_at": "2026-11-17T17:05:00Z",
+              "day": "2026-11-18",
+              "group": "44444444444444444444444444",
+              "id": "66666666666666666666666666",
+              "in": [
+                {
+                  "display_name": "Demo Pilot",
+                  "handle": "demo"
+                },
+                {
+                  "display_name": "Mara Muster",
+                  "handle": "mara"
+                },
+                {
+                  "display_name": "Jonas Beispiel",
+                  "handle": "jonas"
+                }
+              ],
+              "meet_at": "10:30",
+              "note": "A made-up plan of the development mode.\nAt the lift at half past ten, in the air by noon.",
+              "place": "Musterberg, Startplatz Ost",
+              "position": {
+                "lat": 47.6642,
+                "lon": 11.7967
+              }
+            },
+            "text": ""
+          }
+        ],
+        "more": false,
+        "since": "7"
       }
     }
   },
@@ -7682,14 +8136,16 @@
             "handle": "demo"
           },
           "member_count": 1,
-          "name": "Zweite Mustergruppe"
+          "name": "Zweite Mustergruppe",
+          "public": false
         },
         "invite_code": "7k3m-9q2x-4r8t-1v6w"
       }
     },
     "request": {
       "group_create_request": {
-        "name": "Zweite Mustergruppe"
+        "name": "Zweite Mustergruppe",
+        "public": false
       }
     }
   },
@@ -7704,7 +8160,8 @@
             "handle": "mara"
           },
           "member_count": 3,
-          "name": "Beispielgruppe"
+          "name": "Beispielgruppe",
+          "public": false
         },
         "joined": true
       }
@@ -7719,6 +8176,27 @@
     "200": {
       "group_invite": {
         "invite_code": "2w8x-5c9p-3h7k-6n4d"
+      }
+    }
+  },
+  "post /v1/groups/{id}/messages": {
+    "request": {
+      "group_message_request": {
+        "links": [
+          {
+            "id": "aaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "kind": "open_plan"
+          },
+          {
+            "id": "mara",
+            "kind": "pilot"
+          },
+          {
+            "id": "venti:0000000000000000000000s001",
+            "kind": "site"
+          }
+        ],
+        "text": "Tomorrow at the Hochries? @mara\nSee the plan."
       }
     }
   },

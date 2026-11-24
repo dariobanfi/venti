@@ -1123,6 +1123,143 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn find_groups(
+        &self,
+        _: &str,
+        _: &crate::GroupSearch,
+    ) -> Result<Vec<crate::FoundGroup>, StoreError> {
+        self.fail().await
+    }
+
+    async fn group_seen(
+        &self,
+        _: &str,
+        _: &str,
+        _: u32,
+    ) -> Result<Option<crate::GroupSeen>, StoreError> {
+        self.fail().await
+    }
+
+    async fn group_list(&self, _: &str, _: u32) -> Result<Vec<crate::ListedGroup>, StoreError> {
+        self.fail().await
+    }
+
+    async fn change_group(
+        &self,
+        _: &str,
+        _: &str,
+        _: &crate::ProfileChange,
+    ) -> Result<crate::GroupAct<GroupMembers>, StoreError> {
+        self.fail().await
+    }
+
+    async fn set_group_admin(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+        _: bool,
+    ) -> Result<crate::GroupAct<()>, StoreError> {
+        self.fail().await
+    }
+
+    async fn invite_to_group(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+        _: Timestamp,
+        _: &crate::InviteRoom,
+    ) -> Result<crate::GroupAct<crate::GroupInvite>, StoreError> {
+        self.fail().await
+    }
+
+    async fn drop_group_invite(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+    ) -> Result<crate::GroupAct<()>, StoreError> {
+        self.fail().await
+    }
+
+    async fn invites_of(&self, _: &str) -> Result<Vec<crate::GroupInvite>, StoreError> {
+        self.fail().await
+    }
+
+    async fn enter_group(
+        &self,
+        _: &str,
+        _: &str,
+        _: &GroupRoom,
+        _: Timestamp,
+    ) -> Result<GroupJoining, StoreError> {
+        self.fail().await
+    }
+
+    async fn post_message(
+        &self,
+        _: &crate::NewMessage,
+    ) -> Result<crate::MessagePosting, StoreError> {
+        self.fail().await
+    }
+
+    async fn messages(
+        &self,
+        _: &str,
+        _: &str,
+        _: crate::MessagePage,
+        _: usize,
+    ) -> Result<Option<Vec<crate::Message>>, StoreError> {
+        self.fail().await
+    }
+
+    async fn group_message(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+    ) -> Result<Option<crate::Message>, StoreError> {
+        self.fail().await
+    }
+
+    async fn remove_message(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+        _: Timestamp,
+    ) -> Result<crate::MessageRemoval, StoreError> {
+        self.fail().await
+    }
+
+    async fn set_group_standing(
+        &self,
+        _: &str,
+        _: &str,
+        _: Option<bool>,
+        _: Option<i64>,
+        _: u32,
+    ) -> Result<Option<crate::GroupStanding>, StoreError> {
+        self.fail().await
+    }
+
+    async fn listeners(&self, _: &str) -> Result<Vec<crate::Listener>, StoreError> {
+        self.fail().await
+    }
+
+    async fn save_group_picture(&self, _: &crate::GroupPicture) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn group_picture(&self, _: &str) -> Result<Option<crate::GroupPicture>, StoreError> {
+        self.fail().await
+    }
+
+    async fn group_unread(&self, _: &str, _: u32) -> Result<u32, StoreError> {
+        self.fail().await
+    }
+
     async fn save_plan(&self, _: &NewPlan, _: &PlanRoom) -> Result<PlanSaving, StoreError> {
         self.fail().await
     }

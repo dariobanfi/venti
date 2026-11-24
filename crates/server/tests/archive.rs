@@ -212,8 +212,12 @@ async fn every_file_of_the_archive_is_listed_and_is_the_record_the_api_answers()
     let tokens: AccessTokensResponse = archive.json("tokens.json");
     assert_eq!(tokens, own(&router, token, ACCOUNT_TOKENS_PATH).await);
     assert_eq!(tokens.tokens[0].name, dev::DEMO_ACCESS_TOKEN_NAME);
+    // The groups as the list has them; how the pilot stands to each and
+    // its last message are not in the archive.
     let groups: GroupsResponse = archive.json("groups.json");
-    assert_eq!(groups, own(&router, token, GROUPS_PATH).await);
+    let listed: GroupsResponse = own(&router, token, GROUPS_PATH).await;
+    assert_eq!(groups.groups, listed.groups);
+    assert!(groups.chats.is_empty());
     assert!(!groups.groups.is_empty());
     let kept: KeptSiteChangesResponse = archive.json("kept-sites.json");
     let theirs: KeptSiteChangesResponse = own(&router, token, KEPT_SITE_CHANGES_PATH).await;

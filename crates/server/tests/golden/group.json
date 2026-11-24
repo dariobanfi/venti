@@ -7,7 +7,8 @@
       "handle": "demo",
       "display_name": "Demo Pilot"
     },
-    "member_count": 3
+    "member_count": 3,
+    "public": false
   },
   "members": [
     {
@@ -22,5 +23,13 @@
       "handle": "jonas",
       "display_name": "Jonas Beispiel"
     }
-  ]
+  ],
+  "admins": [],
+  "me": {
+    "role": "owner",
+    "invited": false,
+    "muted": false,
+    "unread": 0,
+    "read_up_to": "6"
+  }
 }

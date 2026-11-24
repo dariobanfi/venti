@@ -18,7 +18,7 @@
 use chrono::{NaiveDate, NaiveTime};
 use venti_domain::{GeoPoint, Timestamp};
 
-use crate::{SecretHash, StoreError};
+use crate::{GroupProfile, SecretHash, StoreError};
 
 /// Refuses text no store keeps: text with a zero byte in it, which the
 /// database does not take. The API lets none through.
@@ -35,7 +35,8 @@ fn check_text(what: &str, text: &str) -> Result<(), StoreError> {
 pub(crate) fn check_group(new: &NewGroup) -> Result<(), StoreError> {
     check_text("a group's identifier", &new.id)?;
     check_text("an account's identifier", &new.keeper_id)?;
-    check_name(&new.name)
+    check_name(&new.name)?;
+    crate::group_chat::check_profile(&new.profile)
 }
 
 /// Refuses a name no store keeps.
@@ -98,7 +99,7 @@ pub struct GroupPilot {
 }
 
 /// A group.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Group {
     /// The group's identifier.
     pub id: String,
@@ -110,10 +111,12 @@ pub struct Group {
     pub keeper: GroupPilot,
     /// How many members it has, the keeper included.
     pub members: u32,
+    /// Public or private, its description, picture and home area.
+    pub profile: Box<GroupProfile>,
 }
 
 /// A group with its members.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GroupMembers {
     /// The group.
     pub group: Group,
@@ -124,7 +127,7 @@ pub struct GroupMembers {
 }
 
 /// A group to make.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NewGroup {
     /// The group's identifier.
     pub id: String,
@@ -137,6 +140,9 @@ pub struct NewGroup {
     /// The hash of the invite code that lets others in. The store never
     /// sees a code.
     pub invite: SecretHash,
+    /// Public or private, its description and home area. Its picture is
+    /// given later, once the group is there to send it to.
+    pub profile: GroupProfile,
 }
 
 /// How large groups may grow. The numbers are the caller's; the store
@@ -151,7 +157,7 @@ pub struct GroupRoom {
 }
 
 /// What became of an attempt to make a group.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GroupCreation {
     /// The group exists now, with its maker as keeper and only member.
     Created(Group),
@@ -160,7 +166,7 @@ pub enum GroupCreation {
 }
 
 /// What became of an attempt to come into a group with an invite code.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GroupJoining {
     /// The account is a member now.
     Joined(Group),
@@ -192,7 +198,7 @@ pub enum MemberRemoval {
 }
 
 /// What became of something only the keeper of a group may do.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum KeeperAct<T> {
     /// It is done.
     Done(T),
@@ -209,7 +215,7 @@ pub enum KeeperAct<T> {
 /// A group that whoever runs the server removed
 /// ([`Store::remove_group`](crate::Store::remove_group)), as it was at
 /// that moment.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RemovedGroup {
     /// The group with its members.
     pub group: GroupMembers,

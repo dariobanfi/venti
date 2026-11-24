@@ -67,6 +67,10 @@ use venti_core::{
 use venti_core::{AllFlightsSet, FlightVisibilityWords};
 use venti_core::{CandidateOffer, SiteCandidates, SiteFlights, SiteFlightsWords};
 use venti_core::{
+    ChatMessage, ChatPage, CommunityDetail, CommunityDraft, CommunityInvite, CommunityStanding,
+    CommunityView, CommunityWords, FoundCommunity, LinkDraft, MessageDraft, SentGroupPicture,
+};
+use venti_core::{
     CheerList, CheerState, CommentDraft, CommentList, CommentPosted, CommentsSwitch, Feed,
     FollowList, FollowState, Notifications, Unread,
 };
@@ -1418,6 +1422,338 @@ impl Core {
             .map_err(thrown)?;
         to_js(&plan)
     }
+}
+
+// Groups as communities with a chat: the requests and the answers read,
+// as `venti_core::group_chat` has them.
+#[wasm_bindgen]
+impl Core {
+    /// The request for public groups near a place (both `lat` and `lon`,
+    /// or neither), by name or place, or both.
+    #[wasm_bindgen(js_name = findGroupsRequest)]
+    pub fn find_groups_request(
+        &self,
+        lat: Option<f64>,
+        lon: Option<f64>,
+        text: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let near = lat.zip(lon).map(|(lat, lon)| Coordinate { lat, lon });
+        self.request(|core| core.find_groups_request(near, text))
+    }
+
+    /// Reads the answer to `findGroupsRequest`.
+    #[wasm_bindgen(js_name = foundGroups)]
+    pub fn found_groups(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Vec<Ts<FoundCommunity>>, JsValue> {
+        self.session
+            .call(|core| core.found_groups(status, body))
+            .map_err(thrown)?
+            .iter()
+            .map(to_js)
+            .collect()
+    }
+
+    /// Reads the answer to `groupsRequest` as the groups' section shows it.
+    #[wasm_bindgen(js_name = communities)]
+    pub fn communities(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Vec<Ts<CommunityView>>, JsValue> {
+        self.session
+            .call(|core| core.communities(status, body))
+            .map_err(thrown)?
+            .iter()
+            .map(to_js)
+            .collect()
+    }
+
+    /// The request that makes a group with the pilot as its owner.
+    #[wasm_bindgen(js_name = createCommunityRequest)]
+    pub fn create_community_request(
+        &self,
+        draft: Ts<CommunityDraft>,
+        public: bool,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let draft = from_js(&draft)?;
+        self.request(|core| core.create_community_request(draft, public))
+    }
+
+    /// The request that changes a group's name, description and home.
+    #[wasm_bindgen(js_name = changeCommunityRequest)]
+    pub fn change_community_request(
+        &self,
+        id: String,
+        draft: Ts<CommunityDraft>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let draft = from_js(&draft)?;
+        self.request(|core| core.change_community_request(id, draft))
+    }
+
+    /// The request that makes a group public or private.
+    #[wasm_bindgen(js_name = groupPublicRequest)]
+    pub fn group_public_request(
+        &self,
+        id: String,
+        public: bool,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.group_public_request(id, public))
+    }
+
+    /// Reads a group with its members and what the pilot may do in it.
+    #[wasm_bindgen(js_name = community)]
+    pub fn community(&self, status: u16, body: Vec<u8>) -> Result<Ts<CommunityDetail>, JsValue> {
+        let read = self
+            .session
+            .call(|core| core.community(status, body))
+            .map_err(thrown)?;
+        to_js(&read)
+    }
+
+    /// The request that takes the pilot into a public group, or one they
+    /// were invited into. The answer goes to `groupJoined`.
+    #[wasm_bindgen(js_name = enterGroupRequest)]
+    pub fn enter_group_request(&self, id: String) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.enter_group_request(id))
+    }
+
+    /// The request that invites a pilot into a group by handle.
+    #[wasm_bindgen(js_name = inviteToGroupRequest)]
+    pub fn invite_to_group_request(
+        &self,
+        id: String,
+        handle: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.invite_to_group_request(id, handle))
+    }
+
+    /// Reads the answer to `inviteToGroupRequest`: a line to show.
+    #[wasm_bindgen(js_name = groupInviteSent)]
+    pub fn group_invite_sent(&self, status: u16, body: Vec<u8>) -> Result<String, JsValue> {
+        self.session
+            .call(|core| core.group_invite_sent(status, body))
+            .map_err(thrown)
+    }
+
+    /// The request that takes an invite back, or declines it.
+    #[wasm_bindgen(js_name = dropGroupInviteRequest)]
+    pub fn drop_group_invite_request(
+        &self,
+        id: String,
+        handle: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.drop_group_invite_request(id, handle))
+    }
+
+    /// The request for the pilot's invites into private groups.
+    #[wasm_bindgen(js_name = groupInvitesRequest)]
+    pub fn group_invites_request(&self) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(venti_core::Core::group_invites_request)
+    }
+
+    /// Reads the answer to `groupInvitesRequest`.
+    #[wasm_bindgen(js_name = groupInvites)]
+    pub fn group_invites(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Vec<Ts<CommunityInvite>>, JsValue> {
+        self.session
+            .call(|core| core.group_invites(status, body))
+            .map_err(thrown)?
+            .iter()
+            .map(to_js)
+            .collect()
+    }
+
+    /// The request that makes a member an admin, or a member again.
+    #[wasm_bindgen(js_name = groupAdminRequest)]
+    pub fn group_admin_request(
+        &self,
+        id: String,
+        handle: String,
+        admin: bool,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.group_admin_request(id, handle, admin))
+    }
+
+    /// The request for the newest messages of a group, or the page before
+    /// `before`.
+    #[wasm_bindgen(js_name = messagesRequest)]
+    pub fn messages_request(
+        &self,
+        id: String,
+        before: Option<String>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.messages_request(id, before))
+    }
+
+    /// The request for what is new in a group since a page's `since`:
+    /// asked every few seconds while the chat is open.
+    #[wasm_bindgen(js_name = messagesSinceRequest)]
+    pub fn messages_since_request(
+        &self,
+        id: String,
+        since: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.messages_since_request(id, since))
+    }
+
+    /// Reads a page of messages.
+    #[wasm_bindgen(js_name = chatPage)]
+    pub fn chat_page(&self, status: u16, body: Vec<u8>) -> Result<Ts<ChatPage>, JsValue> {
+        let read = self
+            .session
+            .call(|core| core.chat_page(status, body))
+            .map_err(thrown)?;
+        to_js(&read)
+    }
+
+    /// The request that posts a message, checked as the server checks it.
+    #[wasm_bindgen(js_name = postMessageRequest)]
+    pub fn post_message_request(
+        &self,
+        id: String,
+        draft: Ts<MessageDraft>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let draft = from_js(&draft)?;
+        self.request(|core| core.post_message_request(id, draft))
+    }
+
+    /// Reads one message: the answer to posting and to removing one.
+    #[wasm_bindgen(js_name = chatMessage)]
+    pub fn chat_message(&self, status: u16, body: Vec<u8>) -> Result<Ts<ChatMessage>, JsValue> {
+        let read = self
+            .session
+            .call(|core| core.chat_message(status, body))
+            .map_err(thrown)?;
+        to_js(&read)
+    }
+
+    /// The request that removes a message.
+    #[wasm_bindgen(js_name = removeMessageRequest)]
+    pub fn remove_message_request(
+        &self,
+        id: String,
+        message: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.remove_message_request(id, message))
+    }
+
+    /// The request that marks a group read up to a message's cursor.
+    #[wasm_bindgen(js_name = groupReadRequest)]
+    pub fn group_read_request(
+        &self,
+        id: String,
+        cursor: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.group_read_request(id, cursor))
+    }
+
+    /// The request that mutes a group or unmutes it.
+    #[wasm_bindgen(js_name = groupMuteRequest)]
+    pub fn group_mute_request(
+        &self,
+        id: String,
+        muted: bool,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.group_mute_request(id, muted))
+    }
+
+    /// Reads the answer to `groupReadRequest` and `groupMuteRequest`.
+    #[wasm_bindgen(js_name = groupStanding)]
+    pub fn group_standing(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Ts<CommunityStanding>, JsValue> {
+        let read = self
+            .session
+            .call(|core| core.group_standing(status, body))
+            .map_err(thrown)?;
+        to_js(&read)
+    }
+
+    /// The request that sends a picture for a message.
+    #[wasm_bindgen(js_name = sendGroupPictureRequest)]
+    pub fn send_group_picture_request(
+        &self,
+        id: String,
+        picture: Vec<u8>,
+        media_type: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.send_group_picture_request(id, picture, media_type))
+    }
+
+    /// Reads the answer to `sendGroupPictureRequest`.
+    #[wasm_bindgen(js_name = groupPictureSent)]
+    pub fn group_picture_sent(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Ts<SentGroupPicture>, JsValue> {
+        let read = self
+            .session
+            .call(|core| core.group_picture_sent(status, body))
+            .map_err(thrown)?;
+        to_js(&read)
+    }
+
+    /// The request that gives a group its picture.
+    #[wasm_bindgen(js_name = groupOwnPictureRequest)]
+    pub fn group_own_picture_request(
+        &self,
+        id: String,
+        picture: Vec<u8>,
+        media_type: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.group_own_picture_request(id, picture, media_type))
+    }
+
+    /// The request that removes a group's picture.
+    #[wasm_bindgen(js_name = removeGroupOwnPictureRequest)]
+    pub fn remove_group_own_picture_request(
+        &self,
+        id: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.remove_group_own_picture_request(id))
+    }
+}
+
+/// The words of the groups' screens.
+#[wasm_bindgen(js_name = communityWords)]
+pub fn community_words() -> Result<Ts<CommunityWords>, JsValue> {
+    to_js(&venti_core::community_words())
+}
+
+/// The links to Venti's own records in a message's text.
+#[wasm_bindgen(js_name = messageLinks)]
+pub fn message_links(text: String) -> Result<Vec<Ts<LinkDraft>>, JsValue> {
+    venti_core::message_links(text).iter().map(to_js).collect()
+}
+
+/// The form for a report about a message of a group or a picture in one.
+#[wasm_bindgen(js_name = messageReportForm)]
+pub fn message_report_form() -> Result<Ts<ReportForm>, JsValue> {
+    to_js(&venti_core::message_report_form())
+}
+
+/// The request that reports a message of a group, or a picture in one.
+#[wasm_bindgen(js_name = messageReportRequest)]
+pub fn message_report_request(
+    group_id: String,
+    id: String,
+    picture: bool,
+    reason: Ts<ReportReason>,
+    text: String,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    let request =
+        venti_core::message_report_request(group_id, id, picture, from_js(&reason)?, text)
+            .map_err(thrown)?;
+    to_js(&request)
 }
 
 impl Core {

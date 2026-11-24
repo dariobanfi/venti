@@ -176,7 +176,7 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
         versions,
         [
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-            25, 26, 27, 28, 29, 30, 31, 32, 33, 34
+            25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35
         ]
     );
 }
@@ -191,6 +191,7 @@ async fn accounts_from_before_the_setting_make_their_new_flights_public() {
     // after it taken back.
     drop(PgStore::connect(&url).await.unwrap());
     let old = look(&url).await;
+    old.batch_execute(UNDO_35).await.unwrap();
     old.batch_execute(
         "ALTER TABLE accounts DROP COLUMN new_flights_public;
          ALTER TABLE accounts DROP COLUMN country;
@@ -232,6 +233,110 @@ async fn accounts_from_before_the_setting_make_their_new_flights_public() {
 }
 
 #[tokio::test]
+async fn groups_from_before_the_chat_are_private_with_their_plans_as_posts() {
+    let Some(url) = fresh_schema("upgrade_from_33").await else {
+        return;
+    };
+    // A database as the server left it before migration 35, with a group
+    // of two, a plan in it, and anna in on it.
+    drop(PgStore::connect(&url).await.unwrap());
+    let old = look(&url).await;
+    old.batch_execute(UNDO_35).await.unwrap();
+    old.batch_execute(
+        "DELETE FROM schema_migrations WHERE version >= 34;
+         INSERT INTO accounts (id, handle, display_name, created_at) VALUES
+             ('000000000000000000000dario', 'dario', 'Dario B.', '2026-11-18 09:00+00'),
+             ('0000000000000000000000anna', 'anna', 'Anna', '2026-11-18 09:00+00');
+         INSERT INTO groups (id, name, created_at, keeper_id)
+             VALUES ('0000000000000000000000000g', 'Mustergruppe', '2026-11-18 09:00+00',
+                     '000000000000000000000dario');
+         INSERT INTO group_members (group_id, account_id, joined_at) VALUES
+             ('0000000000000000000000000g', '000000000000000000000dario', '2026-11-18 09:00+00'),
+             ('0000000000000000000000000g', '0000000000000000000000anna', '2026-11-18 09:05+00');
+         INSERT INTO group_plans (id, group_id, author_id, day, place, created_at, changed_at)
+             VALUES ('00000000000000000000000p01', '0000000000000000000000000g',
+                     '000000000000000000000dario', '2099-11-20', 'Musterberg',
+                     '2026-11-18 10:00+00', '2026-11-18 10:00+00');
+         INSERT INTO group_plan_pilots (plan_id, group_id, account_id, since) VALUES
+             ('00000000000000000000000p01', '0000000000000000000000000g',
+              '0000000000000000000000anna', '2026-11-18 10:05+00');",
+    )
+    .await
+    .unwrap();
+
+    let store = PgStore::connect(&url).await.unwrap();
+    let (group, anna) = ("0000000000000000000000000g", "0000000000000000000000anna");
+    // Private: nobody else sees it; its keeper is its owner.
+    let seen = store.group_seen(group, anna, 100).await.unwrap().unwrap();
+    assert!(!seen.group.group.profile.public);
+    assert_eq!(seen.group.group.keeper.handle, "dario");
+    assert_eq!(seen.group.members.len(), 2);
+    assert_eq!(seen.standing.role, Some(venti_store::GroupRole::Member));
+    // What was there counts as read.
+    assert_eq!(seen.standing.unread, 0);
+    assert_eq!(store.group_seen(group, "nobody", 100).await.unwrap(), None);
+    // The plan is a post of kind plan, and "I'm in" works as before.
+    let posts = store
+        .messages(group, anna, venti_store::MessagePage::Before(None), 10)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(posts.len(), 1);
+    assert_eq!(posts[0].kind, venti_store::MessageKind::Plan);
+    assert_eq!(
+        posts[0].plan_id.as_deref(),
+        Some("00000000000000000000000p01")
+    );
+    assert_eq!(posts[0].author.handle, "dario");
+    let gone_before = chrono::NaiveDate::from_ymd_opt(2026, 11, 1).unwrap();
+    let back = store
+        .set_plan_in(
+            group,
+            "00000000000000000000000p01",
+            anna,
+            false,
+            at_noon(),
+            gone_before,
+        )
+        .await
+        .unwrap();
+    assert!(matches!(back, venti_store::PlanChange::Now(plan) if plan.pilots_in.is_empty()));
+    // And a new message has the next number.
+    let new = venti_store::NewMessage {
+        id: "0000000000000000000000m001".to_owned(),
+        group_id: group.to_owned(),
+        author_id: anna.to_owned(),
+        text: "Who drives?".to_owned(),
+        pictures: Vec::new(),
+        links: Vec::new(),
+        created_at: at_noon(),
+    };
+    let venti_store::MessagePosting::Posted(posted) = store.post_message(&new).await.unwrap()
+    else {
+        panic!("not posted");
+    };
+    assert!(posted.number > posts[0].number);
+}
+
+/// Takes migration 35 back, for a test of a migration before it.
+const UNDO_35: &str = "DROP TABLE group_messages;
+     ALTER TABLE groups DROP CONSTRAINT groups_picture_is_kept;
+     DROP TABLE group_pictures;
+     DROP TABLE group_invites;
+     DROP SEQUENCE group_message_numbers;
+     ALTER TABLE groups DROP COLUMN public, DROP COLUMN description,
+         DROP COLUMN picture_id, DROP COLUMN home_lat, DROP COLUMN home_lon,
+         DROP COLUMN home_radius_km, DROP COLUMN home_place;
+     ALTER TABLE group_members DROP COLUMN admin, DROP COLUMN muted,
+         DROP COLUMN read_up_to;";
+
+fn at_noon() -> venti_domain::Timestamp {
+    chrono::DateTime::parse_from_rfc3339("2026-11-18T12:00:00Z")
+        .unwrap()
+        .to_utc()
+}
+
+#[tokio::test]
 async fn accounts_from_before_the_mark_have_seen_what_they_were_told() {
     let Some(url) = fresh_schema("upgrade_from_32").await else {
         return;
@@ -240,6 +345,7 @@ async fn accounts_from_before_the_mark_have_seen_what_they_were_told() {
     // account that was told something and one that was told nothing.
     drop(PgStore::connect(&url).await.unwrap());
     let old = look(&url).await;
+    old.batch_execute(UNDO_35).await.unwrap();
     old.batch_execute(
         "DROP TABLE seen_marks;
          DELETE FROM schema_migrations WHERE version >= 33;
@@ -979,6 +1085,7 @@ async fn a_database_from_before_groups_is_upgraded_in_place() {
         created_at: now,
         keeper_id: dario.id.clone(),
         invite,
+        profile: venti_store::GroupProfile::default(),
     };
     let made = store.create_group(&new, &room).await.unwrap();
     assert!(matches!(made, venti_store::GroupCreation::Created(_)));

@@ -14,6 +14,7 @@ mod alerts;
 mod cables;
 mod flights;
 mod forecasts;
+mod group_chat;
 mod groups;
 mod kept_sites;
 mod live;
@@ -34,6 +35,7 @@ pub(crate) use alerts::*;
 pub(crate) use cables::*;
 pub(crate) use flights::*;
 pub(crate) use forecasts::*;
+pub(crate) use group_chat::*;
 pub(crate) use groups::*;
 pub(crate) use kept_sites::*;
 pub(crate) use live::*;
@@ -262,6 +264,12 @@ macro_rules! store_suite {
             an_account_holds_few_open_plans,
             open_plans_go_with_their_day_and_author,
             the_operator_removes_a_reported_open_plan,
+            public_groups_are_found_near_a_place_and_by_name,
+            a_private_group_is_seen_by_its_members_and_those_invited,
+            the_owner_makes_admins_who_moderate,
+            messages_come_in_pages_and_since_a_version,
+            a_plan_is_a_post_of_its_group,
+            a_picture_goes_with_its_message,
         );
     };
     (@tests $make:path; $($name:ident),* $(,)?) => {

@@ -121,6 +121,7 @@ mod error;
 mod flights;
 mod foehn;
 mod forecast;
+mod group_chat;
 mod groups;
 mod health;
 mod help;
@@ -210,6 +211,21 @@ pub use foehn::{
     FoehnSide, FoehnStation, FoehnUnknown,
 };
 pub use forecast::{ForecastLayer, ForecastNearby, ForecastResponse, NearbyHour, NearbyStrongest};
+pub use group_chat::{
+    Card, DEFAULT_FOUND_GROUPS, DEFAULT_MESSAGES, FlightCard, FoundGroup, GROUP_INVITES_PATH,
+    GROUP_PICTURES_PATH, GROUPS_FIND_PATH, GROUPS_NEAR_KM, GroupChat, GroupInvite,
+    GroupInviteAnswer, GroupInvitesResponse, GroupMe, GroupMeRequest, GroupMeResponse, GroupRole,
+    GroupsFoundResponse, HomeArea, InviteRequest, Link, LinkKind, MAX_CARD_TRACK_POINTS,
+    MAX_FOUND_GROUPS, MAX_GROUP_DESCRIPTION_LENGTH, MAX_GROUP_INVITES, MAX_HOME_PLACE_LENGTH,
+    MAX_HOME_RADIUS_KM, MAX_MESSAGE_LENGTH, MAX_MESSAGE_LINKS, MAX_MESSAGE_PICTURE_SIDE,
+    MAX_MESSAGE_PICTURES, MAX_MESSAGES, MESSAGES_POLL_SECONDS, MIN_HOME_RADIUS_KM, Message,
+    MessageKind, MessagePicture, MessageRequest, MessageResponse, MessagesResponse, OpenPlanCard,
+    Removed, RemovedBy, ReportedMessage, SentPicture, SentPictureResponse, SiteCard,
+    group_admin_path, group_invite_of_path, group_invites_path, group_me_path, group_members_path,
+    group_message_path, group_message_words, group_messages_path, group_own_picture_path,
+    group_picture_path, group_send_picture_path, mentions, parse_group_description,
+    parse_home_place, parse_message_text,
+};
 pub use groups::{
     CreateGroupRequest, CreateGroupResponse, Group, GroupId, GroupIdError, GroupInviteCode,
     GroupInviteResponse, GroupResponse, GroupTextError, GroupsResponse, HandOverGroupRequest,

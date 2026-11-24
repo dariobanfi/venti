@@ -1145,10 +1145,13 @@ fn operations() -> Vec<Op> {
         get("/v1/groups/{id}", "A group and its members")
             .with(GroupsRead)
             .json("GroupResponse"),
-        patch("/v1/groups/{id}", "Rename a group")
-            .with(GroupsWrite)
-            .takes("UpdateGroupRequest")
-            .json("GroupResponse"),
+        patch(
+            "/v1/groups/{id}",
+            "Change a group's name, description, home or kind",
+        )
+        .with(GroupsWrite)
+        .takes("UpdateGroupRequest")
+        .json("GroupResponse"),
         delete("/v1/groups/{id}", "Delete a group")
             .with(GroupsWrite)
             .nothing(),
@@ -1193,6 +1196,91 @@ fn operations() -> Vec<Op> {
             .docs("PUT and DELETE /v1/groups/{id}/plans/{plan}/in")
             .with(GroupsWrite)
             .json("PlanResponse"),
+        // Groups as communities with a chat.
+        get(
+            venti_api_types::v1::GROUPS_FIND_PATH,
+            "Public groups near a place and by name",
+        )
+        .docs("GET /v1/groups/find?lat=&lon=&q=&limit=")
+        .with(GroupsRead)
+        .query(&["lat", "lon", "q:group", "limit:groups"])
+        .json("GroupsFoundResponse"),
+        get(
+            venti_api_types::v1::GROUP_INVITES_PATH,
+            "The pilot's invites into private groups",
+        )
+        .with(GroupsRead)
+        .json("GroupInvitesResponse"),
+        get("/v1/groups/pictures/{picture}", "A picture sent to a group").bytes(
+            "image/webp",
+            "The picture, its longer side at most 1600 pixels",
+        ),
+        post(
+            "/v1/groups/{id}/members",
+            "Come into a public group, or one the pilot was invited into; 200 for a member",
+        )
+        .with(GroupsWrite)
+        .statuses(&[201, 200])
+        .json("JoinGroupResponse"),
+        post(
+            "/v1/groups/{id}/invites",
+            "Invite a pilot into a group by handle",
+        )
+        .with(GroupsWrite)
+        .takes("InviteRequest")
+        .statuses(&[201])
+        .json("GroupInviteAnswer"),
+        delete(
+            "/v1/groups/{id}/invites/{handle}",
+            "Take an invite back, or decline it",
+        )
+        .with(GroupsWrite)
+        .nothing(),
+        put("/v1/groups/{id}/admins/{handle}", "Make a member an admin")
+            .docs("PUT and DELETE /v1/groups/{id}/admins/{handle}")
+            .with(GroupsWrite)
+            .nothing(),
+        delete(
+            "/v1/groups/{id}/admins/{handle}",
+            "Make an admin a member again",
+        )
+        .docs("PUT and DELETE /v1/groups/{id}/admins/{handle}")
+        .with(GroupsWrite)
+        .nothing(),
+        put("/v1/groups/{id}/picture", "Give a group its picture")
+            .docs("PUT and DELETE /v1/groups/{id}/picture")
+            .with(GroupsWrite)
+            .takes_a_picture()
+            .json("GroupResponse"),
+        delete("/v1/groups/{id}/picture", "Remove a group's picture")
+            .docs("PUT and DELETE /v1/groups/{id}/picture")
+            .with(GroupsWrite)
+            .json("GroupResponse"),
+        post("/v1/groups/{id}/pictures", "Send a picture for a message")
+            .session()
+            .takes_a_picture()
+            .statuses(&[201])
+            .json("SentPictureResponse"),
+        get(
+            "/v1/groups/{id}/messages",
+            "A page of a group's messages, or what is new since an answer",
+        )
+        .docs("GET /v1/groups/{id}/messages?before=&since=&limit=")
+        .session()
+        .query(&["before:message", "since:message", "limit"])
+        .json("MessagesResponse"),
+        post("/v1/groups/{id}/messages", "Post a message to a group")
+            .session()
+            .takes("MessageRequest")
+            .statuses(&[201])
+            .json("MessageResponse"),
+        delete("/v1/groups/{id}/messages/{message}", "Remove a message")
+            .session()
+            .json("MessageResponse"),
+        patch("/v1/groups/{id}/me", "Mute a group, or mark it read")
+            .session()
+            .takes("GroupMeRequest")
+            .json("GroupMeResponse"),
         // Open plans.
         post(
             venti_api_types::v1::OPEN_PLANS_PATH,
@@ -1331,6 +1419,22 @@ fn query_parameter(spec: &str) -> Value {
             json!({"type": "integer", "minimum": 1, "maximum": 5000}),
         ),
         "pilot" => ("A pilot's handle.", json!({"type": "string"})),
+        "q:group" => (
+            "Text a group's name or the place of its home contains, in any case, at most 60 characters.",
+            json!({"type": "string", "maxLength": 60}),
+        ),
+        "limit:groups" => (
+            "The most groups the answer carries, 1 to 50, 20 if left out.",
+            json!({"type": "integer", "minimum": 1, "maximum": 50}),
+        ),
+        "before:message" => (
+            "The `older` of the answer before: the page of messages before it. Left out for the newest.",
+            json!({"type": "string"}),
+        ),
+        "since:message" => (
+            "The `since` of an earlier answer: what was posted or changed after it. While an answer says `more`, ask again at once with its `since`.",
+            json!({"type": "string"}),
+        ),
         "radius_km" => (
             "How far around the place, in whole kilometres: 1 to 100, 25 if left out.",
             json!({"type": "integer"}),

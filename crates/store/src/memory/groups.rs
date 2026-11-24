@@ -1,6 +1,6 @@
 //! Groups and their plans in the in-memory store.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::NaiveDate;
 use venti_domain::Timestamp;
@@ -12,30 +12,47 @@ use crate::{
     MemberRemoval, NewGroup, NewPlan, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom,
     PlanSaving, RemovedGroup, SecretHash, StoreError,
 };
+use crate::{GroupPicture, GroupProfile, Message, MessageKind};
 
 #[derive(Debug, Default)]
 pub(super) struct Groups {
     /// By identifier.
-    groups: BTreeMap<String, Entry>,
+    pub(super) groups: BTreeMap<String, Entry>,
     /// By identifier.
-    plans: BTreeMap<String, PlanEntry>,
+    pub(super) plans: BTreeMap<String, PlanEntry>,
+    /// Invites, by group and invited account: who asked and when.
+    pub(super) invites: BTreeMap<(String, String), (String, Timestamp)>,
+    /// Messages, by identifier.
+    pub(super) messages: BTreeMap<String, Message>,
+    /// Pictures sent to groups, by identifier.
+    pub(super) pictures: BTreeMap<String, GroupPicture>,
+    /// The last number given to a message, or to a change of one.
+    pub(super) numbers: i64,
 }
 
 #[derive(Debug)]
-struct Entry {
-    name: String,
-    created_at: Timestamp,
+pub(super) struct Entry {
+    pub(super) name: String,
+    pub(super) created_at: Timestamp,
     /// Always one of `members`.
-    keeper_id: String,
+    pub(super) keeper_id: String,
     /// The hash of the code that lets a pilot in, while one does.
-    invite: Option<SecretHash>,
+    pub(super) invite: Option<SecretHash>,
     /// When each member came in, by account identifier.
-    members: BTreeMap<String, Timestamp>,
+    pub(super) members: BTreeMap<String, Timestamp>,
+    /// Public or private, description, picture, home.
+    pub(super) profile: GroupProfile,
+    /// The members who are admins.
+    pub(super) admins: BTreeSet<String>,
+    /// The members who muted the group.
+    pub(super) muted: BTreeSet<String>,
+    /// Up to which message each member read it.
+    pub(super) read: BTreeMap<String, i64>,
 }
 
 #[derive(Debug)]
-struct PlanEntry {
-    group_id: String,
+pub(super) struct PlanEntry {
+    pub(super) group_id: String,
     author_id: String,
     details: PlanDetails,
     created_at: Timestamp,
@@ -49,7 +66,7 @@ fn count(length: usize) -> u32 {
 }
 
 /// A member as the others see them, with the account as it is now.
-fn pilot(account_id: &str, accounts: &Accounts) -> GroupPilot {
+pub(super) fn pilot(account_id: &str, accounts: &Accounts) -> GroupPilot {
     let (handle, name) = accounts.by_id(account_id).map_or(("", ""), |account| {
         (account.handle.as_str(), account.display_name.as_str())
     });
@@ -62,7 +79,7 @@ fn pilot(account_id: &str, accounts: &Accounts) -> GroupPilot {
 
 /// Account identifiers in the order of the moments that go with them, and
 /// by identifier among those of the same moment.
-fn in_order(since: &BTreeMap<String, Timestamp>) -> Vec<&String> {
+pub(super) fn in_order(since: &BTreeMap<String, Timestamp>) -> Vec<&String> {
     let mut ordered: Vec<(&Timestamp, &String)> =
         since.iter().map(|(id, time)| (time, id)).collect();
     ordered.sort();
@@ -70,17 +87,18 @@ fn in_order(since: &BTreeMap<String, Timestamp>) -> Vec<&String> {
 }
 
 impl Entry {
-    fn read(&self, id: &str, accounts: &Accounts) -> Group {
+    pub(super) fn read(&self, id: &str, accounts: &Accounts) -> Group {
         Group {
             id: id.to_owned(),
             name: self.name.clone(),
             created_at: self.created_at,
             keeper: pilot(&self.keeper_id, accounts),
             members: count(self.members.len()),
+            profile: Box::new(self.profile.clone()),
         }
     }
 
-    fn read_with_members(&self, id: &str, accounts: &Accounts) -> GroupMembers {
+    pub(super) fn read_with_members(&self, id: &str, accounts: &Accounts) -> GroupMembers {
         GroupMembers {
             group: self.read(id, accounts),
             members: in_order(&self.members)
@@ -91,7 +109,7 @@ impl Entry {
     }
 
     /// The account identifier of the member with this handle.
-    fn member_with(&self, handle: &str, accounts: &Accounts) -> Option<String> {
+    pub(super) fn member_with(&self, handle: &str, accounts: &Accounts) -> Option<String> {
         self.members
             .keys()
             .find(|member| {
@@ -130,8 +148,39 @@ fn sorted(mut plans: Vec<Plan>) -> Vec<Plan> {
 }
 
 impl Groups {
+    /// The next number of a message or of a change to one.
+    pub(super) fn next_number(&mut self) -> i64 {
+        self.numbers += 1;
+        self.numbers
+    }
+
+    /// A message's plan changed: its card is new since now.
+    fn plan_changed(&mut self, plan_id: &str) {
+        let posts: Vec<String> = self
+            .messages
+            .iter()
+            .filter(|(_, message)| message.plan_id.as_deref() == Some(plan_id))
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in posts {
+            let version = self.next_number();
+            if let Some(message) = self.messages.get_mut(&id) {
+                message.version = version;
+            }
+        }
+    }
+
+    /// Forgets everything of a group that is gone.
+    pub(super) fn forget(&mut self, id: &str) {
+        self.groups.remove(id);
+        self.plans.retain(|_, plan| plan.group_id != id);
+        self.messages.retain(|_, message| message.group_id != id);
+        self.pictures.retain(|_, picture| picture.group_id != id);
+        self.invites.retain(|(group, _), _| group != id);
+    }
+
     /// How many groups an account is in.
-    fn groups_with(&self, account_id: &str) -> usize {
+    pub(super) fn groups_with(&self, account_id: &str) -> usize {
         self.groups
             .values()
             .filter(|entry| entry.members.contains_key(account_id))
@@ -139,13 +188,13 @@ impl Groups {
     }
 
     /// The group, if the account is in it.
-    fn as_member(&self, id: &str, account_id: &str) -> Option<&Entry> {
+    pub(super) fn as_member(&self, id: &str, account_id: &str) -> Option<&Entry> {
         self.groups
             .get(id)
             .filter(|entry| entry.members.contains_key(account_id))
     }
 
-    fn as_member_mut(&mut self, id: &str, account_id: &str) -> Option<&mut Entry> {
+    pub(super) fn as_member_mut(&mut self, id: &str, account_id: &str) -> Option<&mut Entry> {
         self.groups
             .get_mut(id)
             .filter(|entry| entry.members.contains_key(account_id))
@@ -194,6 +243,13 @@ impl Groups {
             keeper_id: new.keeper_id.clone(),
             invite: Some(new.invite),
             members: BTreeMap::from([(new.keeper_id.clone(), new.created_at)]),
+            profile: GroupProfile {
+                picture: None,
+                ..new.profile.clone()
+            },
+            admins: BTreeSet::new(),
+            muted: BTreeSet::new(),
+            read: BTreeMap::new(),
         };
         let group = entry.read(&new.id, accounts);
         self.groups.insert(new.id.clone(), entry);
@@ -322,6 +378,9 @@ impl Groups {
         match self.as_keeper(id, keeper_id) {
             Ok(entry) => match entry.member_with(member_handle, accounts) {
                 Some(member) => {
+                    // The owner before is a member like any other from
+                    // then on; the new one is more than an admin.
+                    entry.admins.remove(&member);
                     entry.keeper_id = member;
                     KeeperAct::Done(entry.read_with_members(id, accounts))
                 }
@@ -339,13 +398,18 @@ impl Groups {
             return false;
         };
         entry.members.remove(account_id);
+        entry.admins.remove(account_id);
+        entry.muted.remove(account_id);
+        entry.read.remove(account_id);
         if entry.keeper_id == account_id {
             let longest = in_order(&entry.members).first().map(|id| (*id).clone());
             match longest {
-                Some(longest) => entry.keeper_id = longest,
+                Some(longest) => {
+                    entry.admins.remove(&longest);
+                    entry.keeper_id = longest;
+                }
                 None => {
-                    self.groups.remove(id);
-                    self.plans.retain(|_, plan| plan.group_id != id);
+                    self.forget(id);
                     return true;
                 }
             }
@@ -370,7 +434,12 @@ impl Groups {
         };
         let member = entry.member_with(member_handle, accounts);
         let leaving = member.as_deref() == Some(by_account_id);
-        if !leaving && entry.keeper_id != by_account_id {
+        // An admin removes members who are neither the owner nor admins.
+        let by_admin = entry.admins.contains(by_account_id)
+            && member
+                .as_ref()
+                .is_some_and(|member| *member != entry.keeper_id && !entry.admins.contains(member));
+        if !leaving && entry.keeper_id != by_account_id && !by_admin {
             return MemberRemoval::NotKeeper;
         }
         let Some(member) = member else {
@@ -390,8 +459,7 @@ impl Groups {
     pub(super) fn delete(&mut self, id: &str, keeper_id: &str) -> KeeperAct<()> {
         match self.as_keeper(id, keeper_id) {
             Ok(_) => {
-                self.groups.remove(id);
-                self.plans.retain(|_, plan| plan.group_id != id);
+                self.forget(id);
                 KeeperAct::Done(())
             }
             Err(refused) => refused,
@@ -409,6 +477,12 @@ impl Groups {
         for id in its_groups {
             self.take_out(&id, account_id);
         }
+        self.messages
+            .retain(|_, message| message.author.account_id != account_id);
+        self.pictures
+            .retain(|_, picture| picture.account_id != account_id);
+        self.invites
+            .retain(|(_, invited), (by, _)| invited != account_id && by != account_id);
     }
 
     pub(super) fn save_plan(
@@ -444,6 +518,24 @@ impl Groups {
         };
         let plan = entry.read(&new.id, accounts);
         self.plans.insert(new.id.clone(), entry);
+        // The plan is a post of the group's chat too.
+        // Under the plan's identifier: a test that posts a plan again
+        // under one used before keeps the first post.
+        let number = self.next_number();
+        self.messages.entry(new.id.clone()).or_insert(Message {
+            id: new.id.clone(),
+            group_id: new.group_id.clone(),
+            number,
+            version: number,
+            author: plan.author.clone(),
+            kind: MessageKind::Plan,
+            text: String::new(),
+            pictures: Vec::new(),
+            links: Vec::new(),
+            plan_id: Some(new.id.clone()),
+            created_at: new.created_at,
+            removed: None,
+        });
         Ok(PlanSaving::Stored(Box::new(plan)))
     }
 
@@ -471,7 +563,9 @@ impl Groups {
         }
         plan.details = details.clone();
         plan.changed_at = now;
-        Ok(PlanChange::Now(Box::new(plan.read(plan_id, accounts))))
+        let read = plan.read(plan_id, accounts);
+        self.plan_changed(plan_id);
+        Ok(PlanChange::Now(Box::new(read)))
     }
 
     pub(super) fn delete_plan(
@@ -490,6 +584,7 @@ impl Groups {
         if plan.author_id != by_account_id && group.keeper_id != by_account_id {
             return PlanRemoval::NotAllowed;
         }
+        self.plan_changed(plan_id);
         self.plans.remove(plan_id);
         PlanRemoval::Removed
     }
@@ -517,7 +612,9 @@ impl Groups {
         } else {
             plan.pilots_in.remove(account_id);
         }
-        PlanChange::Now(Box::new(plan.read(plan_id, accounts)))
+        let read = plan.read(plan_id, accounts);
+        self.plan_changed(plan_id);
+        PlanChange::Now(Box::new(read))
     }
 
     pub(super) fn plans_of_group(
@@ -528,7 +625,10 @@ impl Groups {
         to: Option<NaiveDate>,
         accounts: &Accounts,
     ) -> Option<Vec<Plan>> {
-        self.as_member(group_id, account_id)?;
+        // A member reads them, and anyone a public group's.
+        self.groups
+            .get(group_id)
+            .filter(|entry| entry.profile.public || entry.members.contains_key(account_id))?;
         let plans = self
             .plans
             .iter()
@@ -638,8 +738,7 @@ impl Groups {
             .values()
             .filter(|plan| plan.group_id == id && plan.details.day >= gone_before)
             .count();
-        self.groups.remove(id);
-        self.plans.retain(|_, plan| plan.group_id != id);
+        self.forget(id);
         Some(RemovedGroup {
             group,
             plans: count(plans),

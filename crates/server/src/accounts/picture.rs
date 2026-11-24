@@ -83,15 +83,41 @@ fn check_sides(width: u64, height: u64) -> Result<(), Refused> {
 /// The square picture the server keeps and hands out, made from a picture
 /// that was sent to it, as a WebP.
 pub fn square(bytes: &[u8]) -> Result<Vec<u8>, Refused> {
-    let picture = match kind_of(bytes) {
-        Some(Kind::Jpeg) => jpeg(bytes)?,
-        Some(Kind::Png) => png(bytes)?,
-        Some(Kind::Webp) => webp(bytes)?,
-        None => return Err(refused("the picture is no JPEG, PNG or WebP")),
-    };
+    let picture = read(bytes)?;
     let side = PICTURE_SIDE as usize;
-    let squared = scaled(&cropped(&picture), side);
+    let squared = scaled(&cropped(&picture), side, side);
     encode(&squared)
+}
+
+/// The picture the server keeps of one sent with a message: the whole
+/// picture, upright, scaled down so that its longer side is at most
+/// `most` pixels, as a WebP. Its width and height go with it.
+pub fn fitted(bytes: &[u8], most: u32) -> Result<(Vec<u8>, u32, u32), Refused> {
+    let picture = read(bytes)?;
+    let (w, h) = (picture.width, picture.height);
+    let most = most as usize;
+    let longer = w.max(h);
+    let (out_w, out_h) = if longer <= most {
+        (w, h)
+    } else {
+        (
+            (w * most).div_ceil(longer).max(1),
+            (h * most).div_ceil(longer).max(1),
+        )
+    };
+    let fitted = scaled(&picture, out_w, out_h);
+    let side = |value: usize| u32::try_from(value).map_err(|_| refused("too large"));
+    Ok((encode(&fitted)?, side(out_w)?, side(out_h)?))
+}
+
+/// A picture sent to the server, read.
+fn read(bytes: &[u8]) -> Result<Rgba, Refused> {
+    match kind_of(bytes) {
+        Some(Kind::Jpeg) => jpeg(bytes),
+        Some(Kind::Png) => png(bytes),
+        Some(Kind::Webp) => webp(bytes),
+        None => Err(refused("the picture is no JPEG, PNG or WebP")),
+    }
 }
 
 fn jpeg(bytes: &[u8]) -> Result<Rgba, Refused> {
@@ -328,13 +354,14 @@ fn coverage(from: usize, to: usize) -> Vec<Vec<(usize, f32)>> {
         .collect()
 }
 
-/// A square picture scaled to `side` pixels on each side: every pixel the
-/// mean of what it covers, colour weighted by how opaque it is, so that a
+/// A picture scaled to `out_w` by `out_h` pixels: every pixel the mean of
+/// what it covers, colour weighted by how opaque it is, so that a
 /// transparent edge does not darken.
-fn scaled(picture: &Rgba, side: usize) -> Rgba {
+fn scaled(picture: &Rgba, out_w: usize, out_h: usize) -> Rgba {
     let (w, h) = (picture.width, picture.height);
-    let across = coverage(w, side);
-    let down = coverage(h, side);
+    let side = out_w;
+    let across = coverage(w, out_w);
+    let down = coverage(h, out_h);
     // First along each row, in premultiplied colour.
     let mut rows = vec![0.0_f32; h * side * 4];
     for y in 0..h {
@@ -351,7 +378,7 @@ fn scaled(picture: &Rgba, side: usize) -> Rgba {
             rows[(y * side + x) * 4..(y * side + x) * 4 + 4].copy_from_slice(&sum);
         }
     }
-    let mut pixels = vec![0_u8; side * side * 4];
+    let mut pixels = vec![0_u8; out_w * out_h * 4];
     for (y, taps) in down.iter().enumerate() {
         for x in 0..side {
             let mut sum = [0.0_f32; 4];
@@ -371,15 +398,16 @@ fn scaled(picture: &Rgba, side: usize) -> Rgba {
         }
     }
     Rgba {
-        width: side,
-        height: side,
+        width: out_w,
+        height: out_h,
         pixels,
     }
 }
 
 /// The picture as a WebP of its own, with no metadata.
 fn encode(picture: &Rgba) -> Result<Vec<u8>, Refused> {
-    let side = u32::try_from(picture.width).map_err(|_| refused("too large"))?;
+    let width = u32::try_from(picture.width).map_err(|_| refused("too large"))?;
+    let height = u32::try_from(picture.height).map_err(|_| refused("too large"))?;
     let opaque = picture.pixels.chunks_exact(4).all(|p| p[3] == 255);
     let mut out = Vec::new();
     let encoder = image_webp::WebPEncoder::new(&mut out);
@@ -389,9 +417,9 @@ fn encode(picture: &Rgba) -> Result<Vec<u8>, Refused> {
             .chunks_exact(4)
             .flat_map(|p| [p[0], p[1], p[2]])
             .collect();
-        encoder.encode(&rgb, side, side, image_webp::ColorType::Rgb8)
+        encoder.encode(&rgb, width, height, image_webp::ColorType::Rgb8)
     } else {
-        encoder.encode(&picture.pixels, side, side, image_webp::ColorType::Rgba8)
+        encoder.encode(&picture.pixels, width, height, image_webp::ColorType::Rgba8)
     };
     result.map_err(|e| refused(format!("the picture could not be written: {e}")))?;
     Ok(out)
@@ -418,6 +446,19 @@ impl Turns {
             .await
             .map_err(|_| refused("the server is stopping"))?;
         tokio::task::spawn_blocking(move || square(&bytes))
+            .await
+            .map_err(|_| refused("the picture could not be read"))?
+    }
+
+    /// The picture made from `bytes` for a message, in its turn; see
+    /// [`fitted`].
+    pub async fn fitted(&self, bytes: Vec<u8>, most: u32) -> Result<(Vec<u8>, u32, u32), Refused> {
+        let _turn = self
+            .0
+            .acquire()
+            .await
+            .map_err(|_| refused("the server is stopping"))?;
+        tokio::task::spawn_blocking(move || fitted(&bytes, most))
             .await
             .map_err(|_| refused("the picture could not be read"))?
     }
@@ -523,7 +564,7 @@ mod tests {
                 0, 0, 0, 255, 200, 200, 200, 255, 100, 100, 100, 255, 100, 100, 100, 255,
             ],
         };
-        let one = scaled(&picture, 1);
+        let one = scaled(&picture, 1, 1);
         assert_eq!(one.pixels, [100, 100, 100, 255]);
         // A transparent pixel adds nothing to the colour.
         let half = Rgba {
@@ -537,6 +578,7 @@ mod tests {
                 height: 2,
                 pixels: [half.pixels.clone(), half.pixels].concat(),
             },
+            1,
             1,
         );
         assert_eq!(one.pixels, [200, 100, 0, 128]);

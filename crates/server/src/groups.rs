@@ -94,6 +94,12 @@ pub struct Limits {
     /// cars to a take-off (an estimate). It bounds what one plan's answer
     /// carries.
     pub pilots_per_open_plan: u32,
+    /// The most messages one account may post a day, in all its groups.
+    pub messages_per_day: u32,
+    /// The most pictures one account may send to groups a day.
+    pub group_pictures_per_day: u32,
+    /// The most pilots one account may invite into groups a day.
+    pub invites_per_day: u32,
 }
 
 impl Limits {
@@ -102,7 +108,9 @@ impl Limits {
     pub fn keeping(plan_days: u32) -> Self {
         Self {
             groups_per_account: 20,
-            members_per_group: 50,
+            // A public community needs room (decision 26); one cap for
+            // every group, the session's choice of 2026-11-24.
+            members_per_group: 1000,
             plans_per_group: 100,
             groups_made_per_day: 10,
             joins_per_day: 20,
@@ -112,6 +120,9 @@ impl Limits {
             open_plans_per_account: 5,
             open_plans_posted_per_day: 10,
             pilots_per_open_plan: 30,
+            messages_per_day: 500,
+            group_pictures_per_day: 60,
+            invites_per_day: 50,
         }
     }
 
@@ -126,6 +137,9 @@ impl Limits {
             joins_per_day: u32::MAX,
             plans_posted_per_day: u32::MAX,
             open_plans_posted_per_day: u32::MAX,
+            messages_per_day: u32::MAX,
+            group_pictures_per_day: u32::MAX,
+            invites_per_day: u32::MAX,
             days_ahead: None,
             ..Self::default()
         }
@@ -241,7 +255,10 @@ mod tests {
         assert_eq!(dev.plan_room(now), real.plan_room(now));
         assert_eq!(dev.joins_per_day, u32::MAX);
         // A real server's numbers, as the documents state them.
-        assert_eq!((real.groups_per_account, real.members_per_group), (20, 50));
+        assert_eq!(
+            (real.groups_per_account, real.members_per_group),
+            (20, 1000)
+        );
         assert_eq!(real.plans_per_group, 100);
         assert_eq!(
             (

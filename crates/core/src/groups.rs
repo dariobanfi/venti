@@ -205,9 +205,7 @@ impl Core {
         json_request(
             "POST",
             api::GROUPS_PATH,
-            &CreateGroupRequest {
-                name: group_name(&name)?,
-            },
+            &CreateGroupRequest::named(group_name(&name)?),
             true,
         )
     }
@@ -293,9 +291,7 @@ impl Core {
         json_request(
             "PATCH",
             &api::group_path(&group_id(&id)?),
-            &UpdateGroupRequest {
-                name: group_name(&name)?,
-            },
+            &UpdateGroupRequest::rename(group_name(&name)?),
             true,
         )
     }
@@ -509,14 +505,14 @@ impl Core {
     }
 }
 
-fn invalid(message: &str) -> CoreError {
+pub(crate) fn invalid(message: &str) -> CoreError {
     CoreError::Server {
         message: message.to_owned(),
     }
 }
 
 /// A request without a body, sent with the session token.
-fn bare(method: &str, path: String) -> ServerRequest {
+pub(crate) fn bare(method: &str, path: String) -> ServerRequest {
     ServerRequest {
         method: method.to_owned(),
         path,
@@ -526,7 +522,7 @@ fn bare(method: &str, path: String) -> ServerRequest {
     }
 }
 
-fn group_id(id: &str) -> Result<GroupId, CoreError> {
+pub(crate) fn group_id(id: &str) -> Result<GroupId, CoreError> {
     id.parse()
         .map_err(|_| invalid("This is not a group the app knows."))
 }
@@ -540,7 +536,7 @@ fn day(text: &str) -> Result<chrono::NaiveDate, CoreError> {
     api::parse_day(text.trim()).map_err(|_| invalid("Choose the day of the plan."))
 }
 
-fn group_name(name: &str) -> Result<String, CoreError> {
+pub(crate) fn group_name(name: &str) -> Result<String, CoreError> {
     api::parse_group_name(name).map_err(|error| match error {
         GroupTextError::Empty => invalid("Give the group a name."),
         GroupTextError::TooLong(most) => {
@@ -610,7 +606,7 @@ fn group_view(group: &Group, me: &str) -> GroupView {
     }
 }
 
-fn plan_view(plan: &Plan, group: Option<&Group>, me: &str) -> PlanView {
+pub(crate) fn plan_view(plan: &Plan, group: Option<&Group>, me: &str) -> PlanView {
     let is_mine = plan.author.handle.as_str() == me;
     let am_in = plan
         .pilots_in

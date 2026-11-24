@@ -162,6 +162,18 @@ fn report(report: venti_store::Report) -> Option<ArchiveReport> {
             id,
             revision: Some(revision),
         }),
+        Stored::GroupMessage { id, group_id, .. } => {
+            ReportSubject::GroupMessage(venti_api_types::v1::ReportedMessage {
+                group: group_id,
+                id,
+            })
+        }
+        Stored::GroupPicture { id, group_id } => {
+            ReportSubject::GroupPicture(venti_api_types::v1::ReportedMessage {
+                group: group_id,
+                id,
+            })
+        }
         // The words the report kept are another pilot's.
         Stored::Comment { id, flight_id, .. } => {
             ReportSubject::Comment(venti_api_types::v1::ReportedComment {
@@ -341,6 +353,7 @@ impl<S: Store> Api<S> {
             groups.len(),
             &GroupsResponse {
                 groups: wire::groups(&groups)?,
+                chats: Vec::new(),
             },
         )?);
 

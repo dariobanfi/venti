@@ -843,7 +843,18 @@
     "type": "object",
     "properties": {
       "name": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 60
+      },
+      "public": {
+        "type": "boolean"
+      },
+      "description": {
+        "type": "string",
+        "maxLength": 300
+      },
+      "home": {
+        "$ref": "#/components/schemas/HomeArea"
       }
     },
     "required": [
@@ -1538,6 +1549,9 @@
       "group_not_found",
       "group_member_not_found",
       "not_group_keeper",
+      "already_in_group",
+      "invalid_message",
+      "message_not_found",
       "invalid_plan",
       "invalid_day",
       "plan_not_found",
@@ -2575,6 +2589,21 @@
       },
       "member_count": {
         "type": "integer"
+      },
+      "public": {
+        "type": "boolean",
+        "description": "Whether anyone signed in finds, reads and joins the group."
+      },
+      "description": {
+        "type": "string",
+        "maxLength": 300
+      },
+      "picture": {
+        "type": "string",
+        "description": "The path of the group's picture."
+      },
+      "home": {
+        "$ref": "#/components/schemas/HomeArea"
       }
     },
     "required": [
@@ -2607,6 +2636,15 @@
         "items": {
           "$ref": "#/components/schemas/Pilot"
         }
+      },
+      "admins": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "me": {
+        "$ref": "#/components/schemas/GroupMe"
       }
     },
     "required": [
@@ -2621,6 +2659,12 @@
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/Group"
+        }
+      },
+      "chats": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/GroupChat"
         }
       }
     },
@@ -4298,6 +4342,38 @@
       "help_request": {
         "type": "string",
         "description": "A request for help the reporter was asked, by its identifier."
+      },
+      "group_message": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "group",
+          "id"
+        ],
+        "description": "A message of a group the reporter reads."
+      },
+      "group_picture": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "group",
+          "id"
+        ],
+        "description": "A picture sent to a group the reporter reads."
       }
     }
   },
@@ -6092,12 +6168,17 @@
       "total": {
         "type": "integer",
         "description": "The two together, stopping at 100."
+      },
+      "groups": {
+        "type": "integer",
+        "description": "Messages of others in the pilot's groups not read yet; not in total."
       }
     },
     "required": [
       "notifications",
       "alarms",
-      "total"
+      "total",
+      "groups"
     ]
   },
   "UpdateAccountRequest": {
@@ -6197,15 +6278,40 @@
     ]
   },
   "UpdateGroupRequest": {
+    "description": "What changes; a field left out stays, null clears a description or a home.",
     "type": "object",
     "properties": {
       "name": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 60
+      },
+      "public": {
+        "type": "boolean",
+        "description": "The owner's alone to change."
+      },
+      "description": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 300
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "home": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/HomeArea"
+          },
+          {
+            "type": "null"
+          }
+        ]
       }
     },
-    "required": [
-      "name"
-    ]
+    "required": []
   },
   "UploadResponse": {
     "type": "object",
@@ -7070,6 +7176,577 @@
     "required": [
       "plans",
       "truncated"
+    ]
+  },
+  "HomeArea": {
+    "description": "Where a group flies.",
+    "type": "object",
+    "properties": {
+      "center": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "radius_km": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "place": {
+        "type": "string",
+        "maxLength": 80
+      }
+    },
+    "required": [
+      "center",
+      "radius_km"
+    ]
+  },
+  "GroupMe": {
+    "type": "object",
+    "properties": {
+      "role": {
+        "type": "string",
+        "enum": [
+          "owner",
+          "admin",
+          "member"
+        ]
+      },
+      "invited": {
+        "type": "boolean"
+      },
+      "muted": {
+        "type": "boolean"
+      },
+      "unread": {
+        "type": "integer"
+      },
+      "read_up_to": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "invited",
+      "muted",
+      "unread",
+      "read_up_to"
+    ]
+  },
+  "GroupChat": {
+    "type": "object",
+    "properties": {
+      "group": {
+        "type": "string"
+      },
+      "me": {
+        "$ref": "#/components/schemas/GroupMe"
+      },
+      "last_message": {
+        "$ref": "#/components/schemas/Message"
+      }
+    },
+    "required": [
+      "group",
+      "me"
+    ]
+  },
+  "FoundGroup": {
+    "type": "object",
+    "properties": {
+      "group": {
+        "$ref": "#/components/schemas/Group"
+      },
+      "distance_km": {
+        "type": "number"
+      },
+      "member": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "group",
+      "member"
+    ]
+  },
+  "GroupsFoundResponse": {
+    "type": "object",
+    "properties": {
+      "groups": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FoundGroup"
+        }
+      }
+    },
+    "required": [
+      "groups"
+    ]
+  },
+  "InviteRequest": {
+    "type": "object",
+    "properties": {
+      "handle": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "handle"
+    ]
+  },
+  "GroupInvite": {
+    "type": "object",
+    "properties": {
+      "group": {
+        "$ref": "#/components/schemas/Group"
+      },
+      "invited_by": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "invited_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "group",
+      "invited_by",
+      "invited_at"
+    ]
+  },
+  "GroupInviteAnswer": {
+    "type": "object",
+    "properties": {
+      "invite": {
+        "$ref": "#/components/schemas/GroupInvite"
+      }
+    },
+    "required": [
+      "invite"
+    ]
+  },
+  "GroupInvitesResponse": {
+    "type": "object",
+    "properties": {
+      "invites": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/GroupInvite"
+        }
+      }
+    },
+    "required": [
+      "invites"
+    ]
+  },
+  "SentPicture": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "width": {
+        "type": "integer"
+      },
+      "height": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "id",
+      "path",
+      "width",
+      "height"
+    ]
+  },
+  "SentPictureResponse": {
+    "type": "object",
+    "properties": {
+      "picture": {
+        "$ref": "#/components/schemas/SentPicture"
+      }
+    },
+    "required": [
+      "picture"
+    ]
+  },
+  "Link": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "flight",
+          "site",
+          "open_plan",
+          "pilot"
+        ]
+      },
+      "id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "kind",
+      "id"
+    ]
+  },
+  "MessageRequest": {
+    "description": "A message has text, a picture or a link.",
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "maxLength": 2000
+      },
+      "pictures": {
+        "type": "array",
+        "maxItems": 4,
+        "items": {
+          "type": "string"
+        }
+      },
+      "links": {
+        "type": "array",
+        "maxItems": 4,
+        "items": {
+          "$ref": "#/components/schemas/Link"
+        }
+      }
+    },
+    "required": []
+  },
+  "MessagePicture": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path",
+      "id"
+    ]
+  },
+  "Removed": {
+    "type": "object",
+    "properties": {
+      "at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "by": {
+        "type": "string",
+        "enum": [
+          "author",
+          "admin",
+          "operator"
+        ]
+      }
+    },
+    "required": [
+      "at",
+      "by"
+    ]
+  },
+  "FlightCard": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "flight"
+        ]
+      },
+      "id": {
+        "type": "string"
+      },
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "takeoff": {
+        "type": "string"
+      },
+      "distance_km": {
+        "type": "number"
+      },
+      "date": {
+        "type": "string",
+        "format": "date"
+      },
+      "track": {
+        "type": "array",
+        "maxItems": 48,
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "required": [
+      "kind",
+      "id",
+      "pilot",
+      "distance_km",
+      "date",
+      "track"
+    ]
+  },
+  "SiteCard": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "site"
+        ]
+      },
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "site_use": {
+        "type": "string"
+      },
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "elevation_m": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "kind",
+      "id",
+      "site_use",
+      "position"
+    ]
+  },
+  "OpenPlanCard": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "open_plan"
+        ]
+      },
+      "id": {
+        "type": "string"
+      },
+      "place": {
+        "type": "string"
+      },
+      "day": {
+        "type": "string",
+        "format": "date"
+      },
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "author": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "pilots_in": {
+        "type": "integer"
+      },
+      "i_am_in": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "kind",
+      "id",
+      "place",
+      "day",
+      "position",
+      "author",
+      "pilots_in",
+      "i_am_in"
+    ]
+  },
+  "PilotCard": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "pilot"
+        ]
+      },
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      }
+    },
+    "required": [
+      "kind",
+      "pilot"
+    ]
+  },
+  "GoneCard": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "gone"
+        ]
+      },
+      "link": {
+        "$ref": "#/components/schemas/Link"
+      }
+    },
+    "required": [
+      "kind",
+      "link"
+    ]
+  },
+  "Card": {
+    "description": "What a link in a message is shown as, by its `kind`.",
+    "anyOf": [
+      {
+        "$ref": "#/components/schemas/FlightCard"
+      },
+      {
+        "$ref": "#/components/schemas/SiteCard"
+      },
+      {
+        "$ref": "#/components/schemas/OpenPlanCard"
+      },
+      {
+        "$ref": "#/components/schemas/PilotCard"
+      },
+      {
+        "$ref": "#/components/schemas/GoneCard"
+      }
+    ]
+  },
+  "Message": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "group": {
+        "type": "string"
+      },
+      "cursor": {
+        "type": "string"
+      },
+      "author": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "text",
+          "plan"
+        ]
+      },
+      "text": {
+        "type": "string",
+        "maxLength": 2000
+      },
+      "pictures": {
+        "type": "array",
+        "maxItems": 4,
+        "items": {
+          "$ref": "#/components/schemas/MessagePicture"
+        }
+      },
+      "cards": {
+        "type": "array",
+        "maxItems": 4,
+        "items": {
+          "$ref": "#/components/schemas/Card"
+        }
+      },
+      "plan": {
+        "$ref": "#/components/schemas/Plan"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "removed": {
+        "$ref": "#/components/schemas/Removed"
+      }
+    },
+    "required": [
+      "id",
+      "group",
+      "cursor",
+      "author",
+      "kind",
+      "text",
+      "created_at"
+    ]
+  },
+  "MessageResponse": {
+    "type": "object",
+    "properties": {
+      "message": {
+        "$ref": "#/components/schemas/Message"
+      }
+    },
+    "required": [
+      "message"
+    ]
+  },
+  "MessagesResponse": {
+    "type": "object",
+    "properties": {
+      "messages": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Message"
+        }
+      },
+      "older": {
+        "type": "string"
+      },
+      "since": {
+        "type": "string"
+      },
+      "more": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "messages",
+      "since",
+      "more"
+    ]
+  },
+  "GroupMeRequest": {
+    "type": "object",
+    "properties": {
+      "muted": {
+        "type": "boolean"
+      },
+      "read_up_to": {
+        "type": "string"
+      }
+    },
+    "required": []
+  },
+  "GroupMeResponse": {
+    "type": "object",
+    "properties": {
+      "me": {
+        "$ref": "#/components/schemas/GroupMe"
+      }
+    },
+    "required": [
+      "me"
     ]
   }
 }

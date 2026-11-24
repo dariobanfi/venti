@@ -982,6 +982,13 @@ pub struct Unread {
     pub alarms: u32,
     /// The two together.
     pub total: u32,
+    /// Messages of others in the pilot's groups not read yet: the groups'
+    /// marker, beside this one.
+    #[uniffi(default = 0)]
+    pub groups: u32,
+    /// The groups' badge: "3", "99+"; absent for none.
+    #[uniffi(default = None)]
+    pub groups_badge: Option<String>,
     /// What the badge says: "3", "99+"; absent when nothing is new and
     /// no badge is shown.
     pub badge: Option<String>,
@@ -1008,6 +1015,8 @@ pub fn unread(status: u16, body: Vec<u8>) -> Result<Unread, CoreError> {
         notifications: response.notifications,
         alarms: response.alarms,
         total: response.total,
+        groups: response.groups,
+        groups_badge: self::badge(response.groups),
         label: badge.as_ref().map(|badge| format!("{badge} new")),
         badge,
     })

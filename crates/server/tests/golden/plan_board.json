@@ -8,7 +8,8 @@
         "handle": "demo",
         "display_name": "Demo Pilot"
       },
-      "member_count": 3
+      "member_count": 3,
+      "public": false
     }
   ],
   "plans": [

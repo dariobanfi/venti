@@ -82,6 +82,7 @@ mod flights;
 mod foehn;
 mod forecast;
 mod google;
+mod group_chat;
 mod groups;
 mod health;
 mod imagery;
@@ -125,7 +126,7 @@ use axum::extract::{Request, State};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{MethodRouter, any, delete, get, post, put};
+use axum::routing::{MethodRouter, any, delete, get, patch, post, put};
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
@@ -917,6 +918,18 @@ impl<S: Store> Api<S> {
                 post(groups::create::<S>).get(groups::list::<S>),
             )
             .route(GROUP_JOIN_PATH, post(groups::join::<S>))
+            .route(
+                venti_api_types::v1::GROUPS_FIND_PATH,
+                get(group_chat::find::<S>),
+            )
+            .route(
+                venti_api_types::v1::GROUP_INVITES_PATH,
+                get(group_chat::invites::<S>),
+            )
+            .route(
+                "/v1/groups/pictures/{picture}",
+                get(group_chat::picture::<S>),
+            )
             .route(PLAN_BOARD_PATH, get(groups::board::<S>))
             .route(
                 venti_api_types::v1::OPEN_PLANS_PATH,
@@ -943,9 +956,28 @@ impl<S: Store> Api<S> {
             .route(
                 "/v1/groups/{id}",
                 get(groups::show::<S>)
-                    .patch(groups::rename::<S>)
+                    .patch(groups::change::<S>)
                     .delete(groups::delete::<S>),
             )
+            .route("/v1/groups/{id}/members", post(group_chat::enter::<S>))
+            .route("/v1/groups/{id}/invites", post(group_chat::invite::<S>))
+            .route(
+                "/v1/groups/{id}/invites/{handle}",
+                delete(group_chat::drop_invite::<S>),
+            )
+            .route(
+                "/v1/groups/{id}/admins/{handle}",
+                put(group_chat::make_admin::<S>).delete(group_chat::unmake_admin::<S>),
+            )
+            .route(
+                "/v1/groups/{id}/messages",
+                get(group_chat::messages::<S>).post(group_chat::post_message::<S>),
+            )
+            .route(
+                "/v1/groups/{id}/messages/{message}",
+                delete(group_chat::remove_message::<S>),
+            )
+            .route("/v1/groups/{id}/me", patch(group_chat::me::<S>))
             .route("/v1/groups/{id}/invite", post(groups::renew_invite::<S>))
             .route("/v1/groups/{id}/keeper", put(groups::hand_over::<S>))
             .route(
@@ -982,6 +1014,15 @@ impl<S: Store> Api<S> {
             .route(
                 venti_api_types::v1::ACCOUNT_PICTURE_PATH,
                 put(pictures::put::<S>).delete(pictures::remove::<S>),
+            )
+            .route(
+                "/v1/groups/{id}/pictures",
+                post(group_chat::send_picture::<S>),
+            )
+            .route(
+                "/v1/groups/{id}/picture",
+                put(group_chat::put_group_picture::<S>)
+                    .delete(group_chat::remove_group_picture::<S>),
             )
             .done()
             .layer(DefaultBodyLimit::disable())

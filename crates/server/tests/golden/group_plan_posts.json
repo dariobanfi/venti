@@ -1,0 +1,120 @@
+{
+  "messages": [
+    {
+      "id": "88888888888888888888888888",
+      "group": "44444444444444444444444444",
+      "cursor": "6",
+      "author": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "kind": "plan",
+      "text": "",
+      "plan": {
+        "id": "88888888888888888888888888",
+        "group": "44444444444444444444444444",
+        "day": "2026-11-20",
+        "place": "Musterberg",
+        "author": {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        },
+        "created_at": "2026-11-18T18:05:00Z",
+        "changed_at": "2026-11-18T18:05:00Z",
+        "in": [
+          {
+            "handle": "jonas",
+            "display_name": "Jonas Beispiel"
+          },
+          {
+            "handle": "demo",
+            "display_name": "Demo Pilot"
+          }
+        ]
+      },
+      "created_at": "2026-11-18T18:05:00Z"
+    },
+    {
+      "id": "77777777777777777777777777",
+      "group": "44444444444444444444444444",
+      "cursor": "4",
+      "author": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "kind": "plan",
+      "text": "",
+      "plan": {
+        "id": "77777777777777777777777777",
+        "group": "44444444444444444444444444",
+        "day": "2026-11-19",
+        "place": "Beispielwiese",
+        "meet_at": "09:00",
+        "note": "A made-up plan. Ground handling if the wind allows, coffee if not.",
+        "author": {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        },
+        "created_at": "2026-11-18T16:05:00Z",
+        "changed_at": "2026-11-18T16:05:00Z",
+        "in": [
+          {
+            "handle": "mara",
+            "display_name": "Mara Muster"
+          },
+          {
+            "handle": "jonas",
+            "display_name": "Jonas Beispiel"
+          }
+        ]
+      },
+      "created_at": "2026-11-18T16:05:00Z"
+    },
+    {
+      "id": "66666666666666666666666666",
+      "group": "44444444444444444444444444",
+      "cursor": "1",
+      "author": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "kind": "plan",
+      "text": "",
+      "plan": {
+        "id": "66666666666666666666666666",
+        "group": "44444444444444444444444444",
+        "day": "2026-11-18",
+        "place": "Musterberg, Startplatz Ost",
+        "position": {
+          "lat": 47.6642,
+          "lon": 11.7967
+        },
+        "meet_at": "10:30",
+        "note": "A made-up plan of the development mode.\nAt the lift at half past ten, in the air by noon.",
+        "author": {
+          "handle": "demo",
+          "display_name": "Demo Pilot"
+        },
+        "created_at": "2026-11-17T17:05:00Z",
+        "changed_at": "2026-11-17T17:05:00Z",
+        "in": [
+          {
+            "handle": "demo",
+            "display_name": "Demo Pilot"
+          },
+          {
+            "handle": "mara",
+            "display_name": "Mara Muster"
+          },
+          {
+            "handle": "jonas",
+            "display_name": "Jonas Beispiel"
+          }
+        ]
+      },
+      "created_at": "2026-11-17T17:05:00Z"
+    }
+  ],
+  "since": "7",
+  "more": false
+}

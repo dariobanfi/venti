@@ -85,9 +85,7 @@ async fn nothing_of_a_group_or_a_plan_reaches_the_log() {
     // A group is made, and a pilot comes into it with its code.
     let made: CreateGroupResponse = ask(Method::POST, GROUPS_PATH)
         .token(&keeper)
-        .json(&CreateGroupRequest {
-            name: format!("{NAME} flyers"),
-        })
+        .json(&CreateGroupRequest::named(format!("{NAME} flyers")))
         .send(&router)
         .await
         .ok(StatusCode::CREATED);
@@ -147,9 +145,7 @@ async fn nothing_of_a_group_or_a_plan_reaches_the_log() {
         .ok::<venti_api_types::v1::GroupsResponse>(StatusCode::OK);
     ask(Method::PATCH, &group_path(&group))
         .token(&keeper)
-        .json(&UpdateGroupRequest {
-            name: format!("{NAME} pilots"),
-        })
+        .json(&UpdateGroupRequest::rename(format!("{NAME} pilots")))
         .send(&router)
         .await
         .ok::<GroupResponse>(StatusCode::OK);

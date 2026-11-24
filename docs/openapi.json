@@ -705,6 +705,26 @@
         ],
         "type": "object"
       },
+      "Card": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlightCard"
+          },
+          {
+            "$ref": "#/components/schemas/SiteCard"
+          },
+          {
+            "$ref": "#/components/schemas/OpenPlanCard"
+          },
+          {
+            "$ref": "#/components/schemas/PilotCard"
+          },
+          {
+            "$ref": "#/components/schemas/GoneCard"
+          }
+        ],
+        "description": "What a link in a message is shown as, by its `kind`."
+      },
       "ChangePasswordRequest": {
         "properties": {
           "current_password": {
@@ -1024,8 +1044,19 @@
       },
       "CreateGroupRequest": {
         "properties": {
-          "name": {
+          "description": {
+            "maxLength": 300,
             "type": "string"
+          },
+          "home": {
+            "$ref": "#/components/schemas/HomeArea"
+          },
+          "name": {
+            "maxLength": 60,
+            "type": "string"
+          },
+          "public": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -1395,6 +1426,9 @@
           "group_not_found",
           "group_member_not_found",
           "not_group_keeper",
+          "already_in_group",
+          "invalid_message",
+          "message_not_found",
           "invalid_plan",
           "invalid_day",
           "plan_not_found",
@@ -1751,6 +1785,51 @@
           "outline",
           "file_bytes",
           "analysis_version"
+        ],
+        "type": "object"
+      },
+      "FlightCard": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "distance_km": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "flight"
+            ],
+            "type": "string"
+          },
+          "pilot": {
+            "$ref": "#/components/schemas/Pilot"
+          },
+          "takeoff": {
+            "type": "string"
+          },
+          "track": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "maxItems": 48,
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "pilot",
+          "distance_km",
+          "date",
+          "track"
         ],
         "type": "object"
       },
@@ -2562,6 +2641,24 @@
           "not_configured"
         ]
       },
+      "FoundGroup": {
+        "properties": {
+          "distance_km": {
+            "type": "number"
+          },
+          "group": {
+            "$ref": "#/components/schemas/Group"
+          },
+          "member": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "group",
+          "member"
+        ],
+        "type": "object"
+      },
       "FoundPilot": {
         "properties": {
           "flights": {
@@ -2606,6 +2703,24 @@
           "en_d",
           "ccc"
         ]
+      },
+      "GoneCard": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "gone"
+            ],
+            "type": "string"
+          },
+          "link": {
+            "$ref": "#/components/schemas/Link"
+          }
+        },
+        "required": [
+          "kind",
+          "link"
+        ],
+        "type": "object"
       },
       "GoogleSignInAnswer": {
         "anyOf": [
@@ -2662,6 +2777,13 @@
             "format": "date-time",
             "type": "string"
           },
+          "description": {
+            "maxLength": 300,
+            "type": "string"
+          },
+          "home": {
+            "$ref": "#/components/schemas/HomeArea"
+          },
           "id": {
             "type": "string"
           },
@@ -2673,6 +2795,14 @@
           },
           "name": {
             "type": "string"
+          },
+          "picture": {
+            "description": "The path of the group's picture.",
+            "type": "string"
+          },
+          "public": {
+            "description": "Whether anyone signed in finds, reads and joins the group.",
+            "type": "boolean"
           }
         },
         "required": [
@@ -2681,6 +2811,55 @@
           "created_at",
           "keeper",
           "member_count"
+        ],
+        "type": "object"
+      },
+      "GroupChat": {
+        "properties": {
+          "group": {
+            "type": "string"
+          },
+          "last_message": {
+            "$ref": "#/components/schemas/Message"
+          },
+          "me": {
+            "$ref": "#/components/schemas/GroupMe"
+          }
+        },
+        "required": [
+          "group",
+          "me"
+        ],
+        "type": "object"
+      },
+      "GroupInvite": {
+        "properties": {
+          "group": {
+            "$ref": "#/components/schemas/Group"
+          },
+          "invited_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "invited_by": {
+            "$ref": "#/components/schemas/Pilot"
+          }
+        },
+        "required": [
+          "group",
+          "invited_by",
+          "invited_at"
+        ],
+        "type": "object"
+      },
+      "GroupInviteAnswer": {
+        "properties": {
+          "invite": {
+            "$ref": "#/components/schemas/GroupInvite"
+          }
+        },
+        "required": [
+          "invite"
         ],
         "type": "object"
       },
@@ -2695,10 +2874,87 @@
         ],
         "type": "object"
       },
+      "GroupInvitesResponse": {
+        "properties": {
+          "invites": {
+            "items": {
+              "$ref": "#/components/schemas/GroupInvite"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "invites"
+        ],
+        "type": "object"
+      },
+      "GroupMe": {
+        "properties": {
+          "invited": {
+            "type": "boolean"
+          },
+          "muted": {
+            "type": "boolean"
+          },
+          "read_up_to": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "owner",
+              "admin",
+              "member"
+            ],
+            "type": "string"
+          },
+          "unread": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "invited",
+          "muted",
+          "unread",
+          "read_up_to"
+        ],
+        "type": "object"
+      },
+      "GroupMeRequest": {
+        "properties": {
+          "muted": {
+            "type": "boolean"
+          },
+          "read_up_to": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "GroupMeResponse": {
+        "properties": {
+          "me": {
+            "$ref": "#/components/schemas/GroupMe"
+          }
+        },
+        "required": [
+          "me"
+        ],
+        "type": "object"
+      },
       "GroupResponse": {
         "properties": {
+          "admins": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "group": {
             "$ref": "#/components/schemas/Group"
+          },
+          "me": {
+            "$ref": "#/components/schemas/GroupMe"
           },
           "members": {
             "items": {
@@ -2713,8 +2969,28 @@
         ],
         "type": "object"
       },
+      "GroupsFoundResponse": {
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/FoundGroup"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "groups"
+        ],
+        "type": "object"
+      },
       "GroupsResponse": {
         "properties": {
+          "chats": {
+            "items": {
+              "$ref": "#/components/schemas/GroupChat"
+            },
+            "type": "array"
+          },
           "groups": {
             "items": {
               "$ref": "#/components/schemas/Group"
@@ -2961,6 +3237,39 @@
         ],
         "type": "object"
       },
+      "HomeArea": {
+        "description": "Where a group flies.",
+        "properties": {
+          "center": {
+            "$ref": "#/components/schemas/RawPoint"
+          },
+          "place": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "radius_km": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "center",
+          "radius_km"
+        ],
+        "type": "object"
+      },
+      "InviteRequest": {
+        "properties": {
+          "handle": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "handle"
+        ],
+        "type": "object"
+      },
       "JoinGroupRequest": {
         "properties": {
           "code": {
@@ -3082,6 +3391,27 @@
         },
         "required": [
           "kept"
+        ],
+        "type": "object"
+      },
+      "Link": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "flight",
+              "site",
+              "open_plan",
+              "pilot"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
         ],
         "type": "object"
       },
@@ -3619,6 +3949,143 @@
         ],
         "type": "object"
       },
+      "Message": {
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/Pilot"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/Card"
+            },
+            "maxItems": 4,
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "plan"
+            ],
+            "type": "string"
+          },
+          "pictures": {
+            "items": {
+              "$ref": "#/components/schemas/MessagePicture"
+            },
+            "maxItems": 4,
+            "type": "array"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          },
+          "removed": {
+            "$ref": "#/components/schemas/Removed"
+          },
+          "text": {
+            "maxLength": 2000,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "group",
+          "cursor",
+          "author",
+          "kind",
+          "text",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "MessagePicture": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "id"
+        ],
+        "type": "object"
+      },
+      "MessageRequest": {
+        "description": "A message has text, a picture or a link.",
+        "properties": {
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "maxItems": 4,
+            "type": "array"
+          },
+          "pictures": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "type": "array"
+          },
+          "text": {
+            "maxLength": 2000,
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "MessageResponse": {
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/Message"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
+      "MessagesResponse": {
+        "properties": {
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "type": "array"
+          },
+          "more": {
+            "type": "boolean"
+          },
+          "older": {
+            "type": "string"
+          },
+          "since": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "messages",
+          "since",
+          "more"
+        ],
+        "type": "object"
+      },
       "ModelHealth": {
         "properties": {
           "available_at": {
@@ -3923,6 +4390,49 @@
         ],
         "type": "object"
       },
+      "OpenPlanCard": {
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/Pilot"
+          },
+          "day": {
+            "format": "date",
+            "type": "string"
+          },
+          "i_am_in": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "open_plan"
+            ],
+            "type": "string"
+          },
+          "pilots_in": {
+            "type": "integer"
+          },
+          "place": {
+            "type": "string"
+          },
+          "position": {
+            "$ref": "#/components/schemas/RawPoint"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "place",
+          "day",
+          "position",
+          "author",
+          "pilots_in",
+          "i_am_in"
+        ],
+        "type": "object"
+      },
       "OpenPlanRequest": {
         "properties": {
           "day": {
@@ -4098,6 +4608,24 @@
         "required": [
           "handle",
           "display_name"
+        ],
+        "type": "object"
+      },
+      "PilotCard": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "pilot"
+            ],
+            "type": "string"
+          },
+          "pilot": {
+            "$ref": "#/components/schemas/Pilot"
+          }
+        },
+        "required": [
+          "kind",
+          "pilot"
         ],
         "type": "object"
       },
@@ -4932,6 +5460,27 @@
         },
         "type": "object"
       },
+      "Removed": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "by": {
+            "enum": [
+              "author",
+              "admin",
+              "operator"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "by"
+        ],
+        "type": "object"
+      },
       "ReportReason": {
         "type": "string",
         "x-venti-values": [
@@ -4996,6 +5545,38 @@
           },
           "group": {
             "type": "string"
+          },
+          "group_message": {
+            "description": "A message of a group the reporter reads.",
+            "properties": {
+              "group": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "group",
+              "id"
+            ],
+            "type": "object"
+          },
+          "group_picture": {
+            "description": "A picture sent to a group the reporter reads.",
+            "properties": {
+              "group": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "group",
+              "id"
+            ],
+            "type": "object"
           },
           "help_request": {
             "description": "A request for help the reporter was asked, by its identifier.",
@@ -5259,6 +5840,40 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "SentPicture": {
+        "properties": {
+          "height": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "width": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "width",
+          "height"
+        ],
+        "type": "object"
+      },
+      "SentPictureResponse": {
+        "properties": {
+          "picture": {
+            "$ref": "#/components/schemas/SentPicture"
+          }
+        },
+        "required": [
+          "picture"
+        ],
         "type": "object"
       },
       "Session": {
@@ -5534,6 +6149,38 @@
           "cell_deg",
           "clear_of_sites_m",
           "terms"
+        ],
+        "type": "object"
+      },
+      "SiteCard": {
+        "properties": {
+          "elevation_m": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "site"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "position": {
+            "$ref": "#/components/schemas/RawPoint"
+          },
+          "site_use": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "site_use",
+          "position"
         ],
         "type": "object"
       },
@@ -6843,6 +7490,10 @@
             "description": "Lines of `GET /v1/account/alerts/fired` after the pilot's mark, of the 30 days they are kept. Zero for a token without `alerts:read`.",
             "type": "integer"
           },
+          "groups": {
+            "description": "Messages of others in the pilot's groups not read yet; not in total.",
+            "type": "integer"
+          },
           "notifications": {
             "description": "Lines of `GET /v1/account/notifications` after the pilot's mark, of the 30 days they are kept.",
             "type": "integer"
@@ -6855,7 +7506,8 @@
         "required": [
           "notifications",
           "alarms",
-          "total"
+          "total",
+          "groups"
         ],
         "type": "object"
       },
@@ -6956,14 +7608,39 @@
         "type": "object"
       },
       "UpdateGroupRequest": {
+        "description": "What changes; a field left out stays, null clears a description or a home.",
         "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "home": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HomeArea"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "name": {
+            "maxLength": 60,
             "type": "string"
+          },
+          "public": {
+            "description": "The owner's alone to change.",
+            "type": "boolean"
           }
         },
-        "required": [
-          "name"
-        ],
+        "required": [],
         "type": "object"
       },
       "UploadResponse": {
@@ -9811,6 +10488,7 @@
                   "unread": {
                     "value": {
                       "alarms": 1,
+                      "groups": 0,
                       "notifications": 4,
                       "total": 5
                     }
@@ -13872,6 +14550,30 @@
                 "examples": {
                   "groups": {
                     "value": {
+                      "chats": [
+                        {
+                          "group": "44444444444444444444444444",
+                          "last_message": {
+                            "author": {
+                              "display_name": "Jonas Beispiel",
+                              "handle": "jonas"
+                            },
+                            "created_at": "2026-11-18T18:05:00Z",
+                            "cursor": "6",
+                            "group": "44444444444444444444444444",
+                            "id": "88888888888888888888888888",
+                            "kind": "plan",
+                            "text": ""
+                          },
+                          "me": {
+                            "invited": false,
+                            "muted": false,
+                            "read_up_to": "6",
+                            "role": "owner",
+                            "unread": 0
+                          }
+                        }
+                      ],
                       "groups": [
                         {
                           "created_at": "2026-10-19T19:05:00Z",
@@ -13881,7 +14583,8 @@
                             "handle": "demo"
                           },
                           "member_count": 3,
-                          "name": "Mustergruppe"
+                          "name": "Mustergruppe",
+                          "public": false
                         }
                       ]
                     }
@@ -13929,7 +14632,8 @@
               "examples": {
                 "group_create_request": {
                   "value": {
-                    "name": "Zweite Mustergruppe"
+                    "name": "Zweite Mustergruppe",
+                    "public": false
                   }
                 }
               },
@@ -13955,7 +14659,8 @@
                           "handle": "demo"
                         },
                         "member_count": 1,
-                        "name": "Zweite Mustergruppe"
+                        "name": "Zweite Mustergruppe",
+                        "public": false
                       },
                       "invite_code": "7k3m-9q2x-4r8t-1v6w"
                     }
@@ -13993,6 +14698,283 @@
           "Groups and plans"
         ],
         "x-venti-docs": "POST /v1/groups"
+      }
+    },
+    "/v1/groups/find": {
+      "get": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:read`.",
+        "operationId": "get_groups_find",
+        "parameters": [
+          {
+            "description": "Latitude in WGS84 degrees.",
+            "in": "query",
+            "name": "lat",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "description": "Longitude in WGS84 degrees.",
+            "in": "query",
+            "name": "lon",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "description": "Text a group's name or the place of its home contains, in any case, at most 60 characters.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "maxLength": 60,
+              "type": "string"
+            }
+          },
+          {
+            "description": "The most groups the answer carries, 1 to 50, 20 if left out.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "groups_found": {
+                    "value": {
+                      "groups": [
+                        {
+                          "distance_km": 0.5,
+                          "group": {
+                            "created_at": "2026-09-19T19:05:00Z",
+                            "description": "Pilots in and around Munich, in English. Car shares to the mountains, weekend trips, beers after.",
+                            "home": {
+                              "center": {
+                                "lat": 48.137,
+                                "lon": 11.575
+                              },
+                              "place": "Munich",
+                              "radius_km": 40.0
+                            },
+                            "id": "0000000000000000000000g001",
+                            "keeper": {
+                              "display_name": "Mara Muster",
+                              "handle": "mara"
+                            },
+                            "member_count": 3,
+                            "name": "Munich International Paragliders",
+                            "public": true
+                          },
+                          "member": false
+                        },
+                        {
+                          "distance_km": 49.4,
+                          "group": {
+                            "created_at": "2026-09-09T19:05:00Z",
+                            "description": "Wallberg, Baumgartenschneid and the lake. Who flies today?",
+                            "home": {
+                              "center": {
+                                "lat": 47.712,
+                                "lon": 11.758
+                              },
+                              "place": "Tegernsee",
+                              "radius_km": 20.0
+                            },
+                            "id": "0000000000000000000000g004",
+                            "keeper": {
+                              "display_name": "Timo Entwurf",
+                              "handle": "timo"
+                            },
+                            "member_count": 3,
+                            "name": "Tegernsee Thermikrunde",
+                            "public": true
+                          },
+                          "member": false
+                        },
+                        {
+                          "distance_km": 51.6,
+                          "group": {
+                            "created_at": "2026-08-20T19:05:00Z",
+                            "description": "Flying from the Chiemgau's hills. Thermal days, glider talk, and who is going up.",
+                            "home": {
+                              "center": {
+                                "lat": 47.856,
+                                "lon": 12.128
+                              },
+                              "place": "Rosenheim and the Chiemgau",
+                              "radius_km": 30.0
+                            },
+                            "id": "0000000000000000000000g002",
+                            "keeper": {
+                              "display_name": "Jonas Beispiel",
+                              "handle": "jonas"
+                            },
+                            "member_count": 3,
+                            "name": "Rosenheimer Eagles",
+                            "public": true
+                          },
+                          "member": false
+                        },
+                        {
+                          "distance_km": 66.1,
+                          "group": {
+                            "created_at": "2026-07-21T19:05:00Z",
+                            "description": "A made-up flying school at the Hochries: training days, the weather for students, the cable car's times.",
+                            "home": {
+                              "center": {
+                                "lat": 47.748,
+                                "lon": 12.247
+                              },
+                              "place": "Hochries",
+                              "radius_km": 15.0
+                            },
+                            "id": "0000000000000000000000g003",
+                            "keeper": {
+                              "display_name": "Lena Probe",
+                              "handle": "lena"
+                            },
+                            "member_count": 3,
+                            "name": "Hochries Flugschule Musterwind",
+                            "public": true
+                          },
+                          "member": false
+                        },
+                        {
+                          "distance_km": 80.6,
+                          "group": {
+                            "created_at": "2026-09-29T19:05:00Z",
+                            "description": "Wank, Osterfelder and the Zugspitze's valleys.",
+                            "home": {
+                              "center": {
+                                "lat": 47.492,
+                                "lon": 11.095
+                              },
+                              "place": "Garmisch-Partenkirchen",
+                              "radius_km": 25.0
+                            },
+                            "id": "0000000000000000000000g006",
+                            "keeper": {
+                              "display_name": "Lena Probe",
+                              "handle": "lena"
+                            },
+                            "member_count": 2,
+                            "name": "Garmisch Gleitschirm Treff",
+                            "public": true
+                          },
+                          "member": false
+                        },
+                        {
+                          "distance_km": 84.7,
+                          "group": {
+                            "created_at": "2026-08-10T19:05:00Z",
+                            "description": "Long lines along the Inn valley, from Kufstein to Innsbruck and back.",
+                            "home": {
+                              "center": {
+                                "lat": 47.42,
+                                "lon": 11.95
+                              },
+                              "place": "Inn valley",
+                              "radius_km": 50.0
+                            },
+                            "id": "0000000000000000000000g005",
+                            "keeper": {
+                              "display_name": "Ines Vorlage",
+                              "handle": "ines"
+                            },
+                            "member_count": 2,
+                            "name": "Inntal Cross-Country",
+                            "public": true
+                          },
+                          "member": false
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/GroupsFoundResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:read"
+            ]
+          }
+        ],
+        "summary": "Public groups near a place and by name",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "GET /v1/groups/find?lat=&lon=&q=&limit="
+      }
+    },
+    "/v1/groups/invites": {
+      "get": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:read`.",
+        "operationId": "get_groups_invites",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupInvitesResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:read"
+            ]
+          }
+        ],
+        "summary": "The pilot's invites into private groups",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "GET /v1/groups/invites"
       }
     },
     "/v1/groups/join": {
@@ -14041,7 +15023,8 @@
                           "handle": "mara"
                         },
                         "member_count": 3,
-                        "name": "Beispielgruppe"
+                        "name": "Beispielgruppe",
+                        "public": false
                       },
                       "joined": true
                     }
@@ -14079,6 +15062,46 @@
           "Groups and plans"
         ],
         "x-venti-docs": "POST /v1/groups/join"
+      }
+    },
+    "/v1/groups/pictures/{picture}": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_groups_pictures_picture",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "picture",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/webp": {
+                "schema": {
+                  "description": "The picture, its longer side at most 1600 pixels",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "A picture sent to a group",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "GET /v1/groups/pictures/{picture}"
       }
     },
     "/v1/groups/plans": {
@@ -14123,7 +15146,8 @@
                             "handle": "demo"
                           },
                           "member_count": 3,
-                          "name": "Mustergruppe"
+                          "name": "Mustergruppe",
+                          "public": false
                         }
                       ],
                       "plans": [
@@ -14264,6 +15288,7 @@
                 "examples": {
                   "group": {
                     "value": {
+                      "admins": [],
                       "group": {
                         "created_at": "2026-10-19T19:05:00Z",
                         "id": "44444444444444444444444444",
@@ -14272,7 +15297,15 @@
                           "handle": "demo"
                         },
                         "member_count": 3,
-                        "name": "Mustergruppe"
+                        "name": "Mustergruppe",
+                        "public": false
+                      },
+                      "me": {
+                        "invited": false,
+                        "muted": false,
+                        "read_up_to": "6",
+                        "role": "owner",
+                        "unread": 0
                       },
                       "members": [
                         {
@@ -14286,6 +15319,53 @@
                         {
                           "display_name": "Jonas Beispiel",
                           "handle": "jonas"
+                        }
+                      ]
+                    }
+                  },
+                  "group_public": {
+                    "value": {
+                      "admins": [
+                        "jonas"
+                      ],
+                      "group": {
+                        "created_at": "2026-09-19T19:05:00Z",
+                        "description": "Pilots in and around Munich, in English. Car shares to the mountains, weekend trips, beers after.",
+                        "home": {
+                          "center": {
+                            "lat": 48.137,
+                            "lon": 11.575
+                          },
+                          "place": "Munich",
+                          "radius_km": 40.0
+                        },
+                        "id": "0000000000000000000000g001",
+                        "keeper": {
+                          "display_name": "Mara Muster",
+                          "handle": "mara"
+                        },
+                        "member_count": 3,
+                        "name": "Munich International Paragliders",
+                        "public": true
+                      },
+                      "me": {
+                        "invited": false,
+                        "muted": false,
+                        "read_up_to": "0",
+                        "unread": 0
+                      },
+                      "members": [
+                        {
+                          "display_name": "Mara Muster",
+                          "handle": "mara"
+                        },
+                        {
+                          "display_name": "Jonas Beispiel",
+                          "handle": "jonas"
+                        },
+                        {
+                          "display_name": "Lena Probe",
+                          "handle": "lena"
                         }
                       ]
                     }
@@ -14379,11 +15459,119 @@
             ]
           }
         ],
-        "summary": "Rename a group",
+        "summary": "Change a group's name, description, home or kind",
         "tags": [
           "Groups and plans"
         ],
         "x-venti-docs": "PATCH /v1/groups/{id}"
+      }
+    },
+    "/v1/groups/{id}/admins/{handle}": {
+      "delete": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:write`.",
+        "operationId": "delete_groups_id_admins_handle",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A pilot's handle.",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done; no body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:write"
+            ]
+          }
+        ],
+        "summary": "Make an admin a member again",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "PUT and DELETE /v1/groups/{id}/admins/{handle}"
+      },
+      "put": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:write`.",
+        "operationId": "put_groups_id_admins_handle",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A pilot's handle.",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done; no body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:write"
+            ]
+          }
+        ],
+        "summary": "Make a member an admin",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "PUT and DELETE /v1/groups/{id}/admins/{handle}"
       }
     },
     "/v1/groups/{id}/invite": {
@@ -14444,6 +15632,124 @@
           "Groups and plans"
         ],
         "x-venti-docs": "POST /v1/groups/{id}/invite"
+      }
+    },
+    "/v1/groups/{id}/invites": {
+      "post": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:write`.",
+        "operationId": "post_groups_id_invites",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupInviteAnswer"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:write"
+            ]
+          }
+        ],
+        "summary": "Invite a pilot into a group by handle",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "POST /v1/groups/{id}/invites"
+      }
+    },
+    "/v1/groups/{id}/invites/{handle}": {
+      "delete": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:write`.",
+        "operationId": "delete_groups_id_invites_handle",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A pilot's handle.",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done; no body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:write"
+            ]
+          }
+        ],
+        "summary": "Take an invite back, or decline it",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "DELETE /v1/groups/{id}/invites/{handle}"
       }
     },
     "/v1/groups/{id}/keeper": {
@@ -14509,6 +15815,127 @@
         "x-venti-docs": "PUT /v1/groups/{id}/keeper"
       }
     },
+    "/v1/groups/{id}/me": {
+      "patch": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "patch_groups_id_me",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupMeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupMeResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Mute a group, or mark it read",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "PATCH /v1/groups/{id}/me"
+      }
+    },
+    "/v1/groups/{id}/members": {
+      "post": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:write`.",
+        "operationId": "post_groups_id_members",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinGroupResponse"
+                }
+              }
+            },
+            "description": "The answer, where the summary says so."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinGroupResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:write"
+            ]
+          }
+        ],
+        "summary": "Come into a public group, or one the pilot was invited into; 200 for a member",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "POST /v1/groups/{id}/members"
+      }
+    },
     "/v1/groups/{id}/members/{handle}": {
       "delete": {
         "description": "The pilot: a session's token, or a token for a program with the scope `groups:write`.",
@@ -14562,6 +15989,640 @@
           "Groups and plans"
         ],
         "x-venti-docs": "DELETE /v1/groups/{id}/members/{handle}"
+      }
+    },
+    "/v1/groups/{id}/messages": {
+      "get": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "get_groups_id_messages",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The `older` of the answer before: the page of messages before it. Left out for the newest.",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The `since` of an earlier answer: what was posted or changed after it. While an answer says `more`, ask again at once with its `since`.",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The most entries one answer carries, 1 to 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "group_messages": {
+                    "value": {
+                      "messages": [
+                        {
+                          "author": {
+                            "display_name": "Timo Entwurf",
+                            "handle": "timo"
+                          },
+                          "created_at": "2026-11-18T17:35:00Z",
+                          "cursor": "14",
+                          "group": "0000000000000000000000g002",
+                          "id": "0000000000000000000g002m01",
+                          "kind": "text",
+                          "text": "Nice line! How was the wind on top?"
+                        },
+                        {
+                          "author": {
+                            "display_name": "Mara Muster",
+                            "handle": "mara"
+                          },
+                          "cards": [
+                            {
+                              "date": "2026-08-16",
+                              "distance_km": 12.0,
+                              "id": "fbyw03atd9qdt5bfe177ra1k94",
+                              "kind": "flight",
+                              "pilot": {
+                                "display_name": "Mara Muster",
+                                "handle": "mara",
+                                "picture": "/v1/pictures/0000000000000000000000p001"
+                              },
+                              "track": [
+                                [
+                                  47.6642,
+                                  11.7967
+                                ],
+                                [
+                                  47.6697,
+                                  11.78986
+                                ],
+                                [
+                                  47.67054,
+                                  11.78942
+                                ],
+                                [
+                                  47.67075,
+                                  11.79003
+                                ],
+                                [
+                                  47.67073,
+                                  11.79875
+                                ],
+                                [
+                                  47.68876,
+                                  11.75225
+                                ],
+                                [
+                                  47.68935,
+                                  11.75136
+                                ],
+                                [
+                                  47.68954,
+                                  11.75173
+                                ],
+                                [
+                                  47.68932,
+                                  11.75721
+                                ],
+                                [
+                                  47.66357,
+                                  11.74306
+                                ],
+                                [
+                                  47.69144,
+                                  11.75818
+                                ],
+                                [
+                                  47.6922,
+                                  11.75985
+                                ],
+                                [
+                                  47.69217,
+                                  11.76748
+                                ]
+                              ]
+                            }
+                          ],
+                          "created_at": "2026-11-18T15:45:00Z",
+                          "cursor": "13",
+                          "group": "0000000000000000000000g002",
+                          "id": "0000000000000000000g002m00",
+                          "kind": "text",
+                          "text": "My flight from yesterday, the inversion broke late."
+                        }
+                      ],
+                      "more": false,
+                      "since": "14"
+                    }
+                  },
+                  "group_plan_posts": {
+                    "value": {
+                      "messages": [
+                        {
+                          "author": {
+                            "display_name": "Jonas Beispiel",
+                            "handle": "jonas"
+                          },
+                          "created_at": "2026-11-18T18:05:00Z",
+                          "cursor": "6",
+                          "group": "44444444444444444444444444",
+                          "id": "88888888888888888888888888",
+                          "kind": "plan",
+                          "plan": {
+                            "author": {
+                              "display_name": "Jonas Beispiel",
+                              "handle": "jonas"
+                            },
+                            "changed_at": "2026-11-18T18:05:00Z",
+                            "created_at": "2026-11-18T18:05:00Z",
+                            "day": "2026-11-20",
+                            "group": "44444444444444444444444444",
+                            "id": "88888888888888888888888888",
+                            "in": [
+                              {
+                                "display_name": "Jonas Beispiel",
+                                "handle": "jonas"
+                              },
+                              {
+                                "display_name": "Demo Pilot",
+                                "handle": "demo"
+                              }
+                            ],
+                            "place": "Musterberg"
+                          },
+                          "text": ""
+                        },
+                        {
+                          "author": {
+                            "display_name": "Mara Muster",
+                            "handle": "mara"
+                          },
+                          "created_at": "2026-11-18T16:05:00Z",
+                          "cursor": "4",
+                          "group": "44444444444444444444444444",
+                          "id": "77777777777777777777777777",
+                          "kind": "plan",
+                          "plan": {
+                            "author": {
+                              "display_name": "Mara Muster",
+                              "handle": "mara"
+                            },
+                            "changed_at": "2026-11-18T16:05:00Z",
+                            "created_at": "2026-11-18T16:05:00Z",
+                            "day": "2026-11-19",
+                            "group": "44444444444444444444444444",
+                            "id": "77777777777777777777777777",
+                            "in": [
+                              {
+                                "display_name": "Mara Muster",
+                                "handle": "mara"
+                              },
+                              {
+                                "display_name": "Jonas Beispiel",
+                                "handle": "jonas"
+                              }
+                            ],
+                            "meet_at": "09:00",
+                            "note": "A made-up plan. Ground handling if the wind allows, coffee if not.",
+                            "place": "Beispielwiese"
+                          },
+                          "text": ""
+                        },
+                        {
+                          "author": {
+                            "display_name": "Demo Pilot",
+                            "handle": "demo"
+                          },
+                          "created_at": "2026-11-17T17:05:00Z",
+                          "cursor": "1",
+                          "group": "44444444444444444444444444",
+                          "id": "66666666666666666666666666",
+                          "kind": "plan",
+                          "plan": {
+                            "author": {
+                              "display_name": "Demo Pilot",
+                              "handle": "demo"
+                            },
+                            "changed_at": "2026-11-17T17:05:00Z",
+                            "created_at": "2026-11-17T17:05:00Z",
+                            "day": "2026-11-18",
+                            "group": "44444444444444444444444444",
+                            "id": "66666666666666666666666666",
+                            "in": [
+                              {
+                                "display_name": "Demo Pilot",
+                                "handle": "demo"
+                              },
+                              {
+                                "display_name": "Mara Muster",
+                                "handle": "mara"
+                              },
+                              {
+                                "display_name": "Jonas Beispiel",
+                                "handle": "jonas"
+                              }
+                            ],
+                            "meet_at": "10:30",
+                            "note": "A made-up plan of the development mode.\nAt the lift at half past ten, in the air by noon.",
+                            "place": "Musterberg, Startplatz Ost",
+                            "position": {
+                              "lat": 47.6642,
+                              "lon": 11.7967
+                            }
+                          },
+                          "text": ""
+                        }
+                      ],
+                      "more": false,
+                      "since": "7"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "A page of a group's messages, or what is new since an answer",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "GET /v1/groups/{id}/messages?before=&since=&limit="
+      },
+      "post": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "post_groups_id_messages",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "group_message_request": {
+                  "value": {
+                    "links": [
+                      {
+                        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "kind": "open_plan"
+                      },
+                      {
+                        "id": "mara",
+                        "kind": "pilot"
+                      },
+                      {
+                        "id": "venti:0000000000000000000000s001",
+                        "kind": "site"
+                      }
+                    ],
+                    "text": "Tomorrow at the Hochries? @mara\nSee the plan."
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/MessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Post a message to a group",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "POST /v1/groups/{id}/messages"
+      }
+    },
+    "/v1/groups/{id}/messages/{message}": {
+      "delete": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "delete_groups_id_messages_message",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "path",
+            "name": "message",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Remove a message",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "DELETE /v1/groups/{id}/messages/{message}"
+      }
+    },
+    "/v1/groups/{id}/picture": {
+      "delete": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:write`.",
+        "operationId": "delete_groups_id_picture",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:write"
+            ]
+          }
+        ],
+        "summary": "Remove a group's picture",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "PUT and DELETE /v1/groups/{id}/picture"
+      },
+      "put": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:write`.",
+        "operationId": "put_groups_id_picture",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "description": "The picture as it is: a JPEG, a PNG or a WebP.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:write"
+            ]
+          }
+        ],
+        "summary": "Give a group its picture",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "PUT and DELETE /v1/groups/{id}/picture"
+      }
+    },
+    "/v1/groups/{id}/pictures": {
+      "post": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "post_groups_id_pictures",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "description": "The picture as it is: a JPEG, a PNG or a WebP.",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SentPictureResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Send a picture for a message",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "POST /v1/groups/{id}/pictures"
       }
     },
     "/v1/groups/{id}/plans": {

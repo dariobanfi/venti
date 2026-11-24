@@ -102,9 +102,7 @@ async fn nothing_of_a_report_reaches_the_log() {
     let outsider = sign_up(&router, "xq_outsider").await.token;
     let made: CreateGroupResponse = ask(Method::POST, GROUPS_PATH)
         .token(&reported)
-        .json(&CreateGroupRequest {
-            name: format!("{NAME} flyers"),
-        })
+        .json(&CreateGroupRequest::named(format!("{NAME} flyers")))
         .send(&router)
         .await
         .ok(StatusCode::CREATED);

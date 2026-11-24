@@ -88,9 +88,7 @@ fn a_plan(on: NaiveDate) -> PlanRequest {
 }
 
 async fn try_make(router: &Router, token: &str, name: &str) -> Answer {
-    let request = CreateGroupRequest {
-        name: name.to_owned(),
-    };
+    let request = CreateGroupRequest::named(name.to_owned());
     ask(Method::POST, GROUPS_PATH)
         .token(token)
         .json(&request)
@@ -372,7 +370,15 @@ async fn the_demo_pilot_reads_their_group_its_members_and_its_plans() {
         .iter()
         .map(|group| group.name.as_str())
         .collect();
-    assert_eq!(names, [DEMO_GROUP_NAME, DEMO_OTHER_GROUP_NAME]);
+    // Beside the development mode's public groups she is in.
+    let private: Vec<&str> = hers
+        .groups
+        .iter()
+        .filter(|group| !group.public)
+        .map(|group| group.name.as_str())
+        .collect();
+    assert_eq!(private, [DEMO_GROUP_NAME, DEMO_OTHER_GROUP_NAME]);
+    assert_eq!(names.len(), 5, "{names:?}");
     let ids: Vec<&str> = hers.plans.iter().map(|plan| plan.id.as_str()).collect();
     assert_eq!(
         ids,
@@ -390,9 +396,7 @@ async fn a_pilot_makes_a_group_and_others_come_in_with_its_code() {
 
     // The demo account makes a second group. This is the example of the
     // documentation, with what differs from start to start replaced.
-    let request = CreateGroupRequest {
-        name: "Zweite Mustergruppe".to_owned(),
-    };
+    let request = CreateGroupRequest::named("Zweite Mustergruppe".to_owned());
     assert_golden(&golden("group_create_request.json"), &request);
     let answer = ask(Method::POST, GROUPS_PATH)
         .token(DEMO_TOKEN)
@@ -835,9 +839,7 @@ async fn only_the_keeper_renames_removes_hands_over_and_deletes() {
     a_minute_later(&anna).await;
     a_minute_later(&bernd).await;
     let rename = |token: &str, name: &str| {
-        let request = UpdateGroupRequest {
-            name: name.to_owned(),
-        };
+        let request = UpdateGroupRequest::rename(name.to_owned());
         ask(Method::PATCH, &group_path(&group))
             .token(token)
             .json(&request)
@@ -883,7 +885,12 @@ async fn only_the_keeper_renames_removes_hands_over_and_deletes() {
     let renamed: GroupResponse = answer.ok(StatusCode::OK);
     answer.is_private();
     assert_eq!(renamed.group.name, "Thermik & Kuchen <b>");
-    assert_eq!(seen(&router, &anna, &group).await, renamed);
+    // As every member reads it; how each stands to it is their own.
+    let as_anna = seen(&router, &anna, &group).await;
+    assert_eq!(
+        (&as_anna.group, &as_anna.members),
+        (&renamed.group, &renamed.members)
+    );
 
     // The keeper removes a member, who is then out, and no other.
     remove(&router, &keeper, &group, "nobody")
@@ -1283,9 +1290,7 @@ async fn what_is_no_name_and_no_plan_is_refused_and_nothing_is_kept() {
     for bad in ["", &format!("{long}x")] {
         ask(Method::PATCH, &group_path(&group))
             .token(&keeper)
-            .json(&UpdateGroupRequest {
-                name: bad.to_owned(),
-            })
+            .json(&UpdateGroupRequest::rename(bad.to_owned()))
             .send(&router)
             .await
             .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidGroupName);

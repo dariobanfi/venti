@@ -228,6 +228,14 @@ pub(crate) fn group(group: &Group) -> Result<v1::Group, ApiError> {
         created_at: group.created_at,
         keeper: group_pilot(&group.keeper)?,
         member_count: group.members,
+        public: group.profile.public,
+        description: group.profile.description.clone(),
+        picture: group.profile.picture.as_deref().map(v1::group_picture_path),
+        home: group.profile.home.as_ref().map(|home| v1::HomeArea {
+            center: home.center,
+            radius_km: home.radius_km,
+            place: home.place.clone(),
+        }),
     })
 }
 
@@ -244,7 +252,43 @@ pub(crate) fn group_with_members(seen: &GroupMembers) -> Result<v1::GroupRespons
             .iter()
             .map(group_pilot)
             .collect::<Result<_, _>>()?,
+        admins: Vec::new(),
+        me: None,
     })
+}
+
+/// A group as an account reads it: with its admins and how the account
+/// stands to it.
+pub(crate) fn group_seen(seen: &venti_store::GroupSeen) -> Result<v1::GroupResponse, ApiError> {
+    let mut answer = group_with_members(&seen.group)?;
+    answer.admins = seen
+        .admins
+        .iter()
+        .filter_map(|id| {
+            seen.group
+                .members
+                .iter()
+                .find(|member| member.account_id == *id)
+        })
+        .map(|member| v1::Handle::new(&member.handle).map_err(|e| damaged("handle of an admin", e)))
+        .collect::<Result<_, _>>()?;
+    answer.me = Some(group_me(&seen.standing));
+    Ok(answer)
+}
+
+/// How an account stands to a group.
+pub(crate) fn group_me(standing: &venti_store::GroupStanding) -> v1::GroupMe {
+    v1::GroupMe {
+        role: standing.role.map(|role| match role {
+            venti_store::GroupRole::Owner => v1::GroupRole::Owner,
+            venti_store::GroupRole::Admin => v1::GroupRole::Admin,
+            venti_store::GroupRole::Member => v1::GroupRole::Member,
+        }),
+        invited: standing.invited,
+        muted: standing.muted,
+        unread: standing.unread,
+        read_up_to: standing.read_up_to.to_string(),
+    }
 }
 
 pub(crate) fn plan(plan: &Plan) -> Result<v1::Plan, ApiError> {

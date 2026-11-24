@@ -5446,6 +5446,15 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `DELETE /v1/groups/{id}/plans/{plan}` | `groups:write` |
 | `PUT /v1/groups/{id}/plans/{plan}/in` | `groups:write` |
 | `DELETE /v1/groups/{id}/plans/{plan}/in` | `groups:write` |
+| `GET /v1/groups/find` | `groups:read` |
+| `GET /v1/groups/invites` | `groups:read` |
+| `POST /v1/groups/{id}/members` | `groups:write` |
+| `POST /v1/groups/{id}/invites` | `groups:write` |
+| `DELETE /v1/groups/{id}/invites/{handle}` | `groups:write` |
+| `PUT /v1/groups/{id}/admins/{handle}` | `groups:write` |
+| `DELETE /v1/groups/{id}/admins/{handle}` | `groups:write` |
+| `PUT /v1/groups/{id}/picture` | `groups:write` |
+| `DELETE /v1/groups/{id}/picture` | `groups:write` |
 | `GET /v1/account/open-plans` | `groups:read` |
 | `POST /v1/open-plans` | `groups:write` |
 | `PUT /v1/open-plans/{plan}` | `groups:write` |
@@ -5500,6 +5509,11 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `POST /v1/oauth/requests/{id}` | the session only |
 | `POST /v1/account/google` | the session only |
 | `DELETE /v1/account/google` | the session only |
+| `POST /v1/groups/{id}/pictures` | the session only |
+| `GET /v1/groups/{id}/messages` | the session only |
+| `POST /v1/groups/{id}/messages` | the session only |
+| `DELETE /v1/groups/{id}/messages/{message}` | the session only |
+| `PATCH /v1/groups/{id}/me` | the session only |
 
 "The session only" is what no token may do, whatever its scopes: see or end the pilot's sessions, change the password, delete the account, take [the archive of everything the account gave](#get-v1accountarchive), and make, list or withdraw tokens. A token therefore cannot widen itself or outlive its withdrawal.
 
@@ -6389,7 +6403,7 @@ Needs a token. Removes a browser's subscription, by its endpoint: `{"endpoint": 
 
 The iPhone and the Android app are told what concerns their pilot through their platforms' own push services: Apple's (APNs) for an iPhone, Google's Firebase Cloud Messaging (FCM, HTTP v1) for Android (owner decision 24). Neither bills by use. A phone registers the token its platform gave the app; the server sends to it when an alarm of the pilot fires, when an open plan is posted in a circle the pilot chose, when a pilot nearby asks for help after landing, and when someone answers the pilot's own call for help.
 
-- **What arrives.** A notification with a title and a line, which the system shows as they are, and what it is about: `kind` (`alert`, `open_plan`, `help_request` or `help_answer`), `id` (the alarm's, the plan's or the request's) and `sent_at`. On an iPhone the title and line are `aps.alert` and the three are keys beside `aps`; on Android they are the message's `notification` and its `data`. An app opens what `kind` and `id` name when the pilot taps it. A call for help and its answer are sent at once (`apns-priority: 10`, FCM `HIGH`); the rest when the phone has a good moment (`5`, `NORMAL`). A push service holds a message 6 hours for a phone that is off.
+- **What arrives.** A notification with a title and a line, which the system shows as they are, and what it is about: `kind` (`alert`, `open_plan`, `help_request`, `help_answer` or, since 2026-11-24, `group_message`), `id` (the alarm's, the plan's, the request's or the group's) and `sent_at`. On an iPhone the title and line are `aps.alert` and the three are keys beside `aps`; on Android they are the message's `notification` and its `data`. An app opens what `kind` and `id` name when the pilot taps it. A call for help and its answer are sent at once (`apns-priority: 10`, FCM `HIGH`); the rest when the phone has a good moment (`5`, `NORMAL`). A push service holds a message 6 hours for a phone that is off.
 - **A phone is of the sign-in that registered it.** Signing out of the phone, or the session ending in any other way, removes it: the phone is told nothing more. One token is of one account at a time, the one that registered it last. A push service that says a token is no more (APNs `410` or `BadDeviceToken`, FCM `404`) has it removed; the app registers its new token when the platform gives one.
 - **Where the server has no key**, nothing reaches that platform's phones; [`GET /v1/health`](#get-v1health) says so in `phone_push`. Registering works either way. Where the keys go is in [running-a-server.md](running-a-server.md#push-to-the-phone-apps).
 - **Two settings, both off** until the pilot turns them on (owner decision 15): a circle to be told of new open plans in, and whether pilots nearby may ask them for help ([`GET` and `PUT /v1/account/nearby`](#get-and-put-v1accountnearby)).
@@ -8044,7 +8058,7 @@ A pilot is told when a follow or a cheer is new: following or cheering again whi
 
 ### `GET` and `PUT /v1/account/unread`
 
-Needs a token. How much is new for the pilot, the same on every device: the lines of [`GET /v1/account/notifications`](#get-v1accountnotificationssincelimit) and of [`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit) that came after the account's mark of what the pilot saw, of the 30 days each is kept. An app reads it for a badge when it comes to the front, and moves the mark with `PUT` once the pilot has opened the lists; the mark is kept on the server, so the pilot's other devices show the same. Nothing is pushed.
+Needs a token. How much is new for the pilot, the same on every device: the lines of [`GET /v1/account/notifications`](#get-v1accountnotificationssincelimit) and of [`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit) that came after the account's mark of what the pilot saw, of the 30 days each is kept. Beside them, `groups` counts the messages of others in the pilot's [groups](#groups-as-communities-with-a-chat) not read yet, for the groups' own marker: it is not in `total`, it is counted for a session of the app's own sign-in only, and its mark is each group's, moved with `PATCH /v1/groups/{id}/me` (since 2026-11-24). An app reads it for a badge when it comes to the front, and moves the mark with `PUT` once the pilot has opened the lists; the mark is kept on the server, so the pilot's other devices show the same. Nothing is pushed.
 
 ```bash
 curl http://127.0.0.1:8080/v1/account/unread \
@@ -8057,7 +8071,8 @@ The demo account's, before its pilot saw anything:
 {
   "notifications": 4,
   "alarms": 1,
-  "total": 5
+  "total": 5,
+  "groups": 0
 }
 ```
 
@@ -9489,6 +9504,8 @@ Needs a token. Deletes a live track of the account with all its fixes, at once a
 
 ## Groups
 
+Since 2026-11-24 groups are communities with a chat (owner decision 26): [public or private, with an owner, admins and members, a home area, and messages](#groups-as-communities-with-a-chat). What this section says of the keeper is said of the owner: the keeper is the owner. The invite codes below still work for the apps of before, and go once the apps invite by handle. The rest of this introduction is as it was written for the groups of before.
+
 A group is a circle of pilots who plan flying days together. A signed-in pilot makes one and hands its **invite code** to the pilots who are to be in it; whoever has the code and an account comes in. In a group, members post [plans for a flying day](#plans-for-a-flying-day) and say whether they are in. That is all a group does so far. It has no chat, and it shows its members nothing of each other but a handle and a display name: not their flights, not their live tracks.
 
 What a client has to know:
@@ -9499,7 +9516,7 @@ What a client has to know:
 - **A code ends** when the keeper makes a new one, when the keeper removes a member, who knew it, and when the group goes. After a member was removed, nobody comes in until the keeper has made a new code. A member who leaves by themselves ends no code, and can come back with it.
 - **Who goes takes along what they put in.** A member leaves by removing themselves. The plans they posted in the group go with them, with who was in on those, and so does their "I am in" on the plans of others. The same happens to a member the keeper removes, and in every group of a pilot who [deletes their account](#delete-v1account).
 - **When the keeper goes**, by leaving or by deleting their account, the member who has been in the group longest keeps it from then on: the first of the others in the list of members. A keeper who wants someone else to keep it hands it over first. When the last member goes, the group is deleted with everything in it, and its code ends.
-- **Limits.** An account is in at most 20 groups, those it keeps included. A group has at most 50 members and holds at most 100 plans at a time. An account makes at most 10 groups a day, tries at most 20 invite codes a day, and posts or changes at most 50 plans a day, whatever becomes of each attempt; after that the answer is `429` with `rate_limited` and a `Retry-After` header. The counts are in the server's memory, like the others, and the development mode has none of the three.
+- **Limits.** An account is in at most 20 groups, those it keeps included. A group has at most 1000 members and holds at most 100 plans at a time. An account makes at most 10 groups a day, tries at most 20 invite codes a day, and posts or changes at most 50 plans a day, whatever becomes of each attempt; after that the answer is `429` with `rate_limited` and a `Retry-After` header. The counts are in the server's memory, like the others, and the development mode has none of the three.
 - **Every answer is made for one account**: `Cache-Control: no-store` and no `ETag`, like every answer to a request with a token.
 - **Text that pilots type** (a group's name, a plan's place and note) is cleaned before it is kept and never refused for a character in it: control characters go, and so do the characters that hide text or turn its direction round. Show it as text and never as markup. `venti_api_types::v1::parse_group_name`, `parse_plan_place` and `parse_plan_note` do on the device what the server does, for a client that wants to count while the pilot types.
 - **A member can report the group's name, or a plan, to whoever runs the server**, with [`POST /v1/reports`](#post-v1reports). Nobody in the group is told. What the person who runs the server can then do in a group, and what that looks like from an app, is said [further down](#what-whoever-runs-the-server-can-do): give the group another name, remove a plan, remove the group. Each looks exactly as if the keeper or the plan's author had done it.
@@ -9522,7 +9539,8 @@ Needs a token. Makes a group. The asker keeps it and is its only member.
 
 ```json
 {
-  "name": "Zweite Mustergruppe"
+  "name": "Zweite Mustergruppe",
+  "public": false
 }
 ```
 
@@ -9542,7 +9560,8 @@ The answer is `201`. This is the development mode's, with the group's identifier
       "handle": "demo",
       "display_name": "Demo Pilot"
     },
-    "member_count": 1
+    "member_count": 1,
+    "public": false
   },
   "invite_code": "7k3m-9q2x-4r8t-1v6w"
 }
@@ -9574,7 +9593,32 @@ Needs a token. The groups the asker is in, the one they have been in longest fir
         "handle": "demo",
         "display_name": "Demo Pilot"
       },
-      "member_count": 3
+      "member_count": 3,
+      "public": false
+    }
+  ],
+  "chats": [
+    {
+      "group": "44444444444444444444444444",
+      "me": {
+        "role": "owner",
+        "invited": false,
+        "muted": false,
+        "unread": 0,
+        "read_up_to": "6"
+      },
+      "last_message": {
+        "id": "88888888888888888888888888",
+        "group": "44444444444444444444444444",
+        "cursor": "6",
+        "author": {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        },
+        "kind": "plan",
+        "text": "",
+        "created_at": "2026-11-18T18:05:00Z"
+      }
     }
   ]
 }
@@ -9606,7 +9650,8 @@ The answer is `201` when the request made the asker a member, and `200` when the
       "handle": "mara",
       "display_name": "Mara Muster"
     },
-    "member_count": 3
+    "member_count": 3,
+    "public": false
   },
   "joined": true
 }
@@ -9620,7 +9665,7 @@ The answer is `201` when the request made the asker a member, and `200` when the
 | Status | Code | When |
 |---|---|---|
 | 403 | `invalid_group_invite` | The code lets nobody in. The answer is the same, in every byte, whatever is wrong with it: mistyped, never made, replaced by a newer one, ended with the removal of a member, its group gone, or not text of a code's form |
-| 403 | `group_full` | The group has 50 members |
+| 403 | `group_full` | The group has 1000 members |
 | 403 | `too_many_groups` | The asker is in 20 groups |
 | 429 | `rate_limited` | The account has tried 20 codes within a day, right or wrong |
 
@@ -9640,7 +9685,8 @@ Needs a token. A group and its members, for one of them.
       "handle": "demo",
       "display_name": "Demo Pilot"
     },
-    "member_count": 3
+    "member_count": 3,
+    "public": false
   },
   "members": [
     {
@@ -9655,7 +9701,15 @@ Needs a token. A group and its members, for one of them.
       "handle": "jonas",
       "display_name": "Jonas Beispiel"
     }
-  ]
+  ],
+  "admins": [],
+  "me": {
+    "role": "owner",
+    "invited": false,
+    "muted": false,
+    "unread": 0,
+    "read_up_to": "6"
+  }
 }
 ```
 
@@ -9944,7 +9998,8 @@ Needs a token. The plans of every group the asker is in, in one answer, with tho
         "handle": "demo",
         "display_name": "Demo Pilot"
       },
-      "member_count": 3
+      "member_count": 3,
+      "public": false
     }
   ],
   "plans": [
@@ -10012,6 +10067,144 @@ Needs a token. Deletes a plan, with who was in on it. The member who posted it m
 ### `PUT` and `DELETE /v1/groups/{id}/plans/{plan}/in`
 
 Need a token, and take no body. `PUT` says that the asker is in on the plan; `DELETE` takes that back. Both answer `200` with the plan as it now is, and both may be sent again without changing anything: a pilot who is in stays where they are in the list, and a pilot who is not in stays out. Neither is counted. `404` with `plan_not_found` or `group_not_found` as for changing a plan.
+
+## Groups as communities with a chat
+
+Owner decision 26 of [plan.md](plan.md#owner-decisions), built on the server and in the core on 2026-11-24; no app shows it yet. A group is **public**, which every signed-in pilot finds, reads and joins, or **private**, which its members read and whose owner and admins invite pilots into by handle. Each group is a chat: messages of text, pictures and links to Venti's records, shown as cards, and the group's [plans](#plans-for-a-flying-day) as posts of kind `plan` with "I'm in" on their card.
+
+What a client has to know:
+
+- **Who reads what.** A public group, its members and its messages are read by every pilot signed in; joining it is one request. A private group answers everyone but its members `404` with `group_not_found`, as before; a pilot invited into one reads the group (not its messages) until they come in or decline. Lists of groups found hold public groups only.
+- **Messages are conversation, not data.** They are read and written with a session of Venti's own apps only (`403` with `session_required` for a token for a program) and are in no public read, no dump, no archive and no tool of the connector ([mcp.md](mcp.md)).
+- **Roles.** The owner (the group's `keeper`) makes and unmakes admins, hands the group on, makes it public or private and deletes it. The owner and the admins invite, change the name, description, picture and home, remove members who are no admins, and remove any message. A member posts, removes their own messages and leaves. A group handed on makes the owner before a member like any other.
+- **The home area** is a point, a radius of 1 to 100 km and the place's name in the owner's words (at most 80 characters). Groups made before 2026-11-24 have none. `GET /v1/groups/find` sorts by the distance of the home's middle and finds by the name and by the place's name; it does not yet look up a place name in Venti's sites or regions.
+- **A message** has text (at most 2000 characters after cleaning, line breaks kept), at most 4 pictures and at most 4 links, and at least one of the three. `@handle` in the text mentions a member.
+- **Pictures** are sent first, one request each (`POST /v1/groups/{id}/pictures`), and named by their identifiers in a message; one picture is in one message. The server keeps its own copy, a WebP at most 1600 pixels on its longer side, with nothing of the photo's metadata (no place, no time, no camera). A picture is served by its identifier at `/v1/groups/pictures/{id}` without a sign-in, so that an image view can show it; the identifier is 26 random characters and in no list but its chat. It goes with its message, with its group and with the account that sent it.
+- **Links become cards** when the server answers, read for whoever asks: a flight that is public or shared by link (pilot, take-off site, distance, day and a small track of at most 48 points), a site (name, use, position for directions), an open plan (place, day, who is in and whether the reader is), a pilot with a page. A link to what is gone, or not shown to the reader, is a card of kind `gone`. The core finds Venti's own addresses in a message's text and sends them as links.
+- **Pages and what is new.** `GET /v1/groups/{id}/messages` gives the newest first, `limit` (1 to 100, 50) at a time, and `older` for the page before. Every answer has `since`: asked with it, the server gives what was posted or changed after that answer (a new message, a removal, a plan's card that changed), in the order it happened. **While a chat is open, an app asks with `since` every 5 seconds**; there is no stream and no websocket. While an answer says `more`, it asks again at once.
+- **Removed** messages keep their place and lose their text, pictures and links, and carry `removed` with who removed them: `author`, `admin` or `operator`.
+- **Unread.** Each member has a mark up to which they read each group; posting moves one's own mark. `GET /v1/groups` gives each group's unread count beside it, and [`GET /v1/account/unread`](#get-and-put-v1accountunread) gives all groups' count as `groups`, beside the notifications' marker and not in its `total`. `PATCH /v1/groups/{id}/me` moves the mark. A pilot who joins a group, and every member of a group made before 2026-11-24, starts with what was there read.
+- **Push.** A new message is pushed to phones ([push](#push-to-the-phone-apps)) as a notification of kind `group_message` whose `id` is the group's: in a private group to every member but its author, in a public group only to the members it mentions; never to a member who muted the group. Web Push does not carry group messages yet.
+- **Reporting.** Anyone who reads a message reports it, or one of its pictures, with [`POST /v1/reports`](#post-v1reports) and the subject `group_message` or `group_picture` (`{"group": …, "id": …}`); a public group is reported by anyone who reads it. Nobody in the group is told.
+- **Limits.** An account posts at most 500 messages a day in all its groups, sends at most 60 pictures a day and invites at most 50 pilots a day; a group has at most 200 open invites. Coming into a group counts as trying a code does (20 a day). A group has at most 50 members, as before. An account whose publishing is suspended posts no message.
+
+Errors of this section: `group_not_found` (`404`), `group_member_not_found` (`404`, a handle that is no pilot's, no member's or no invite's), `not_group_keeper` (`403`, not the owner or an admin), `already_in_group` (`409`), `invalid_message` (`400`), `message_not_found` (`404`), `invalid_picture` (`400`), `group_full` (`403`), `too_many_groups` (`403`), `invalid_cursor`, `invalid_limit` and `invalid_position` (`400`), `session_required` (`403`).
+
+A group, beside the fields [above](#groups):
+
+| Field | Meaning |
+|---|---|
+| `public` | Whether anyone finds, reads and joins it |
+| `description` | A short description, at most 300 characters with line breaks. Left out for none |
+| `picture` | The path of its picture. Left out for none |
+| `home` | Where it flies: `center` (`lat`, `lon`), `radius_km` and `place`. Left out for none |
+
+`GET /v1/groups/{id}` adds `admins` (their handles) and `me`: `role` (`owner`, `admin` or `member`; left out for a pilot who is not in it), `invited`, `muted`, `unread` and `read_up_to` (a message's `cursor`, `0` for none). `GET /v1/groups` adds `chats`, one for each group at the same place: `group`, `me` and `last_message` (without cards or plan). `POST /v1/groups` takes `public`, `description` and `home` beside `name`; `PATCH /v1/groups/{id}` takes any of `name`, `public` (the owner's alone), `description` and `home`, `null` clearing the last two.
+
+### `GET /v1/groups/find?lat=&lon=&q=&limit=`
+
+Public groups near a place (`lat` and `lon` together: the middle of the home within 150 km), by text that the name or the home's place contains in any case (`q`, at most 60 characters), or both; `limit` 1 to 50, 20 if left out. Nearest first, then those with more members, then by name. Each is `group`, `distance_km` (to a tenth of a kilometre, left out without a place) and `member`.
+
+Near the middle of Munich, the first of the development mode's six:
+
+```json
+{
+  "groups": [
+    {
+      "group": {
+        "id": "0000000000000000000000g001",
+        "name": "Munich International Paragliders",
+        "created_at": "2026-09-19T19:05:00Z",
+        "keeper": {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        },
+        "member_count": 3,
+        "public": true,
+        "description": "Pilots in and around Munich, in English. Car shares to the mountains, weekend trips, beers after.",
+        "home": {
+          "center": {
+            "lat": 48.137,
+            "lon": 11.575
+          },
+          "radius_km": 40.0,
+          "place": "Munich"
+        }
+      },
+      "distance_km": 0.5,
+      "member": false
+    }
+  ]
+}
+```
+
+### `GET /v1/groups/invites`
+
+The asker's invites into private groups, the newest first: each `group`, `invited_by` and `invited_at`.
+
+### `POST /v1/groups/{id}/members`
+
+Takes the asker into a public group, or into a private group they were invited into, whose invite it uses up. No body. `201` with `{"group": …, "joined": true}`, `200` with `joined` false for a member. Every other group: `404` with `group_not_found`.
+
+### `POST /v1/groups/{id}/invites`
+
+The owner or an admin invites a pilot: `{"handle": "mara"}`, an `@` and capitals as a person types it. `201` with `invite`, as the invited pilot reads it; inviting a pilot invited already answers the invite there is. `404` with `group_member_not_found` for a handle no pilot has, `409` with `already_in_group`, `403` with `not_group_keeper` for a member.
+
+### `DELETE /v1/groups/{id}/invites/{handle}`
+
+The owner or an admin takes an invite back; the invited pilot declines it by their own handle. `204`.
+
+### `PUT` and `DELETE /v1/groups/{id}/admins/{handle}`
+
+The owner makes a member an admin, or an admin a member again. `204`; `403` with `not_group_keeper` for anyone else. Naming the owner changes nothing.
+
+### `PUT` and `DELETE /v1/groups/{id}/picture`
+
+The owner or an admin gives the group its picture, a JPEG, PNG or WebP as the body (at most 8 MB), cut square as a pilot's is; or removes it. The answer is the group as `GET /v1/groups/{id}` gives it.
+
+### `GET /v1/groups/pictures/{picture}`
+
+A picture sent to a group, `image/webp`, without a sign-in. `404` with `picture_not_found` once its message or group is gone.
+
+### `POST /v1/groups/{id}/pictures`
+
+A member sends a picture for a message: a JPEG, PNG or WebP as the body, at most 8 MB, 32 to 10,000 pixels a side. `201` with `picture`: `id`, `path`, `width` and `height` of the server's copy.
+
+### `GET /v1/groups/{id}/messages?before=&since=&limit=`
+
+A page of messages, the newest first, or with `before` (an `older`) the page before it; or with `since` what was posted or changed after an earlier answer. A message is `id`, `group`, `cursor` (its place, for `before` and for `read_up_to`), `author`, `kind` (`text` or `plan`), `text`, `pictures` (`path`, `id`), `cards`, `plan` (for a post of kind `plan`, while the plan is there), `created_at` and `removed` (`at`, `by`). The answer is `messages`, `older`, `since` and `more`. A card is a flight (`kind` `flight`: `id`, `pilot`, `takeoff`, `distance_km`, `date`, `track` of `[lat, lon]`), a site (`site`: `id`, `name`, `site_use`, `position`, `elevation_m`), an open plan (`open_plan`: `id`, `place`, `day`, `position`, `author`, `pilots_in`, `i_am_in`), a pilot (`pilot`: `pilot`) or `gone` (`link`).
+
+### `POST /v1/groups/{id}/messages`
+
+A member posts a message: `text`, `pictures` (identifiers of pictures they sent to this group that no message has) and `links` (`kind` `flight`, `site`, `open_plan` or `pilot`, and `id`). `201` with `message`, cards and all. `400` with `invalid_message` for an empty one, too long a text, too many pictures or links, a link that names nothing of its kind or a picture that is not the pilot's for this group.
+
+```json
+{
+  "text": "Tomorrow at the Hochries? @mara\nSee the plan.",
+  "links": [
+    {
+      "kind": "open_plan",
+      "id": "aaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "kind": "pilot",
+      "id": "mara"
+    },
+    {
+      "kind": "site",
+      "id": "venti:0000000000000000000000s001"
+    }
+  ]
+}
+```
+
+### `DELETE /v1/groups/{id}/messages/{message}`
+
+Its author, the owner or an admin removes a message. `200` with the message as it now shows, removed; sent again, the same. `403` with `not_group_keeper` for another member.
+
+### `PATCH /v1/groups/{id}/me`
+
+A member mutes or unmutes the group (`muted`) or marks it read up to a message's `cursor` (`read_up_to`, which only moves forward and not past the newest). `200` with `me`.
 
 ## Open plans
 

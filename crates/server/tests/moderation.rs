@@ -1403,9 +1403,7 @@ fn about_plan(group: &str, plan: &str) -> ReportRequest {
 
 /// Makes a group and returns it with its invite code.
 async fn make_group(router: &Router, token: &str, name: &str) -> CreateGroupResponse {
-    let request = CreateGroupRequest {
-        name: name.to_owned(),
-    };
+    let request = CreateGroupRequest::named(name.to_owned());
     ask(Method::POST, GROUPS_PATH)
         .token(token)
         .json(&request)
@@ -2062,9 +2060,7 @@ async fn the_reports_say_what_was_reported_also_when_it_is_changed_or_gone() {
     // reported, and say beside it what stands there now.
     let renamed = ask(Method::PATCH, &group_path(&group))
         .token(&anna)
-        .json(&UpdateGroupRequest {
-            name: "Harmless".to_owned(),
-        })
+        .json(&UpdateGroupRequest::rename("Harmless".to_owned()))
         .send(&router)
         .await;
     assert_eq!(renamed.status, StatusCode::OK);
@@ -2247,7 +2243,11 @@ async fn whoever_runs_the_server_looks_at_a_group_renames_it_and_removes_from_it
     let mut expected = before.clone();
     expected.group.name = "Neuer Name".to_owned();
     for token in members {
-        assert_eq!(seen_group(&router, token, &group).await, expected);
+        let seen = seen_group(&router, token, &group).await;
+        assert_eq!(
+            (&seen.group, &seen.members),
+            (&expected.group, &expected.members)
+        );
         let mine: GroupsResponse = ask(Method::GET, GROUPS_PATH)
             .token(token)
             .send(&router)
@@ -2278,12 +2278,14 @@ async fn whoever_runs_the_server_looks_at_a_group_renames_it_and_removes_from_it
     // Its keeper names it again, as before.
     let back = ask(Method::PATCH, &group_path(&group))
         .token(DEMO_TOKEN)
-        .json(&UpdateGroupRequest {
-            name: DEMO_GROUP_NAME.to_owned(),
-        })
+        .json(&UpdateGroupRequest::rename(DEMO_GROUP_NAME.to_owned()))
         .send(&router)
         .await;
-    assert_eq!(back.ok::<GroupResponse>(StatusCode::OK), before);
+    let back: GroupResponse = back.ok(StatusCode::OK);
+    assert_eq!(
+        (&back.group, &back.members),
+        (&before.group, &before.members)
+    );
 
     // One plan removed, by its identifier.
     let in_on = |plan: &str| {

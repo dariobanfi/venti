@@ -39,6 +39,7 @@ mod cable;
 mod flight;
 mod forecast;
 mod group;
+mod group_chat;
 mod kept_site;
 mod live;
 mod memory;
@@ -85,6 +86,12 @@ pub use group::{
     Group, GroupCreation, GroupJoining, GroupMembers, GroupPilot, GroupRoom, KeeperAct,
     MemberRemoval, NewGroup, NewPlan, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom,
     PlanSaving, RemovedGroup,
+};
+pub use group_chat::{
+    FoundGroup, GroupAct, GroupInvite, GroupPicture, GroupProfile, GroupRole, GroupSearch,
+    GroupSeen, GroupStanding, HomeArea, InviteRoom, LinkKind, ListedGroup, Listener, Message,
+    MessageKind, MessageLink, MessagePage, MessagePosting, MessageRemoval, NewMessage,
+    ProfileChange, RemovedBy, distance_km,
 };
 pub use kept_site::{ForgottenSite, KeepingSite, KeptRoom, KeptSite, KeptSiteChanges, NewKeptSite};
 pub use live::{
@@ -2062,6 +2069,166 @@ pub trait Store: Send + Sync + 'static {
         keeper_id: &str,
     ) -> impl Future<Output = Result<KeeperAct<()>, StoreError>> + Send;
 
+    // --- Groups as communities with a chat ---------------------------------
+    //
+    // Who reads a group and who may do what in it: see `group_chat.rs`.
+
+    /// Public groups by place and by name ([`GroupSearch`]), in the order
+    /// of [`FoundGroup`]s: nearest first, then those with more members.
+    /// A private group is never among them.
+    fn find_groups(
+        &self,
+        account_id: &str,
+        search: &GroupSearch,
+    ) -> impl Future<Output = Result<Vec<FoundGroup>, StoreError>> + Send;
+
+    /// A group as an account reads it: a member any group, anyone a public
+    /// one, an invited pilot the private group they were invited into.
+    /// `None` otherwise. Unread messages are counted up to `most_unread`.
+    fn group_seen(
+        &self,
+        id: &str,
+        account_id: &str,
+        most_unread: u32,
+    ) -> impl Future<Output = Result<Option<GroupSeen>, StoreError>> + Send;
+
+    /// The groups an account is in, as [`Store::groups_of`] orders them,
+    /// each with how the account stands to it and its newest message.
+    fn group_list(
+        &self,
+        account_id: &str,
+        most_unread: u32,
+    ) -> impl Future<Output = Result<Vec<ListedGroup>, StoreError>> + Send;
+
+    /// Changes what a group says of itself. The owner and the admins may;
+    /// making it public or private is the owner's alone.
+    fn change_group(
+        &self,
+        id: &str,
+        by_account_id: &str,
+        change: &ProfileChange,
+    ) -> impl Future<Output = Result<GroupAct<GroupMembers>, StoreError>> + Send;
+
+    /// Makes a member an admin, or no longer one. The owner's alone.
+    fn set_group_admin(
+        &self,
+        id: &str,
+        owner_id: &str,
+        member_handle: &str,
+        admin: bool,
+    ) -> impl Future<Output = Result<GroupAct<()>, StoreError>> + Send;
+
+    /// Invites the pilot with `handle` into a group. The owner and the
+    /// admins may. Inviting a pilot invited already changes nothing.
+    fn invite_to_group(
+        &self,
+        id: &str,
+        by_account_id: &str,
+        handle: &str,
+        now: Timestamp,
+        room: &InviteRoom,
+    ) -> impl Future<Output = Result<GroupAct<GroupInvite>, StoreError>> + Send;
+
+    /// Takes an invite back (the owner and the admins) or declines it (the
+    /// invited pilot, by their own handle).
+    fn drop_group_invite(
+        &self,
+        id: &str,
+        by_account_id: &str,
+        handle: &str,
+    ) -> impl Future<Output = Result<GroupAct<()>, StoreError>> + Send;
+
+    /// The invites an account has, the newest first.
+    fn invites_of(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<Vec<GroupInvite>, StoreError>> + Send;
+
+    /// Takes an account into a public group, or into a private group it
+    /// was invited into, whose invite it uses up. Any other group answers
+    /// [`GroupJoining::NoSuchInvite`].
+    fn enter_group(
+        &self,
+        id: &str,
+        account_id: &str,
+        room: &GroupRoom,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<GroupJoining, StoreError>> + Send;
+
+    /// Posts a message to a group its author is in.
+    fn post_message(
+        &self,
+        new: &NewMessage,
+    ) -> impl Future<Output = Result<MessagePosting, StoreError>> + Send;
+
+    /// A page of a group's messages, for an account that reads its
+    /// messages: a member, or anyone for a public group. `None` for any
+    /// other account.
+    fn messages(
+        &self,
+        group_id: &str,
+        account_id: &str,
+        page: MessagePage,
+        limit: usize,
+    ) -> impl Future<Output = Result<Option<Vec<Message>>, StoreError>> + Send;
+
+    /// One message, for an account that reads the group's messages.
+    fn group_message(
+        &self,
+        group_id: &str,
+        message_id: &str,
+        account_id: &str,
+    ) -> impl Future<Output = Result<Option<Message>, StoreError>> + Send;
+
+    /// Removes a message: its words, pictures and links go, its place
+    /// stays. Its author, the owner and the admins may.
+    fn remove_message(
+        &self,
+        group_id: &str,
+        message_id: &str,
+        by_account_id: &str,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<MessageRemoval, StoreError>> + Send;
+
+    /// A member mutes or unmutes a group, or marks it read up to a
+    /// message's number (the mark only moves forward, and not past the
+    /// newest message). `None` if the account is not in the group.
+    fn set_group_standing(
+        &self,
+        id: &str,
+        account_id: &str,
+        muted: Option<bool>,
+        read_up_to: Option<i64>,
+        most_unread: u32,
+    ) -> impl Future<Output = Result<Option<GroupStanding>, StoreError>> + Send;
+
+    /// The members of a group, for pushing a new message to them.
+    fn listeners(
+        &self,
+        group_id: &str,
+    ) -> impl Future<Output = Result<Vec<Listener>, StoreError>> + Send;
+
+    /// Keeps a picture a member sent to a group. `false` if the account
+    /// is not in the group.
+    fn save_group_picture(
+        &self,
+        picture: &GroupPicture,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// A picture sent to a group.
+    fn group_picture(
+        &self,
+        id: &str,
+    ) -> impl Future<Output = Result<Option<GroupPicture>, StoreError>> + Send;
+
+    /// How many messages of others the account has not read in all its
+    /// groups, those it muted included, up to `most`.
+    fn group_unread(
+        &self,
+        account_id: &str,
+        most: u32,
+    ) -> impl Future<Output = Result<u32, StoreError>> + Send;
+
     // --- Plans ------------------------------------------------------------
 
     /// Stores a plan in a group its author is in, with the author as the
@@ -2117,8 +2284,8 @@ pub trait Store: Send + Sync + 'static {
 
     /// The plans of a group for the days from `from` to `to`, both
     /// included, in the order of [`Plan::key`]; without `to`, for every
-    /// day from `from` on. `None` if there is no such group or the account
-    /// is not in it.
+    /// day from `from` on. `None` if there is no such group, or the
+    /// account is not in it and the group is not public.
     fn plans_of_group(
         &self,
         group_id: &str,

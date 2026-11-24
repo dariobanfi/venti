@@ -6,6 +6,7 @@ mod alerts;
 mod cables;
 mod flights;
 mod forecasts;
+mod group_chat;
 mod groups;
 mod kept_sites;
 mod live;
@@ -1722,6 +1723,174 @@ impl Store for PgStore {
 
     async fn delete_group(&self, id: &str, keeper_id: &str) -> Result<KeeperAct<()>, StoreError> {
         groups::delete(&mut self.client().await?, id, keeper_id).await
+    }
+
+    async fn find_groups(
+        &self,
+        account_id: &str,
+        search: &crate::GroupSearch,
+    ) -> Result<Vec<crate::FoundGroup>, StoreError> {
+        group_chat::find(&self.client().await?, account_id, search).await
+    }
+
+    async fn group_seen(
+        &self,
+        id: &str,
+        account_id: &str,
+        most_unread: u32,
+    ) -> Result<Option<crate::GroupSeen>, StoreError> {
+        group_chat::seen(&mut self.client().await?, id, account_id, most_unread).await
+    }
+
+    async fn group_list(
+        &self,
+        account_id: &str,
+        most_unread: u32,
+    ) -> Result<Vec<crate::ListedGroup>, StoreError> {
+        group_chat::list(&self.client().await?, account_id, most_unread).await
+    }
+
+    async fn change_group(
+        &self,
+        id: &str,
+        by_account_id: &str,
+        change: &crate::ProfileChange,
+    ) -> Result<crate::GroupAct<GroupMembers>, StoreError> {
+        group_chat::change(&mut self.client().await?, id, by_account_id, change).await
+    }
+
+    async fn set_group_admin(
+        &self,
+        id: &str,
+        owner_id: &str,
+        member_handle: &str,
+        admin: bool,
+    ) -> Result<crate::GroupAct<()>, StoreError> {
+        group_chat::set_admin(
+            &mut self.client().await?,
+            id,
+            owner_id,
+            member_handle,
+            admin,
+        )
+        .await
+    }
+
+    async fn invite_to_group(
+        &self,
+        id: &str,
+        by_account_id: &str,
+        handle: &str,
+        now: Timestamp,
+        room: &crate::InviteRoom,
+    ) -> Result<crate::GroupAct<crate::GroupInvite>, StoreError> {
+        group_chat::invite(
+            &mut self.client().await?,
+            (id, by_account_id),
+            handle,
+            now,
+            room,
+        )
+        .await
+    }
+
+    async fn drop_group_invite(
+        &self,
+        id: &str,
+        by_account_id: &str,
+        handle: &str,
+    ) -> Result<crate::GroupAct<()>, StoreError> {
+        group_chat::drop_invite(&mut self.client().await?, id, by_account_id, handle).await
+    }
+
+    async fn invites_of(&self, account_id: &str) -> Result<Vec<crate::GroupInvite>, StoreError> {
+        group_chat::invites_of(&self.client().await?, account_id).await
+    }
+
+    async fn enter_group(
+        &self,
+        id: &str,
+        account_id: &str,
+        room: &GroupRoom,
+        now: Timestamp,
+    ) -> Result<GroupJoining, StoreError> {
+        group_chat::enter(&mut self.client().await?, id, account_id, room, now).await
+    }
+
+    async fn post_message(
+        &self,
+        new: &crate::NewMessage,
+    ) -> Result<crate::MessagePosting, StoreError> {
+        group_chat::post(&mut self.client().await?, new).await
+    }
+
+    async fn messages(
+        &self,
+        group_id: &str,
+        account_id: &str,
+        page: crate::MessagePage,
+        limit: usize,
+    ) -> Result<Option<Vec<crate::Message>>, StoreError> {
+        group_chat::page(&self.client().await?, group_id, account_id, page, limit).await
+    }
+
+    async fn group_message(
+        &self,
+        group_id: &str,
+        message_id: &str,
+        account_id: &str,
+    ) -> Result<Option<crate::Message>, StoreError> {
+        group_chat::message(&self.client().await?, group_id, message_id, account_id).await
+    }
+
+    async fn remove_message(
+        &self,
+        group_id: &str,
+        message_id: &str,
+        by_account_id: &str,
+        now: Timestamp,
+    ) -> Result<crate::MessageRemoval, StoreError> {
+        group_chat::remove_message(
+            &mut self.client().await?,
+            (group_id, message_id),
+            by_account_id,
+            now,
+        )
+        .await
+    }
+
+    async fn set_group_standing(
+        &self,
+        id: &str,
+        account_id: &str,
+        muted: Option<bool>,
+        read_up_to: Option<i64>,
+        most_unread: u32,
+    ) -> Result<Option<crate::GroupStanding>, StoreError> {
+        group_chat::set_standing(
+            &self.client().await?,
+            id,
+            account_id,
+            (muted, read_up_to),
+            most_unread,
+        )
+        .await
+    }
+
+    async fn listeners(&self, group_id: &str) -> Result<Vec<crate::Listener>, StoreError> {
+        group_chat::listeners(&self.client().await?, group_id).await
+    }
+
+    async fn save_group_picture(&self, picture: &crate::GroupPicture) -> Result<bool, StoreError> {
+        group_chat::save_picture(&mut self.client().await?, picture).await
+    }
+
+    async fn group_picture(&self, id: &str) -> Result<Option<crate::GroupPicture>, StoreError> {
+        group_chat::picture(&self.client().await?, id).await
+    }
+
+    async fn group_unread(&self, account_id: &str, most: u32) -> Result<u32, StoreError> {
+        group_chat::unread(&self.client().await?, account_id, most).await
     }
 
     async fn save_plan(&self, new: &NewPlan, room: &PlanRoom) -> Result<PlanSaving, StoreError> {

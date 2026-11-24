@@ -12,7 +12,7 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use venti_domain::{GeoPoint, Timestamp};
 
-use super::{Pilot, text};
+use super::{GroupChat, GroupMe, Handle, HomeArea, Pilot, text};
 
 /// The most characters the name of a group may have.
 pub const MAX_GROUP_NAME_LENGTH: usize = 60;
@@ -260,8 +260,8 @@ impl From<TimeOfDay> for String {
     }
 }
 
-/// A group, as each of its members sees it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// A group, as each of its members sees it, and anyone a public group.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Group {
     /// The group's identifier.
     pub id: GroupId,
@@ -269,22 +269,67 @@ pub struct Group {
     pub name: String,
     /// When it was made.
     pub created_at: Timestamp,
-    /// The member who keeps the group: who may rename it, make a new
-    /// invite code, remove a member, hand the keeping on and delete it.
+    /// The member who keeps the group: its owner, who may do everything
+    /// in it ([`GroupRole::Owner`](super::GroupRole::Owner)).
     pub keeper: Pilot,
     /// How many members it has, the keeper included.
     pub member_count: u32,
+    /// Whether anyone signed in finds, reads and joins it. A private group
+    /// is its members' alone, and those its owner and admins invite.
+    #[serde(default)]
+    pub public: bool,
+    /// A short description. Text a pilot typed: show it as text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// The path of its picture ([`group_picture_path`](super::group_picture_path)).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub picture: Option<String>,
+    /// Where it flies. Groups made before 2026-11-24 may have none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub home: Option<HomeArea>,
 }
 
 /// The body of `POST /v1/groups`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreateGroupRequest {
     /// The name of the group; see [`parse_group_name`].
     pub name: String,
+    /// Whether it is public; private when left out.
+    #[serde(default)]
+    pub public: bool,
+    /// A short description; see
+    /// [`parse_group_description`](super::parse_group_description).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Where it flies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub home: Option<HomeArea>,
+}
+
+impl CreateGroupRequest {
+    /// A private group with this name and nothing more.
+    pub fn named(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            public: false,
+            description: None,
+            home: None,
+        }
+    }
+}
+
+impl UpdateGroupRequest {
+    /// A change of the name alone.
+    pub fn rename(name: impl Into<String>) -> Self {
+        Self {
+            name: Some(name.into()),
+            ..Self::default()
+        }
+    }
 }
 
 /// The answer of `POST /v1/groups`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreateGroupResponse {
     /// The group, whose keeper and only member is the pilot who made it.
     pub group: Group,
@@ -294,29 +339,58 @@ pub struct CreateGroupResponse {
 }
 
 /// The answer of `GET /v1/groups`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GroupsResponse {
     /// The groups the pilot is in, the one they have been in longest
     /// first.
     pub groups: Vec<Group>,
+    /// For each of them, at the same place: how the pilot stands to it,
+    /// its unread messages and its newest message.
+    #[serde(default)]
+    pub chats: Vec<GroupChat>,
 }
 
 /// The answer of `GET /v1/groups/{id}`, of `PATCH /v1/groups/{id}` and of
 /// `PUT /v1/groups/{id}/keeper`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GroupResponse {
     /// The group.
     pub group: Group,
     /// Its members, the one who has been in it longest first. When the
     /// keeper leaves, the first of the others is the next keeper.
     pub members: Vec<Pilot>,
+    /// The handles of its admins, the owner not among them.
+    #[serde(default)]
+    pub admins: Vec<Handle>,
+    /// How the pilot who asks stands to it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub me: Option<GroupMe>,
 }
 
-/// The body of `PATCH /v1/groups/{id}`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// The body of `PATCH /v1/groups/{id}`: what changes. A field left out
+/// stays; `null` clears a description or a home.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct UpdateGroupRequest {
     /// The group's new name; see [`parse_group_name`].
-    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Public or private: the owner's alone to change.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub public: Option<bool>,
+    /// A new description, or `null` for none.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "super::patch"
+    )]
+    pub description: Option<Option<String>>,
+    /// A new home, or `null` for none.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "super::patch"
+    )]
+    pub home: Option<Option<HomeArea>>,
 }
 
 /// The body of `PUT /v1/groups/{id}/keeper`.
@@ -343,7 +417,7 @@ pub struct JoinGroupRequest {
 }
 
 /// The answer of `POST /v1/groups/join`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct JoinGroupResponse {
     /// The group the code belongs to.
     pub group: Group,

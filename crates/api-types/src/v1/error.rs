@@ -246,6 +246,13 @@ pub enum ErrorCode {
     GroupMemberNotFound,
     /// Only the keeper of the group may do this.
     NotGroupKeeper,
+    /// The pilot named is in the group already.
+    AlreadyInGroup,
+    /// A message has no text, picture or link; too long a text; or too
+    /// many pictures or links, or one that names nothing of its kind.
+    InvalidMessage,
+    /// The group has no message with this identifier.
+    MessageNotFound,
     /// A plan's day lies outside the days the server takes plans for, its
     /// place is empty or too long, or its note is too long.
     InvalidPlan,

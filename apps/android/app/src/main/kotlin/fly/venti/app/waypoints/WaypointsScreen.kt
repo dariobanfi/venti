@@ -1,5 +1,6 @@
 package fly.venti.app.waypoints
 
+import fly.venti.core.nothingFoundWords
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -186,11 +187,11 @@ fun WaypointsScreen(waypoints: WaypointsModel, onBack: () -> Unit) {
             Column(Modifier.fillMaxSize().padding(padding)) {
                 WaypointSearch(search, onChange = { search = it })
                 if (shown.isEmpty()) {
-                    Text(
-                        "No waypoint matches “${search.trim()}”.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                    )
+                    val nothing = nothingFoundWords(search)
+                    Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+                        Text(nothing.title, style = MaterialTheme.typography.titleMedium)
+                        Text(nothing.line, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
                 LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
                     items(shown, key = { it.id }) { waypoint ->

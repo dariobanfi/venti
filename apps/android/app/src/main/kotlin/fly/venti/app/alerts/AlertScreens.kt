@@ -110,7 +110,7 @@ fun AlertMeRow(entry: AlertsEntry, tag: String, draft: () -> AlertDraft) {
                 TextButton(onClick = {
                     asksToSignIn = false
                     entry.onSignIn()
-                }) { Text(AlertWords.SIGN_IN) }
+                }) { Text(Common.words.signIn) }
             },
             dismissButton = { TextButton(onClick = { asksToSignIn = false }) { Text(Common.words.cancel) } },
         )
@@ -178,7 +178,7 @@ fun AlertsScreen(model: AlertsModel, scope: CoroutineScope, onSignIn: () -> Unit
                 Quiet(AlertWords.core.signedOut, "alerts-sign-in-first")
                 Spacer(Modifier.height(VentiSpace.s3))
                 Button(onClick = onSignIn, modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch)) {
-                    Text(AlertWords.SIGN_IN)
+                    Text(Common.words.signIn)
                 }
                 return@Column
             }

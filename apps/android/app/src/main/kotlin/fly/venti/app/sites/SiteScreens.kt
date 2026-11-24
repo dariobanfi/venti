@@ -1,5 +1,6 @@
 package fly.venti.app.sites
 
+import fly.venti.core.nothingFoundWords
 import fly.venti.core.siteSheetWords
 import kotlinx.coroutines.CancellationException
 import fly.venti.core.SiteKind
@@ -580,10 +581,8 @@ private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             )
             if (fitting.isEmpty() && unsaid.isEmpty() && wanted.isNotEmpty()) {
-                EmptyList(
-                    "No site of that name",
-                    "None of the sites on this part of the map is called “$wanted”.",
-                )
+                val nothing = nothingFoundWords(wanted)
+                EmptyList(nothing.title, nothing.line)
             } else {
                 LazyColumn(modifier = Modifier.testTag("site-list"), contentPadding = PaddingValues(bottom = 32.dp)) {
                     items(fitting, key = { it.id }) { site ->

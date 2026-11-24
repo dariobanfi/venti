@@ -103,15 +103,13 @@ object CommunityPageWords {
     const val GROUPS = "Groups"
     const val ALL = "All"
     const val FIND = "Find a pilot"
-    const val I_AM_IN = "I am in"
     const val SIGNED_OUT =
         "With an account you plan flying days with your groups, follow pilots and see what they fly, " +
             "and hear who cheered your flights."
-    const val SIGN_IN = "Sign in"
     const val MAKE_OR_JOIN = "Make or join a group"
 
-    /** Where the pilots near were looked for. */
-    fun around(fromPhone: Boolean): String = if (fromPhone) "Around your position" else "Around the middle of the map"
+    /** Where the pilots near were looked for, the core's: "around you", "around the map's middle". */
+    fun around(fromPhone: Boolean): String = with(PilotPictures.words) { if (fromPhone) nearAroundYou else nearAroundMap }
 
     /** How many more are in than the faces show: "+3". */
     fun more(count: Int): String = "+${Format.count(count.toLong())}"
@@ -132,7 +130,7 @@ object CommunityPageWords {
  * one place, as the web has it (docs/plan.md, item 7). In this order: the
  * plans of the pilot's groups for the coming days, each a card with its
  * day and time large, its place, its group, the faces of who is in and
- * "I am in"; the flights of the pilots they follow, each a card with the
+ * "I'm in"; the flights of the pilots they follow, each a card with the
  * track's shape; the pilots who fly near the phone's position, or near the
  * middle of the map where the position is not allowed; finding a pilot by
  * name; and what the pilot was told.
@@ -389,7 +387,7 @@ fun CommunityPage(
                     Column(Modifier.fillMaxWidth().padding(VentiSpace.s4), verticalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
                         Text(CommunityPageWords.SIGNED_OUT, style = MaterialTheme.typography.bodyLarge)
                         Button(onClick = onSignIn, modifier = Modifier.heightIn(min = VentiSize.touch).testTag("community-sign-in")) {
-                            Text(CommunityPageWords.SIGN_IN)
+                            Text(Common.words.signIn)
                         }
                     }
                 }
@@ -404,9 +402,9 @@ fun CommunityPage(
         val nearPilots = near.pilots
         item(key = "near-where") {
             val said = listOfNotNull(
-                near.place?.let { CommunityPageWords.around(near.fromPhone) },
                 nearPilots?.words?.takeIf { it.isNotEmpty() },
-            ).joinToString(" · ")
+                near.place?.let { CommunityPageWords.around(near.fromPhone) },
+            ).joinToString(" · ").replaceFirstChar { it.uppercase() }
             if (said.isNotEmpty()) {
                 Text(said, style = MaterialTheme.typography.bodyMedium, color = Venti.colours.textSecondary, modifier = Modifier.testTag("pilots-near-words"))
             }
@@ -733,7 +731,7 @@ internal fun PlanCard(
                     }
                 },
                 enabled = !isWorking,
-                label = CommunityPageWords.I_AM_IN,
+                label = GroupWords.core.imIn,
                 modifier = Modifier.heightIn(min = VentiSize.touch).testTag("plan-card-in"),
             )
             problem?.let { said ->

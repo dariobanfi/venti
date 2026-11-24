@@ -46,7 +46,7 @@ import app.venti.design.VentiSpace
 import app.venti.design.VentiType
 import fly.venti.app.design.Venti
 import fly.venti.app.design.text
-import fly.venti.core.RouteKind
+import fly.venti.core.scoreKindWords
 import fly.venti.app.R
 import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Format
@@ -203,12 +203,7 @@ private fun Header(
 internal fun kindAndDay(flight: FlightView, score: FlightScore?): String {
     val day = Format.day(flight.startUnixS, Format.zone(flight.timeZone))
     score ?: return day
-    val kind = when (score.kind) {
-        RouteKind.FREE_FLIGHT -> "Free flight"
-        RouteKind.FREE_TRIANGLE -> if (score.closed) "Closed triangle" else "Triangle"
-        RouteKind.FAI_TRIANGLE -> if (score.closed) "Closed FAI triangle" else "FAI triangle"
-    }
-    return "$kind · $day"
+    return "${scoreKindWords(score.kind, score.closed)} · $day"
 }
 
 private fun subtitle(flight: FlightView): String {

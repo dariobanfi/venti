@@ -140,7 +140,7 @@ import fly.venti.core.LandingOption
 import fly.venti.core.LandingReading
 import fly.venti.core.LiftCentreView
 import fly.venti.core.LiveScore
-import fly.venti.core.RouteKind
+import fly.venti.core.scoreKindWords
 import fly.venti.core.WayToTarget
 import fly.venti.core.WindView
 import kotlin.math.abs
@@ -1416,11 +1416,7 @@ private fun MapReadings(view: CockpitView) {
 object FlightPageWords {
     /** "Free flight", "Triangle, 1.2 km to close", "Closed FAI triangle". */
     fun kind(score: LiveScore): String {
-        val kind = when (score.kind) {
-            RouteKind.FREE_FLIGHT -> "Free flight"
-            RouteKind.FREE_TRIANGLE -> if (score.closed) "Closed triangle" else "Triangle"
-            RouteKind.FAI_TRIANGLE -> if (score.closed) "Closed FAI triangle" else "FAI triangle"
-        }
+        val kind = scoreKindWords(score.kind, score.closed)
         val gap = score.closingM
         return if (gap != null && !score.closed && gap >= 100) "$kind, ${Format.kilometres(gap)} km to close" else kind
     }

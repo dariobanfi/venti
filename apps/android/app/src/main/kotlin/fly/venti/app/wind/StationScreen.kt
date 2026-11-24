@@ -363,34 +363,40 @@ object StationDayWords {
  */
 @Composable
 private fun Air(air: StationAir) {
-    SectionHeader("The air")
-    Group(Modifier.testTag("station-air")) {
+    Column(Modifier.testTag("station-air")) {
         air.cloudBase?.let { base ->
-            row {
-                Column(Modifier.fillMaxWidth().padding(16.dp).testTag("station-cloud-base")) {
-                    Row {
-                        Metric(base.words, Format.metres(base.baseM), Modifier.weight(1f), unit = "m")
-                        Metric("Above the station", Format.metres(base.aboveStationM), Modifier.weight(1f), unit = "m")
+            SectionHeader("The air")
+            Group {
+                row {
+                    Column(Modifier.fillMaxWidth().padding(16.dp).testTag("station-cloud-base")) {
+                        Row {
+                            Metric(base.words, Format.metres(base.baseM), Modifier.weight(1f), unit = "m")
+                            Metric("Above the station", Format.metres(base.aboveStationM), Modifier.weight(1f), unit = "m")
+                        }
+                        Text(
+                            base.note,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
                     }
-                    Text(
-                        base.note,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
                 }
             }
         }
+        // The step has a heading of its own, the core's, as on the iPhone.
         air.temperatureStep?.let { step ->
-            row {
-                Column(
-                    Modifier.fillMaxWidth().padding(16.dp).testTag("station-temperature-step"),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(StationAirWords.between(step), style = MaterialTheme.typography.bodyLarge)
-                    Text(step.words, style = MaterialTheme.typography.titleMedium)
-                    Text(step.rule, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(step.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SectionHeader(stationSheetWords().temperatureStepTitle)
+            Group {
+                row {
+                    Column(
+                        Modifier.fillMaxWidth().padding(16.dp).testTag("station-temperature-step"),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(StationAirWords.between(step), style = MaterialTheme.typography.bodyLarge)
+                        Text(step.words, style = MaterialTheme.typography.titleMedium)
+                        Text(step.rule, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(step.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }

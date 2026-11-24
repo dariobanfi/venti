@@ -76,6 +76,7 @@ import fly.venti.core.PublicFlight
 import fly.venti.core.gliderClassName
 import fly.venti.core.PublicFlightsOrder
 import fly.venti.core.RouteKind
+import fly.venti.core.scoreKindWords
 import fly.venti.core.pilotsWords
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -125,11 +126,8 @@ object CommunityWords {
     fun airtime(flight: PublicFlight): String = "${Format.hoursMinutes(flight.airtimeS)} h"
 
     /** What a triangle is called, for a flight that scores as one. */
-    fun triangle(flight: PublicFlight): String? = when (flight.score?.kind) {
-        RouteKind.FAI_TRIANGLE -> "FAI triangle"
-        RouteKind.FREE_TRIANGLE -> "Triangle"
-        RouteKind.FREE_FLIGHT, null -> null
-    }
+    fun triangle(flight: PublicFlight): String? =
+        flight.score?.takeIf { it.kind != RouteKind.FREE_FLIGHT }?.let { scoreKindWords(it.kind, it.closed) }
 
     /** A row for someone who cannot see it. */
     fun spoken(flight: PublicFlight): String =

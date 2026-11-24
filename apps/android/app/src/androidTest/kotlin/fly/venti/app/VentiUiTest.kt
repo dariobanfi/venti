@@ -591,7 +591,7 @@ class VentiUiTest {
         keepScreenshot("$prefix-6d-statistics-typical-and-kinds")
         // The places flown from: the sample flight's, without a name.
         list.performScrollToNode(hasTestTag("statistics-site"))
-        assertTrue(exists(hasText("By take-off")))
+        assertTrue(exists(hasText("Take-offs flown from most")))
         assertTrue(exists(hasTestTag("statistics-site") and hasText("1 flight")))
         keepScreenshot("$prefix-6e-statistics-by-take-off")
         list.performScrollToNode(hasText("Longest flight"))
@@ -1630,7 +1630,7 @@ class VentiUiTest {
         // The plan itself: its author is in from the start, and can step
         // out again.
         screen.onAllNodes(posted).onFirst().performClick()
-        waitFor(hasTestTag("plan-in") and hasText("I am out"))
+        waitFor(hasTestTag("plan-in") and hasText("I'm out"))
         // Among those who are in, the pilot of this phone is "You".
         assertTrue(exists(hasTestTag("plan-pilot") and hasText("You")))
         assertTrue(exists(hasText("Change the plan")))
@@ -6053,7 +6053,7 @@ class VentiUiTest {
         screen.onNode(hasTestTag("account-link")).performScrollTo().performClick()
         waitFor(hasText("Sync now"))
         tap(hasText("Sync now"))
-        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("Working")) && exists(hasText("Sync now")) }
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("Working…")) && exists(hasText("Sync now")) }
         tap(described("Back"))
         waitFor(hasTestTag("cockpit-settings-link"))
         backToToday()
@@ -6683,7 +6683,7 @@ class VentiUiTest {
     /**
      * Community, the League tab's first list, as the development server's
      * demo pilot standing at the made-up Musterkogel West: a plan posted
-     * for today as a card with its day, place, faces and "I am in", which
+     * for today as a card with its day, place, faces and "I'm in", which
      * steps out and in again from the card; the feed of the pilots
      * followed as cards; the pilots who fly near the phone's position
      * (Lena, Ines and Timo there); finding Mara, whose made-up picture is
@@ -6747,7 +6747,7 @@ class VentiUiTest {
             screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
                 runCatching { community.performScrollToNode(lena) }.isSuccess
             }
-            waitFor(hasTestTag("pilots-near-words") and hasText("Around your position", substring = true))
+            waitFor(hasTestTag("pilots-near-words") and hasText("around you", substring = true))
             assertTrue(exists(hasTestTag("near-pilot") and hasText("Timo Entwurf")))
             keepScreenshot("$prefix-community-3-near")
 

@@ -444,7 +444,7 @@ private fun PlanPage(
                 }
                 row {
                     ActionRow(
-                        if (plan.amIn) "I am out" else "I am in",
+                        if (plan.amIn) GroupWords.core.imOut else GroupWords.core.imIn,
                         MaterialTheme.colorScheme.primary,
                         Modifier.testTag("plan-in"),
                         enabled = !isWorking,

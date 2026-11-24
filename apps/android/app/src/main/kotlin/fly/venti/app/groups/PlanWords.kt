@@ -1,7 +1,11 @@
 package fly.venti.app.groups
 
 import fly.venti.app.design.Format
+import fly.venti.core.CommunityRole
+import fly.venti.core.CommunityView
+import fly.venti.core.CommunityWords
 import fly.venti.core.PlanView
+import fly.venti.core.communityWords
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -11,9 +15,8 @@ object PlanWords {
     /** The row that takes a plan's place from the pilot's waypoints. */
     const val FROM_WAYPOINTS = "From my waypoints"
 
-    const val SIGNED_OUT =
-        "Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, " +
-            "then make a group or join one."
+    /** What the board says to a pilot who is signed out, the core's. */
+    val SIGNED_OUT: String get() = GroupWords.core.plansSignedOut
 
     const val NO_GROUP = GroupWords.NONE_YET_LONG
 
@@ -69,7 +72,16 @@ object PlanWords {
  * `ChatScreen.swift`), word for word.
  */
 object GroupWords {
-    const val SIGNED_OUT = "Groups are shared on Venti with an account. Sign in under Settings, Account."
+    /** The core's words of the groups' screens. */
+    val core: CommunityWords by lazy { communityWords() }
+
+    /** What leaving means: for the owner, the member in longest keeps it; else whether the pilot can come back. */
+    fun leaveMeans(words: CommunityWords, group: CommunityView?): String = when {
+        group?.myRole == CommunityRole.OWNER -> words.leaveMeansOwner
+        group?.isPublic == true -> words.leaveMeansPublic
+        else -> words.leaveMeansPrivate
+    }
+
     const val INVITES = "Invites"
     const val DECLINE = "Decline"
     const val FOUND = "Found"
@@ -103,9 +115,7 @@ object GroupWords {
     const val DELETE = "Delete the group"
     const val HAND_ON_FIRST = "Tap a member to hand the group on to them before you leave."
     const val REPORT_GROUP = "Report this group"
-    const val LEAVE_QUESTION = "Leave this group?"
     const val DELETE_QUESTION = "Delete this group?"
-    const val LEAVE_MEANS = "Its messages stay; your plans in it go with you."
     const val DELETE_MEANS = "The group goes for every member, with its messages and plans."
     const val MAKE_ADMIN = "Make admin"
     const val MAKE_MEMBER = "Make a member again"

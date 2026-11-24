@@ -86,7 +86,8 @@ class TendenciesModel(private val count: suspend () -> Tendencies) {
 
 /** The screen's words that are not the core's. */
 object TendenciesWords {
-    const val TITLE = "How you fly"
+    /** "How you fly", the core's, as the statistics' row says it. */
+    val TITLE: String get() = StatisticsWords.core.howYouFly
     const val COUNTING = "Counting your flights…"
     const val NOTHING_YET = "Nothing to say yet. The observations begin once the logbook holds ten thermals."
     const val SHOWS_IT_MOST = "The flight that shows it most"

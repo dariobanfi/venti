@@ -75,6 +75,7 @@ import fly.venti.app.pilotMessage
 import fly.venti.core.LogbookEntry
 import fly.venti.core.LogbookYear
 import fly.venti.core.RouteKind
+import fly.venti.core.scoreKindWords
 import fly.venti.core.Totals
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -811,11 +812,8 @@ object LogbookWords {
 
     /** What a screen reader says of a row after the place. */
     fun spoken(entry: LogbookEntry): String {
-        val kind = when (entry.score?.kind) {
-            RouteKind.FAI_TRIANGLE -> "FAI triangle"
-            null, RouteKind.FREE_FLIGHT -> null
-            else -> "Triangle"
-        }
+        // A triangle is named, as the core names it; a free flight is not.
+        val kind = entry.score?.takeIf { it.kind != RouteKind.FREE_FLIGHT }?.let { scoreKindWords(it.kind, it.closed) }
         return listOfNotNull(
             "Took off at ${Format.time(entry.startUnixS, Format.zone(entry.timeZone))}",
             "airtime ${Format.hoursMinutes(entry.durationS)} h",

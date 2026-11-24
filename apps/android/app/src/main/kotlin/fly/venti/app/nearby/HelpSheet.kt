@@ -99,7 +99,6 @@ object HelpWords {
     const val WAITING_FOR_POSITION = "Finding where you are"
     const val WHERE_YOU_ARE = "Where you are"
     const val SIGNED_OUT = "Sign in to ask pilots nearby for help, or to be asked."
-    const val SIGN_IN = "Sign in"
     const val REPORT = "Report this request"
     const val NOTE_ROOM = 280
 
@@ -260,7 +259,7 @@ private fun Emergency() {
 private fun SignedOut(onSignIn: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
         Text(HelpWords.SIGNED_OUT, style = MaterialTheme.typography.bodyLarge)
-        Button(onClick = onSignIn, modifier = Modifier.heightIn(min = VentiSize.touch).testTag("help-sign-in")) { Text(HelpWords.SIGN_IN) }
+        Button(onClick = onSignIn, modifier = Modifier.heightIn(min = VentiSize.touch).testTag("help-sign-in")) { Text(Common.words.signIn) }
     }
 }
 

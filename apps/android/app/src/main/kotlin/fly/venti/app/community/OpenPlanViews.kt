@@ -1,5 +1,6 @@
 package fly.venti.app.community
 
+import fly.venti.app.groups.GroupWords
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -50,8 +51,6 @@ object OpenPlanWords {
     const val NEW = "New open plan"
     const val CHANGE = "Change the open plan"
     const val PLAN = "Open plan"
-    const val I_AM_IN = "I'm in"
-    const val I_AM_OUT = "I'm out"
     const val SIGN_IN_TO_JOIN = "Sign in to say you are in"
     const val CUT_SHORT = "There are more open plans near here: the later days are missing."
     const val WHERE = "Where"
@@ -219,7 +218,7 @@ internal fun OpenPlanCard(
                     }
                 },
                 enabled = !isWorking,
-                label = OpenPlanWords.I_AM_IN,
+                label = GroupWords.core.imIn,
                 modifier = Modifier.heightIn(min = VentiSize.touch).testTag("open-plan-card-in"),
             )
             problem?.let { said ->

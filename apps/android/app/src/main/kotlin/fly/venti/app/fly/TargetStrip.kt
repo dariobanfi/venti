@@ -1,5 +1,6 @@
 package fly.venti.app.fly
 
+import fly.venti.core.nothingFoundWords
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -299,7 +300,8 @@ fun TargetPicker(
                 if (all.isEmpty()) {
                     Hint("You have no waypoints yet. $WAYPOINT_FILES")
                 } else if (shown.isEmpty()) {
-                    Hint("No waypoint matches “${search.trim()}”.")
+                    val nothing = nothingFoundWords(search)
+                    Hint("${nothing.title}\n${nothing.line}")
                 } else {
                     // What the heights beside the places are, and are not.
                     SectionFooter(

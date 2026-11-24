@@ -64,6 +64,10 @@ import java.time.Month
 import java.time.format.TextStyle
 import java.util.Locale
 import fly.venti.app.design.Common
+import fly.venti.core.LogbookStatisticsWords
+import fly.venti.core.logbookStatisticsWords
+import fly.venti.core.pilotsWords
+import fly.venti.core.routeKindWords
 
 /** What the bar chart of the months measures. */
 private enum class Measure(val title: String, val unit: String) {
@@ -85,7 +89,11 @@ private enum class Measure(val title: String, val unit: String) {
 
 /** What the statistics say in words of their own. */
 object StatisticsWords {
-    const val TYPICAL = "The middle one of all your flights for each figure, so that one long day does not speak for the rest."
+    /** The headings, the core's. */
+    val core: LogbookStatisticsWords by lazy { logbookStatisticsWords() }
+
+    /** Over the places flown from: the heading a pilot's page has, the core's. */
+    val sitesTitle: String by lazy { pilotsWords().sitesTitle }
 
     /** "12 flights · 320.0 km · longest 3:34 h · highest 2626 m" */
     fun of(year: YearStatistics): String = listOfNotNull(
@@ -122,11 +130,7 @@ object StatisticsWords {
     fun allSites(sites: List<SiteStatistics>, all: Boolean): String? =
         if (all || sites.size <= SITES_SHOWN) null else "All ${sites.size} take-offs"
 
-    fun name(kind: RouteKind): String = when (kind) {
-        RouteKind.FREE_FLIGHT -> "Free flight"
-        RouteKind.FREE_TRIANGLE -> "Triangle"
-        RouteKind.FAI_TRIANGLE -> "FAI triangle"
-    }
+    fun name(kind: RouteKind): String = routeKindWords(kind)
 }
 
 /**
@@ -153,7 +157,7 @@ fun StatisticsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Statistics") },
+                title = { Text(StatisticsWords.core.title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
@@ -167,7 +171,7 @@ fun StatisticsScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
         ) {
             item {
-                SectionHeader("Last twelve months")
+                SectionHeader(StatisticsWords.core.monthsTitle)
                 Group {
                     row {
                         Column(Modifier.padding(16.dp)) {
@@ -197,7 +201,7 @@ fun StatisticsScreen(
 
             if (statistics.years.isNotEmpty()) {
                 item {
-                    SectionHeader("Years")
+                    SectionHeader(StatisticsWords.core.yearsTitle)
                     Group {
                         for (year in statistics.years) {
                             row {
@@ -215,7 +219,7 @@ fun StatisticsScreen(
 
             if (statistics.seasons.isNotEmpty()) {
                 item {
-                    SectionHeader("Through the year")
+                    SectionHeader(StatisticsWords.core.seasonsTitle)
                     Group {
                         row {
                             MonthChart(
@@ -231,20 +235,20 @@ fun StatisticsScreen(
 
             statistics.typical?.let { typical ->
                 item {
-                    SectionHeader("A typical flight")
+                    SectionHeader(StatisticsWords.core.typicalTitle)
                     Group {
                         row { ValueRow("Airtime", "${Format.hoursMinutes(typical.airtimeS)} h") }
                         typical.distanceM?.let { row { ValueRow("Distance", "${Format.kilometres(it)} km") } }
                         row { ValueRow("Highest", "${Format.metres(typical.highestM.toDouble())} m") }
                         row { ValueRow("Best climb", "${Format.climb(typical.bestClimbMs)} m/s") }
                     }
-                    SectionFooter(StatisticsWords.TYPICAL)
+                    SectionFooter(StatisticsWords.core.typicalNote)
                 }
             }
 
             if (statistics.routes.any { it.farthest != null }) {
                 item {
-                    SectionHeader("Kinds of flight")
+                    SectionHeader(StatisticsWords.core.routesTitle)
                     Group {
                         for (route in statistics.routes) {
                             val farthest = route.farthest ?: continue
@@ -264,7 +268,7 @@ fun StatisticsScreen(
 
             if (sites.isNotEmpty()) {
                 item {
-                    SectionHeader("By take-off")
+                    SectionHeader(StatisticsWords.sitesTitle)
                     Group(Modifier.testTag("statistics-sites")) {
                         for (site in StatisticsWords.shown(sites, showsAllSites)) {
                             val farthest = site.farthest
@@ -290,12 +294,12 @@ fun StatisticsScreen(
 
             if (statistics.gliders.isNotEmpty()) {
                 item {
-                    SectionHeader("Gliders")
+                    SectionHeader(StatisticsWords.core.glidersTitle)
                     Group {
                         for (glider in statistics.gliders) {
                             row {
                                 ValueRow(
-                                    title = glider.glider ?: "Not named",
+                                    title = glider.glider ?: StatisticsWords.core.gliderNotNamed,
                                     value = "${Format.flights(glider.flights)} · " +
                                         "${Format.hoursMinutes(glider.airtimeS)} h",
                                 )
@@ -306,7 +310,7 @@ fun StatisticsScreen(
             }
 
             item {
-                SectionHeader("Your bests")
+                SectionHeader(StatisticsWords.core.bestsTitle)
                 Group {
                     best("Longest flight", statistics.longest, onOpen) { "${Format.hoursMinutes(it.toLong())} h" }
                     best("Farthest", statistics.farthest, onOpen) { "${Format.kilometres(it)} km" }

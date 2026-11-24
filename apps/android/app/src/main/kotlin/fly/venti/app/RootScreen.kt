@@ -883,6 +883,7 @@ private fun Sections(
                         requests = session.scope,
                         onBack = { navigation.back() },
                         onOpenChat = { id, name -> navigation.open(LeagueRoute.Chat(id, name)) },
+                        onSignIn = { navigation.showAccount() },
                     )
                 }
                 is LeagueRoute.Group -> GroupPage(

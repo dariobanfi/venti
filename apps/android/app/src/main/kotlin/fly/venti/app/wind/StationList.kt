@@ -1,5 +1,6 @@
 package fly.venti.app.wind
 
+import fly.venti.core.nothingFoundWords
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -144,10 +145,8 @@ private fun StationList(wind: WindModel, onOpen: (WindStation) -> Unit, onDone: 
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             )
             if (shown.isEmpty()) {
-                EmptyList(
-                    "No station of that name",
-                    "None of the stations on this part of the map is called “$wanted”.",
-                )
+                val nothing = nothingFoundWords(wanted)
+                EmptyList(nothing.title, nothing.line)
             } else {
                 LazyColumn(Modifier.testTag("station-list"), contentPadding = PaddingValues(bottom = 32.dp)) {
                     items(shown, key = { it.id }) { station ->

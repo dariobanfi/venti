@@ -91,7 +91,6 @@ import fly.venti.app.design.Common
  * word about the rule, a tier, the licence and a refusal is the core's.
  */
 object SiteEditWords {
-    const val SIGN_IN = "Sign in"
     const val NO_HISTORY = "The history could not be read"
     const val NO_CONFIRMATIONS = "The confirmations could not be read"
 
@@ -695,7 +694,7 @@ fun SiteEditRows(edits: SitePageEdits) {
                     row { ActionRow(offers.report.words, primary, Modifier.testTag("site-report"), onClick = edits.onReport) }
                 }
                 if (edits.showsSignIn) {
-                    row { ActionRow(SiteEditWords.SIGN_IN, primary, Modifier.testTag("site-sign-in"), onClick = edits.onSignIn) }
+                    row { ActionRow(Common.words.signIn, primary, Modifier.testTag("site-sign-in"), onClick = edits.onSignIn) }
                 }
             }
         }

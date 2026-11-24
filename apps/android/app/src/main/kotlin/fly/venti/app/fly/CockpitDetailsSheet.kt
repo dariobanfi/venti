@@ -41,6 +41,7 @@ object CockpitDetailsWords {
      * a pilot who set a glider class.
      */
     fun rows(view: CockpitView): List<Pair<String, String>> = listOfNotNull(
+        view.windWords?.let { core.wind to it },
         view.airspeedWords?.let { core.airspeed to it },
         view.headingWords?.let { core.heading to it },
         view.altitudeSourceWords?.let { core.altitude to it },
@@ -51,8 +52,8 @@ object CockpitDetailsWords {
 }
 
 /**
- * The readings that have no place on a page of the cockpit: the estimated
- * airspeed and heading, where the altitude comes from, the QNH, and for a
+ * The readings that have no place on a page of the cockpit: the wind in
+ * words, the estimated airspeed and heading, where the altitude comes from, the QNH, and for a
  * pilot who set a glider class what the air does and the speed to fly. All
  * in the core's words; opened from the flight's page.
  */

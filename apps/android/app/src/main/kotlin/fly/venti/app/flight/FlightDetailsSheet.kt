@@ -45,7 +45,7 @@ import fly.venti.core.FlightAnalysis
 import fly.venti.core.FlightScore
 import fly.venti.core.FlightView
 import fly.venti.core.GlideSummary
-import fly.venti.core.RouteKind
+import fly.venti.core.scoreKindWords
 import fly.venti.core.ThermalSummary
 import fly.venti.app.design.Common
 import java.time.ZoneId
@@ -157,15 +157,8 @@ private fun ScoreSection(score: FlightScore) {
     SectionFooter(score.note)
 }
 
-/** "FAI triangle, closed", "Free flight". */
-private fun name(score: FlightScore): String {
-    val kind = when (score.kind) {
-        RouteKind.FREE_FLIGHT -> "Free flight"
-        RouteKind.FREE_TRIANGLE -> "Free triangle"
-        RouteKind.FAI_TRIANGLE -> "FAI triangle"
-    }
-    return if (score.closed) "$kind, closed" else kind
-}
+/** "Closed FAI triangle", "Free flight": the core's. */
+private fun name(score: FlightScore): String = scoreKindWords(score.kind, score.closed)
 
 @Composable
 private fun AirSection(analysis: FlightAnalysis) {

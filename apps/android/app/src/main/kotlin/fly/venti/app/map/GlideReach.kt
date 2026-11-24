@@ -1,5 +1,7 @@
 package fly.venti.app.map
 
+import fly.venti.core.GlideReachCardWords
+import fly.venti.core.glideReachCardWords
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -167,21 +169,26 @@ data class GlideReachWind(val fromDeg: Double, val kmh: Int)
 /** The edge of the area reached, as the map draws it: solid where the glide ends on the ground, dashed where the ground loaded ends. */
 data class GlideReachEdges(val solid: List<List<Coordinate>>, val dashed: List<List<Coordinate>>)
 
-/** Words of the card that are not the core's, and the steps of its settings. */
+/** The words of the card, the core's, and the steps of its settings. */
 object GlideReachWords {
+    /** The core's words of the card, read once. */
+    val core: GlideReachCardWords by lazy { glideReachCardWords() }
+
     /** The entry in what a long press on the map opens. */
-    const val ENTRY = "What a glide reaches from here"
+    val ENTRY: String get() = core.entry
 
     /** The card's title, as on the iPhone and the web. */
-    const val TITLE = "What a glide reaches"
-    const val GLIDE = "Glide"
-    const val START = "Start height"
-    const val ON_THE_GROUND = "On the ground"
-    const val WIND = "Wind"
-    const val WIND_FROM = "Wind from"
-    const val WIND_SPEED = "Wind speed"
-    const val CLEAR = "Clear"
-    const val ASKING = "Laying the glide over the ground"
+    val TITLE: String get() = core.title
+    val GLIDE: String get() = core.glide
+    val START: String get() = core.start
+    val ON_THE_GROUND: String get() = core.onTheGround
+    val WIND: String get() = core.wind
+    val WIND_FROM: String get() = core.windFrom
+    val WIND_SPEED: String get() = core.windSpeed
+    val CLEAR: String get() = core.clear
+
+    /** While the ground is loaded and the glide laid over it. */
+    val ASKING: String get() = core.working
 
     /** How far round the place the ground is brought first, and at most, degrees of latitude. */
     const val FIRST_SPAN_DEG = 0.15

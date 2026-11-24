@@ -230,8 +230,15 @@ private fun ListPage(
             null -> Row(
                 modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).padding(horizontal = VentiSpace.s1),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(VentiSpace.s3),
             ) {
                 CircularProgressIndicator(Modifier.size(VentiSize.icon))
+                Text(
+                    form.loading,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Venti.colours.textSecondary,
+                    modifier = Modifier.testTag("tokens-loading"),
+                )
             }
             is TokensModel.Listed.Refused -> {
                 Text(

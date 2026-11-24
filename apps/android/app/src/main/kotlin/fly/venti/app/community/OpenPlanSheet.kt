@@ -1,5 +1,6 @@
 package fly.venti.app.community
 
+import fly.venti.app.groups.GroupWords
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -355,7 +356,7 @@ private fun OpenPlanPage(
                     row {
                         if (signedIn) {
                             ActionRow(
-                                if (shown.amIn) OpenPlanWords.I_AM_OUT else OpenPlanWords.I_AM_IN,
+                                if (shown.amIn) GroupWords.core.imOut else GroupWords.core.imIn,
                                 MaterialTheme.colorScheme.primary,
                                 Modifier.testTag("open-plan-in"),
                                 enabled = !isWorking,

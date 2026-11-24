@@ -132,6 +132,8 @@ fun GroupsScreen(
     onBack: () -> Unit,
     /** Opens a group's chat: its identifier and name. */
     onOpenChat: (String, String) -> Unit,
+    /** Leads a pilot who is signed out to the account. */
+    onSignIn: () -> Unit = {},
 ) {
     val words = groups.words
     val context = LocalContext.current
@@ -200,7 +202,14 @@ fun GroupsScreen(
             verticalArrangement = Arrangement.spacedBy(VentiSpace.s3),
         ) {
             if (!account.isSignedIn) {
-                item(key = "signed-out") { GroupsLine(GroupWords.SIGNED_OUT) }
+                item(key = "signed-out") {
+                    Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
+                        GroupsLine(words.signedOut, Modifier.testTag("groups-signed-out"))
+                        TextButton(onClick = onSignIn, modifier = Modifier.heightIn(min = VentiSize.touch).testTag("groups-sign-in")) {
+                            Text(Common.words.signIn)
+                        }
+                    }
+                }
                 return@LazyColumn
             }
             item(key = "search") {
@@ -797,8 +806,8 @@ fun GroupPage(
     asking?.let { question ->
         AlertDialog(
             onDismissRequest = { asking = null },
-            title = { Text(if (question == Asking.Delete) GroupWords.DELETE_QUESTION else GroupWords.LEAVE_QUESTION) },
-            text = { Text(if (question == Asking.Delete) GroupWords.DELETE_MEANS else GroupWords.LEAVE_MEANS) },
+            title = { Text(if (question == Asking.Delete) GroupWords.DELETE_QUESTION else words.leaveQuestion) },
+            text = { Text(if (question == Asking.Delete) GroupWords.DELETE_MEANS else GroupWords.leaveMeans(words, detail?.group)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -806,7 +815,7 @@ fun GroupPage(
                         act(thenGone = true) { if (question == Asking.Delete) groups.deleteGroup(id) else groups.leave(id) }
                     },
                     modifier = Modifier.testTag("group-confirm"),
-                ) { Text(if (question == Asking.Delete) GroupWords.DELETE else words.leave, color = Venti.colours.danger) }
+                ) { Text(if (question == Asking.Delete) GroupWords.DELETE else words.leaveConfirm, color = Venti.colours.danger) }
             },
             dismissButton = { TextButton(onClick = { asking = null }) { Text(Common.words.cancel) } },
         )

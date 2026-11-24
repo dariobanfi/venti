@@ -491,10 +491,18 @@ describe('a search among public flights', () => {
 		}));
 		const community = new CommunitySource(async () => true, get);
 
-		await expect(community.flights({ order: 'newest', search })).rejects.toMatchObject({
+		const narrow = {
 			name: 'Server',
-			message: expect.stringMatching(/^The search took too long\. Narrow it/)
-		});
+			message: 'The search took too long. Narrow it: a smaller area, fewer days or more choices.'
+		};
+		// The core's words, for everyone's flights, a pilot's and the ranking.
+		await expect(community.flights({ order: 'newest', search })).rejects.toMatchObject(narrow);
+		await expect(
+			community.pilotFlights('lena', undefined, undefined, undefined, search)
+		).rejects.toMatchObject(narrow);
+		await expect(
+			community.ranking(undefined, undefined, NOW, undefined, search)
+		).rejects.toMatchObject(narrow);
 		// Without a search a busy server is the core's to put in words.
 		await expect(community.flights({ order: 'newest' })).rejects.toMatchObject({
 			message: 'The server is busy or being restarted. Try again in a moment.'

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { anchorOf } from '#lib/news/markdown.ts';
-import { description, groupsOf, schemasOf, scopesOf } from './reference';
+import { boundsOf, description, groupsOf, schemasOf, scopesOf } from './reference';
 import { ADDRESS_BUDGET, TOKEN_BUDGET } from './words';
 
 /** The description as the repository has it, read by hand, not through the build. */
@@ -73,6 +73,26 @@ describe('the reference', () => {
 		const unauthorized = sites?.responses.find((response) => response.status === '401');
 		expect(unauthorized?.description).toMatch(/unauthorized/);
 		expect(unauthorized?.bodies[0]?.schema?.$ref).toBe('#/components/schemas/ErrorResponse');
+	});
+
+	it('says every kind of bound a field has', () => {
+		expect(boundsOf({ minimum: 1, maximum: 100 })).toBe('1 to 100');
+		expect(boundsOf({ minimum: 0 })).toBe('at least 0');
+		expect(boundsOf({ minLength: 1, maxLength: 80 })).toBe('1 to 80 characters');
+		expect(boundsOf({ maxLength: 2000 })).toBe('at most 2000 characters');
+		expect(boundsOf({ minItems: 1, maxItems: 25 })).toBe('1 to 25 items');
+		expect(boundsOf({ maxItems: 500 })).toBe('at most 500 items');
+		expect(boundsOf({ type: 'string' })).toBe('');
+		// Every field of the description with a bound says it.
+		const bounded = Object.values(description.components.schemas)
+			.flatMap((schema) => Object.values(schema.properties ?? {}))
+			.filter((field) =>
+				['minimum', 'maximum', 'minLength', 'maxLength', 'minItems', 'maxItems'].some(
+					(bound) => bound in field
+				)
+			);
+		expect(bounded.length).toBeGreaterThan(30);
+		for (const field of bounded) expect(boundsOf(field)).not.toBe('');
 	});
 
 	it('lists every schema and every scope', () => {

@@ -70,18 +70,12 @@ export function windFits(spans: readonly WindSpan[], fromDeg: number): boolean {
 export type GroundWind = { fromDeg: number } | 'calm' | undefined;
 
 /**
- * Below this mean speed, in km/h, a wind has no direction worth an arrow
- * and the map draws it as calm: the core's `CALM_BELOW_KMH`
- * (`crates/core/src/thermal_hours.rs`), which it does not hand out.
+ * The core's wind at a take-off as a fan reads it: where it comes from,
+ * calm (the core's `calm`, or no direction), or nothing known.
  */
-const CALM_BELOW_KMH = 2;
-
-/** The core's wind at a take-off as a fan reads it: where it comes from, calm, or nothing known. */
 export function groundWindOf(wind: ThermalMapWind | undefined): GroundWind {
 	if (!wind) return undefined;
-	if (wind.fromDeg === undefined || wind.fromDeg === null || wind.kmh < CALM_BELOW_KMH) {
-		return 'calm';
-	}
+	if (wind.calm || wind.fromDeg === undefined || wind.fromDeg === null) return 'calm';
 	return { fromDeg: wind.fromDeg };
 }
 

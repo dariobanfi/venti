@@ -46,7 +46,9 @@ async function signUp(page: Page, name: string): Promise<string> {
 
 /** Opens the board, Community's first part, from wherever the pilot is, without loading the site anew. */
 async function openBoard(page: Page): Promise<void> {
-	await sections(page).getByRole('link', { name: 'Community', exact: true }).click();
+	await sections(page)
+		.getByRole('link', { name: /^Community/ })
+		.click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Community' })).toBeVisible();
 }
 

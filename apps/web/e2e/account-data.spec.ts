@@ -169,7 +169,9 @@ test('a pilot gives a program access, sees its secret once, and withdraws the ac
 	expect(keptByThePage).not.toContain('venti_pat_');
 
 	// The page is not left for another before the pilot says it is copied.
-	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
+	await sections(page)
+		.getByRole('link', { name: /^Settings/ })
+		.click();
 	await expect(page.getByRole('button', { name: 'I have copied it' })).toBeFocused();
 	await expect(page).toHaveURL(/\/settings\/account\/programs\/?$/);
 	await page.getByRole('button', { name: 'I have copied it' }).click();

@@ -81,10 +81,12 @@ test('the demo pilot sees whom they follow, their feed and what they were told',
 
 	// Community has the same: the plans of the demo pilot's group, the
 	// feed as cards with the track's shape, finding a pilot, and the
-	// newest of what the pilot was told.
+	// newest of what the pilot was told. The section's name ends in a
+	// count of unread messages, which the sample pilots' messages and
+	// other tests running beside this one change.
 	await page
 		.getByRole('navigation', { name: 'Sections' })
-		.getByRole('link', { name: 'Community', exact: true })
+		.getByRole('link', { name: /^Community/ })
 		.click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Community' })).toBeVisible();
 	await expect(page.getByRole('region', { name: 'Plans', exact: true })).toBeVisible();
@@ -251,13 +253,14 @@ test('what is new shows on the pilot’s picture until the notifications are see
 	await expect(marked).toHaveAccessibleName(wide ? `${handle} 1 new` : 'Settings 1 new');
 	await keep('277-unread-marker');
 
-	// The notifications seen, up to the cursor of what was shown and the
-	// alarms' mark left as it is, the bubble goes.
+	// The notifications seen, up to the cursor of what was shown, and the
+	// alarms' mark left where it is (the core leaves its cursor out): the
+	// bubble goes.
 	await page.goto('/settings/account/notifications/');
 	await expect(page.getByRole('heading', { name: 'Notifications', level: 1 })).toBeVisible();
 	await expect.poll(() => seen.length).toBe(1);
-	expect(seen[0]).toMatchObject({ alarms_cursor: '0' });
 	expect(seen[0]).toHaveProperty('notifications_cursor');
+	expect(seen[0]).not.toHaveProperty('alarms_cursor');
 	await expect(marked).toHaveCount(0);
 	await keep('278-unread-seen');
 

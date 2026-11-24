@@ -98,7 +98,9 @@ const sections = (page: Page) => page.getByRole('navigation', { name: 'Sections'
 
 /** Opens the screen that lists the pilot's airspace, from wherever the navigation shows. */
 async function openAirspace(page: Page): Promise<void> {
-	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
+	await sections(page)
+		.getByRole('link', { name: /^Settings/ })
+		.click();
 	await page
 		.locator('.settings-page')
 		.getByRole('link', { name: /^Airspace/ })
@@ -163,7 +165,9 @@ test('the airspace screen says what is kept and whose it is, takes files in and 
 	await switchAirspaceOn(page);
 	await openCredits(page);
 	await expect(page.getByText('Airspace: openAIP, not certified')).toBeVisible();
-	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
+	await sections(page)
+		.getByRole('link', { name: /^Settings/ })
+		.click();
 	const row = page.locator('.settings-page').getByRole('link', { name: /^Airspace/ });
 	await expect(row).toHaveText(/openAIP, \d+ airspaces/);
 	await row.click();
@@ -236,7 +240,9 @@ test('the airspace screen says what is kept and whose it is, takes files in and 
 	await expect(asking).toContainText('Its airspace is no longer drawn.');
 	await asking.getByRole('button', { name: 'Remove file' }).click();
 	await expect(files.getByRole('listitem').filter({ hasText: 'more' })).toBeHidden();
-	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
+	await sections(page)
+		.getByRole('link', { name: /^Settings/ })
+		.click();
 	await expect(page.locator('.settings-page').getByRole('link', { name: /^Airspace/ })).toHaveText(
 		/openAIP, \d+ airspaces · 1 file/
 	);

@@ -60,7 +60,9 @@ import {
 	rankingSearchPath,
 	rankingSeasons,
 	type RouteKind,
-	routeKindWords
+	routeKindWords,
+	searchedFlights,
+	searchedRanking
 } from './pkg/venti_core_wasm.js';
 import {
 	isSearching,
@@ -157,17 +159,12 @@ function inWords(message: string): Error {
 }
 
 /**
- * A search the server refused or gave up on, in words; nothing for any
- * other answer, which the core reads. The server gives a read up after two
- * seconds (`503`, `unavailable`): a narrower search is quicker. A
+ * A search the server refused, in its words; nothing for any other
+ * answer, which the core reads (`searchedFlights`, `searchedRanking`: a
+ * search the server gave up on is one to narrow, in the core's words). A
  * search it refuses (`400`) it says why of, which the page shows.
  */
 function searchFailure(status: number, body: Uint8Array): Error | undefined {
-	if (status === 503) {
-		return inWords(
-			'The search took too long. Narrow it: a smaller area, fewer days or more choices.'
-		);
-	}
 	if (status !== 400) return undefined;
 	try {
 		const said = JSON.parse(new TextDecoder().decode(body)) as { error?: { message?: unknown } };
@@ -267,6 +264,7 @@ export class CommunitySource {
 		if (search && isSearching(search)) {
 			const failure = searchFailure(answer.status, answer.body);
 			if (failure) throw failure;
+			return searchedFlights(answer.status, answer.body);
 		}
 		return publicFlights(answer.status, answer.body);
 	}
@@ -305,6 +303,7 @@ export class CommunitySource {
 		if (searching) {
 			const failure = searchFailure(answer.status, answer.body);
 			if (failure) throw failure;
+			return searchedFlights(answer.status, answer.body);
 		}
 		return publicFlights(answer.status, answer.body);
 	}
@@ -369,8 +368,9 @@ export class CommunitySource {
 		// is then asked as its span, which is a calendar month by UTC. The
 		// pilots' country is a question of the search's path alone.
 		const span = month ? monthSpan(month) : undefined;
+		const searchPath = searching || Boolean(pilotCountry);
 		let path: string;
-		if (searching || pilotCountry) {
+		if (searchPath) {
 			const narrowed = searching && search ? search : {};
 			path = span
 				? rankingSearchPath(area, span.fromUnixS, span.toUnixS, narrowed, pilotCountry)
@@ -385,7 +385,9 @@ export class CommunitySource {
 			const failure = searchFailure(answer.status, answer.body);
 			if (failure) throw failure;
 		}
-		const ranked = ranking(answer.status, answer.body);
+		const ranked = searchPath
+			? searchedRanking(answer.status, answer.body)
+			: ranking(answer.status, answer.body);
 		// The year a month lies in is the one whose months hold it.
 		const year = month
 			? ranked.periods.find((period) => period.months.some((one) => one.month === month))

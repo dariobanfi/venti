@@ -37,7 +37,9 @@ async function signIn(page: Page, { handle, password } = DEMO): Promise<void> {
 
 /** Opens the account screen from wherever the pilot is, without loading the site anew. */
 async function openAccount(page: Page): Promise<void> {
-	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
+	await sections(page)
+		.getByRole('link', { name: /^Settings/ })
+		.click();
 	await page
 		.locator('.settings-page')
 		.getByRole('link', { name: /^Account/ })
@@ -52,7 +54,9 @@ test('a pilot signs in, gets the flights from the server, and signs out', async 
 }) => {
 	// The settings lead to the account.
 	await page.goto('/map/');
-	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
+	await sections(page)
+		.getByRole('link', { name: /^Settings/ })
+		.click();
 	await expect(page).toHaveTitle('Settings · Venti');
 	const account = page.locator('.settings-page').getByRole('link', { name: /^Account/ });
 	await expect(account).toContainText('Not signed in');
@@ -90,7 +94,9 @@ test('a pilot signs in, gets the flights from the server, and signs out', async 
 	await page.getByRole('link', { name: 'My flights' }).click();
 	await expect(page.getByRole('heading', { level: 1, name: 'My flights' })).toBeVisible();
 	await expect(page.getByRole('main').locator('section.day li')).toHaveCount(3);
-	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
+	await sections(page)
+		.getByRole('link', { name: /^Settings/ })
+		.click();
 	await expect(
 		page.locator('.settings-page').getByRole('link', { name: /^Account/ })
 	).toContainText('@demo');
@@ -283,7 +289,9 @@ test('a session that ended asks to sign in again', async ({ context, page, keep 
 	await keep('30-account-signed-out');
 	await context.unroute('**/v1/account');
 
-	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
+	await sections(page)
+		.getByRole('link', { name: /^Settings/ })
+		.click();
 	await expect(
 		page.locator('.settings-page').getByRole('link', { name: /^Account/ })
 	).toContainText('Signed out');

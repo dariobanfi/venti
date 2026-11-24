@@ -40,14 +40,18 @@ describe('a take-off’s fan', () => {
 	});
 
 	it('reads the core’s wind at a take-off: where it comes from, calm, or nothing', () => {
-		expect(groundWindOf({ kmh: 12, fromDeg: 0, gustKmh: 20, band: 'moderate' })).toEqual({
+		expect(
+			groundWindOf({ kmh: 12, fromDeg: 0, gustKmh: 20, band: 'moderate', calm: false })
+		).toEqual({
 			fromDeg: 0
 		});
-		// Below 2 km/h the core draws a calm, and so does a wind without a direction.
-		expect(groundWindOf({ kmh: 1, fromDeg: 90, gustKmh: undefined, band: 'light' })).toBe('calm');
-		expect(groundWindOf({ kmh: 8, fromDeg: undefined, gustKmh: undefined, band: 'light' })).toBe(
-			'calm'
-		);
+		// The core says when a wind is calm, and a wind without a direction is calm too.
+		expect(
+			groundWindOf({ kmh: 1, fromDeg: 90, gustKmh: undefined, band: 'light', calm: true })
+		).toBe('calm');
+		expect(
+			groundWindOf({ kmh: 8, fromDeg: undefined, gustKmh: undefined, band: 'light', calm: false })
+		).toBe('calm');
 		expect(groundWindOf(undefined)).toBeUndefined();
 	});
 

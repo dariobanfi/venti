@@ -37,6 +37,7 @@
 {:else if schema.items}
 	<span class="kind">list of</span>
 	<SchemaView schema={schema.items} described={false} {linked} />
+	{#if boundsOf(schema)}<span class="kind">{boundsOf(schema)}</span>{/if}
 {:else if alternatives}
 	<span class="kind">{schema.allOf ? 'all of' : 'one of'}</span>
 	<ul class="nested">

@@ -26,6 +26,10 @@ export interface Schema {
 	enum?: unknown[];
 	minimum?: number;
 	maximum?: number;
+	minLength?: number;
+	maxLength?: number;
+	minItems?: number;
+	maxItems?: number;
 	'x-venti-values'?: string[];
 }
 
@@ -214,11 +218,25 @@ export function kindOf(schema: Schema): string {
 	return schema.format ? `${kind} (${schema.format})` : kind;
 }
 
-/** Bounds of a number, as "1 to 100". */
-export function boundsOf(schema: Schema): string {
-	if (schema.minimum !== undefined && schema.maximum !== undefined)
-		return `${schema.minimum} to ${schema.maximum}`;
-	if (schema.minimum !== undefined) return `at least ${schema.minimum}`;
-	if (schema.maximum !== undefined) return `at most ${schema.maximum}`;
+/** One pair of bounds in words: "1 to 100", "at least 1", "at most 80 characters". */
+function between(low: number | undefined, high: number | undefined, unit = ''): string {
+	const of = unit ? ` ${unit}` : '';
+	if (low !== undefined && high !== undefined) return `${low} to ${high}${of}`;
+	if (low !== undefined) return `at least ${low}${of}`;
+	if (high !== undefined) return `at most ${high}${of}`;
 	return '';
+}
+
+/**
+ * A schema's bounds in words: of a number ("1 to 100"), of a text's length
+ * ("1 to 80 characters") and of a list's ("at most 500 items").
+ */
+export function boundsOf(schema: Schema): string {
+	return [
+		between(schema.minimum, schema.maximum),
+		between(schema.minLength, schema.maxLength, 'characters'),
+		between(schema.minItems, schema.maxItems, 'items')
+	]
+		.filter((said) => said !== '')
+		.join(', ');
 }

@@ -29,7 +29,7 @@ struct HowYouFlyScreen: View {
                 .accessibilityIdentifier("how-you-fly-counting")
             }
         }
-        .navigationTitle("How you fly")
+        .navigationTitle(logbookStatisticsWords().howYouFly)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             tendencies = await logbook.tendencies()

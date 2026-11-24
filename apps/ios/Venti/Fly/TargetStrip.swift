@@ -187,8 +187,14 @@ struct TargetPicker: View {
                         Text("You have no waypoints yet. Venti reads SeeYou files (.cup) and GEO files (.wpt).")
                             .foregroundStyle(.venti(.textSecondary))
                     } else if places.isEmpty {
-                        Text("No waypoint matches “\(search)”.")
-                            .foregroundStyle(.venti(.textSecondary))
+                        let nothing = nothingFoundWords(searched: search)
+                        VStack(alignment: .leading, spacing: VentiSpace.s1) {
+                            Text(nothing.title)
+                            Text(nothing.line)
+                                .foregroundStyle(.venti(.textSecondary))
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("target-nothing-found")
                     }
                     Button("Add waypoints from a file", systemImage: "square.and.arrow.down") {
                         isChoosingFiles = true

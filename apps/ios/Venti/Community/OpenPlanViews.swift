@@ -8,8 +8,8 @@ enum OpenPlanWords {
     static let new = "New open plan"
     static let change = "Change the open plan"
     static let plan = "Open plan"
-    static let iAmIn = "I'm in"
-    static let iAmOut = "I'm out"
+    static var iAmIn: String { communityWords().imIn }
+    static var iAmOut: String { communityWords().imOut }
     static let signInToJoin = "Sign in to say you are in"
     static let cutShort = "There are more open plans near here: the later days are missing."
     static let whereTitle = "Where"

@@ -1298,7 +1298,7 @@ struct PressedPlaceSheet: View {
                                     if let reach {
                                         Button(action: reach) {
                                             Label {
-                                                Text(GlideReachWords.entry)
+                                                Text(glideReachCardWords().entry)
                                             } icon: {
                                                 Image("icon-glide")
                                             }

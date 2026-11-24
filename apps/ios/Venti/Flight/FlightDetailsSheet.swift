@@ -182,15 +182,9 @@ struct FlightDetailsSheet: View {
         }
     }
 
-    /// "FAI triangle, closed", "Free flight".
+    /// "Closed FAI triangle", "Free flight": the core's words.
     private static func name(of score: FlightScore) -> String {
-        let kind =
-            switch score.kind {
-            case .freeFlight: "Free flight"
-            case .freeTriangle: "Free triangle"
-            case .faiTriangle: "FAI triangle"
-            }
-        return score.closed ? "\(kind), closed" : kind
+        scoreKindWords(kind: score.kind, closed: score.closed)
     }
 
     private func row(_ title: String, _ value: String) -> some View {

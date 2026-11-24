@@ -233,7 +233,7 @@ private struct RankedFlightLine: View {
             if let score = flight.score, score.kind != .freeFlight {
                 Image(systemName: "triangle")
                     .font(.venti(.caption, .semibold))
-                    .accessibilityLabel(score.kind == .faiTriangle ? "FAI triangle" : "Triangle")
+                    .accessibilityLabel(scoreKindWords(kind: score.kind, closed: score.closed))
             }
             Text("\(Format.kilometres(metres: flight.score?.distanceM ?? flight.trackLengthM)) km")
             Text(flight.score.map { Format.decimal($0.points, places: 2) } ?? "–")

@@ -105,7 +105,7 @@ private struct SignInForm: View {
             } else if let address = server.server {
                 Section {
                     VentiSegmented(
-                        options: [(value: false, name: "Sign in"), (value: true, name: "New account")],
+                        options: [(value: false, name: commonWords().signIn), (value: true, name: "New account")],
                         selection: $isNew
                     )
                     .listRowSeparator(.hidden)
@@ -134,7 +134,7 @@ private struct SignInForm: View {
                 }
 
                 Section {
-                    Button(isNew ? "Create account" : "Sign in") {
+                    Button(isNew ? "Create account" : commonWords().signIn) {
                         Task {
                             if isNew {
                                 await account.createAccount(
@@ -358,7 +358,7 @@ private struct SignedInView: View {
                     if account.isWorking {
                         HStack(spacing: 8) {
                             ProgressView()
-                            Text("Working")
+                            Text(commonWords().working)
                         }
                     } else {
                         Text("Sync now")

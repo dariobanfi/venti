@@ -61,10 +61,10 @@ struct CockpitDetailsSheet: View {
     /// The rows the view has words for, in a fixed order.
     static func rows(of view: CockpitView?) -> [(name: String, words: String)] {
         guard let view else { return [] }
-        // The names are the core's; it has none for the wind's row.
+        // The names are the core's.
         let words = cockpitDetailsWords()
         let all: [(String, String?)] = [
-            ("Wind", view.windWords),
+            (words.wind, view.windWords),
             (words.airspeed, view.airspeedWords),
             (words.heading, view.headingWords),
             (words.altitude, view.altitudeSourceWords),

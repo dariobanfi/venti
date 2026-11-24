@@ -57,7 +57,7 @@ struct AlertsScreen: View {
         VentiList {
             if !account.isSignedIn {
                 Section {
-                    NavigationLink("Sign in") {
+                    NavigationLink(commonWords().signIn) {
                         AccountScreen()
                     }
                 } footer: {

@@ -41,7 +41,17 @@ struct GroupsScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: VentiSpace.s5) {
                 if !account.isSignedIn {
-                    GroupsLine(words: "Groups are shared on Venti with an account. Sign in under Settings, Account.")
+                    VStack(alignment: .leading, spacing: VentiSpace.s3) {
+                        GroupsLine(words: words.signedOut)
+                            .accessibilityIdentifier("groups-signed-out")
+                        NavigationLink {
+                            AccountScreen()
+                        } label: {
+                            Text(commonWords().signIn)
+                        }
+                        .buttonStyle(.venti(.quiet))
+                        .accessibilityIdentifier("groups-sign-in")
+                    }
                 } else {
                     if !groups.invites.isEmpty, !isSearching {
                         invites
@@ -450,6 +460,14 @@ struct GroupPage: View {
 
     private var words: CommunityWords { groups.words }
 
+    /// What leaving means, in the core's words: for the owner, for a
+    /// member of a public group, for one of a private group.
+    private var leaveMeans: String {
+        guard let group = detail?.group else { return "" }
+        if group.myRole == .owner { return words.leaveMeansOwner }
+        return group.isPublic ? words.leaveMeansPublic : words.leaveMeansPrivate
+    }
+
     var body: some View {
         VentiList {
             // What became of the last thing done, at the top where it is
@@ -548,13 +566,13 @@ struct GroupPage: View {
             memberActions(member)
         }
         .confirmationDialog(
-            asking == .delete ? "Delete this group?" : "Leave this group?",
+            asking == .delete ? "Delete this group?" : words.leaveQuestion,
             isPresented: Binding(get: { asking != nil }, set: { if !$0 { asking = nil } }),
             titleVisibility: .visible, presenting: asking
         ) { asking in
             switch asking {
             case .leave:
-                Button(words.leave, role: .destructive) {
+                Button(words.leaveConfirm, role: .destructive) {
                     act(thenLeave: true) { try await groups.leave(id) }
                 }
             case .delete:
@@ -565,7 +583,7 @@ struct GroupPage: View {
         } message: { asking in
             Text(asking == .delete
                 ? "The group goes for every member, with its messages and plans."
-                : "Its messages stay; your plans in it go with you.")
+                : leaveMeans)
         }
         .alert(
             confirming.map { $0.handsOn ? "Hand the group to \($0.member.name)?" : "Remove \($0.member.name)?" } ?? "",

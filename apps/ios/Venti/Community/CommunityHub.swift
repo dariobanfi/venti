@@ -347,7 +347,7 @@ struct CommunityHub: View {
         VStack(alignment: .leading, spacing: VentiSpace.s3) {
             HubHeader(title: words.nearTitle) {}
             if let near {
-                Text(verbatim: "\(near.words) · \(nearIsAroundMe ? "around you" : "around the map's middle")")
+                Text(verbatim: "\(near.words) · \(nearIsAroundMe ? pictureWords().nearAroundYou : pictureWords().nearAroundMap)")
                     .font(.venti(.footnote))
                     .foregroundStyle(.venti(.textSecondary))
                     .accessibilityIdentifier("near-words")
@@ -577,7 +577,7 @@ struct CommunityHub: View {
             NavigationLink {
                 AccountScreen()
             } label: {
-                Text("Sign in")
+                Text(commonWords().signIn)
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.venti(.primary))
@@ -803,7 +803,7 @@ struct FeedCard: View {
                             .resizable()
                             .frame(width: VentiSpace.s4, height: VentiSpace.s4)
                             .foregroundStyle(.venti(.textMuted))
-                            .accessibilityLabel(score.kind == .faiTriangle ? "FAI triangle" : "Triangle")
+                            .accessibilityLabel(scoreKindWords(kind: score.kind, closed: score.closed))
                     }
                     number(
                         Format.kilometres(metres: flight.score?.distanceM ?? flight.trackLengthM),

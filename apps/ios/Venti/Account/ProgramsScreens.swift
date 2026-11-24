@@ -55,7 +55,7 @@ private struct ProgramsList: View {
                 Section {
                     HStack(spacing: VentiSpace.s2) {
                         ProgressView()
-                        Text("Loading")
+                        Text(form.loading)
                     }
                     .foregroundStyle(.secondary)
                 }

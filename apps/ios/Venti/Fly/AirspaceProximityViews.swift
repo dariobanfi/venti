@@ -276,11 +276,7 @@ struct ScoreBadge: View {
     /// How the distance scores, and for an open triangle how far it is to
     /// where it began: "Triangle, 1.2 km to close".
     static func kind(_ score: LiveScore) -> String {
-        let kind = switch score.kind {
-        case .freeFlight: "Free flight"
-        case .freeTriangle: score.closed ? "Closed triangle" : "Triangle"
-        case .faiTriangle: score.closed ? "Closed FAI triangle" : "FAI triangle"
-        }
+        let kind = scoreKindWords(kind: score.kind, closed: score.closed)
         if let gap = score.closingM, !score.closed, gap >= 100 {
             return "\(kind), \(Format.kilometres(metres: gap)) km to close"
         }

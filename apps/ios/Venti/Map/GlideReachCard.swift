@@ -11,6 +11,8 @@ struct GlideReachCard: View {
     @Bindable var reach: GlideReachModel
     let clear: () -> Void
 
+    private let words = glideReachCardWords()
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -29,11 +31,11 @@ struct GlideReachCard: View {
                 .padding(.bottom, VentiSpace.s4)
             }
             .background(.venti(.bg))
-            .navigationTitle(GlideReachWords.title)
+            .navigationTitle(words.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(GlideReachWords.clear, action: clear)
+                    Button(words.clear, action: clear)
                         .accessibilityIdentifier("glide-reach-clear")
                 }
             }
@@ -56,7 +58,7 @@ struct GlideReachCard: View {
         } else if reach.isWorking {
             HStack(spacing: VentiSpace.s2) {
                 ProgressView()
-                Text(GlideReachWords.working)
+                Text(words.working)
                     .font(.ventiType(.label))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -68,33 +70,33 @@ struct GlideReachCard: View {
     /// The glide, the start height and the wind, a step at a time.
     private var settings: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Stepper(value: $reach.glideRatio, in: GlideReachWords.glideRatios, step: GlideReachWords.glideStep) {
-                LabeledContent("Glide", value: Format.glideRatio(reach.glideRatio))
+            Stepper(value: $reach.glideRatio, in: GlideReachSteps.glideRatios, step: GlideReachSteps.glideStep) {
+                LabeledContent(words.glide, value: Format.glideRatio(reach.glideRatio))
             }
             .accessibilityIdentifier("glide-reach-glide")
             Stepper {
-                LabeledContent("Start height", value: startWords)
+                LabeledContent(words.start, value: startWords)
             } onIncrement: {
                 reach.raiseStart()
             } onDecrement: {
                 reach.lowerStart()
             }
             .accessibilityIdentifier("glide-reach-start")
-            Toggle("Wind", isOn: $reach.windIsOn)
+            Toggle(words.wind, isOn: $reach.windIsOn)
                 .frame(minHeight: VentiSize.touch)
                 .accessibilityIdentifier("glide-reach-wind")
             if reach.windIsOn {
                 Stepper {
-                    LabeledContent("Wind from", value: Format.compassPoint(degrees: reach.windFromDeg))
+                    LabeledContent(words.windFrom, value: Format.compassPoint(degrees: reach.windFromDeg))
                 } onIncrement: {
-                    reach.windFromDeg = (reach.windFromDeg + GlideReachWords.windStepDeg).truncatingRemainder(dividingBy: 360)
+                    reach.windFromDeg = (reach.windFromDeg + GlideReachSteps.windStepDeg).truncatingRemainder(dividingBy: 360)
                 } onDecrement: {
-                    reach.windFromDeg = (reach.windFromDeg + 360 - GlideReachWords.windStepDeg)
+                    reach.windFromDeg = (reach.windFromDeg + 360 - GlideReachSteps.windStepDeg)
                         .truncatingRemainder(dividingBy: 360)
                 }
                 .accessibilityIdentifier("glide-reach-wind-from")
-                Stepper(value: $reach.windKmh, in: GlideReachWords.windsKmh, step: GlideReachWords.windStepKmh) {
-                    LabeledContent("Wind speed", value: "\(Format.count(reach.windKmh)) km/h")
+                Stepper(value: $reach.windKmh, in: GlideReachSteps.windsKmh, step: GlideReachSteps.windStepKmh) {
+                    LabeledContent(words.windSpeed, value: "\(Format.count(reach.windKmh)) km/h")
                 }
                 .accessibilityIdentifier("glide-reach-wind-speed")
             }
@@ -105,7 +107,7 @@ struct GlideReachCard: View {
 
     /// "On the ground" for a start from the place itself, else the height.
     private var startWords: String {
-        guard let height = reach.startHeightM else { return "On the ground" }
+        guard let height = reach.startHeightM else { return words.onTheGround }
         return "\(Format.metres(height)) m"
     }
 }

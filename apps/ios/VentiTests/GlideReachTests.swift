@@ -120,10 +120,10 @@ final class GlideReachTests: XCTestCase {
     }
 
     func testTheGlideIsHeldWithinItsSteps() {
-        XCTAssertEqual(GlideReachWords.held(8.3), 8.5)
-        XCTAssertEqual(GlideReachWords.held(2), 4)
-        XCTAssertEqual(GlideReachWords.held(20), 14)
-        let box = GlideReachWords.box(around: wallberg, radiusKm: 10)
+        XCTAssertEqual(GlideReachSteps.held(8.3), 8.5)
+        XCTAssertEqual(GlideReachSteps.held(2), 4)
+        XCTAssertEqual(GlideReachSteps.held(20), 14)
+        let box = GlideReachSteps.box(around: wallberg, radiusKm: 10)
         XCTAssertEqual(box.north - wallberg.lat, wallberg.lat - box.south, accuracy: 1e-9)
         XCTAssertGreaterThan(box.east - box.west, box.north - box.south)
     }

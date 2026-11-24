@@ -455,7 +455,7 @@ private struct LogbookRow: View {
     private var distance: some View {
         HStack(spacing: VentiSpace.s1) {
             if let score = entry.score, score.kind != .freeFlight {
-                icon("icon-triangle", label: score.kind == .faiTriangle ? "FAI triangle" : "Triangle")
+                icon("icon-triangle", label: scoreKindWords(kind: score.kind, closed: score.closed))
             }
             Text("\(Format.kilometres(metres: entry.score?.distanceM ?? entry.trackLengthM)) km")
         }

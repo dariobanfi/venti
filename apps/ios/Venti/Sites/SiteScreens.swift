@@ -174,7 +174,7 @@ struct SiteList: View {
                         description: Text(sites.problem ?? "Zoom the map in on an area, and the sites its source knows there are listed.")
                     )
                 } else if fitting.isEmpty, unsaid.isEmpty, !wanted.isEmpty {
-                    ContentUnavailableView.search(text: search)
+                    NothingFound(searched: search)
                 }
             }
             .searchable(text: $search, prompt: "Site")
@@ -955,5 +955,17 @@ struct WindRose: View {
         }
         .frame(width: 30, height: 30)
         .accessibilityHidden(true)
+    }
+}
+
+/// A searched list with nothing that matches, in the core's words
+/// (`nothingFoundWords`), as the system's search state draws it: the
+/// sites, the stations, the waypoints.
+struct NothingFound: View {
+    let searched: String
+
+    var body: some View {
+        let words = nothingFoundWords(searched: searched)
+        ContentUnavailableView(words.title, systemImage: "magnifyingglass", description: Text(words.line))
     }
 }

@@ -179,7 +179,7 @@ struct StationScreen: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("station-temperature-step")
             } header: {
-                Text("Temperature up the slope")
+                Text(stationSheetWords().temperatureStepTitle)
             } footer: {
                 Text(step.note)
             }

@@ -148,12 +148,7 @@ struct FlightPanel: View {
     private var kindAndDay: String {
         let day = Format.day(unixSeconds: flight.startUnixS, zone: flight.timeZone)
         guard let score else { return day }
-        let kind =
-            switch score.kind {
-            case .freeFlight: "Free flight"
-            case .freeTriangle: score.closed ? "Closed triangle" : "Triangle"
-            case .faiTriangle: score.closed ? "Closed FAI triangle" : "FAI triangle"
-            }
+        let kind = scoreKindWords(kind: score.kind, closed: score.closed)
         return "\(kind) · \(day)"
     }
 

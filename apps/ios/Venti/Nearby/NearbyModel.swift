@@ -250,7 +250,7 @@ enum HelpWords {
     static let usePosition = "Use my position"
     static let waitingForPosition = "Finding where you are"
     static let signedOut = "Sign in to ask pilots nearby for help, or to be asked."
-    static let signIn = "Sign in"
+    static var signIn: String { commonWords().signIn }
     static let report = "Report this request"
     static let noteRoom = 280
     /// The settings' heading on the account's page.

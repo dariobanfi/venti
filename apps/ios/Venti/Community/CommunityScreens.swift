@@ -189,7 +189,7 @@ struct PublicFlightRow: View {
                     if let score = flight.score, score.kind != .freeFlight {
                         Image(systemName: "triangle")
                             .font(.venti(.caption, .semibold))
-                            .accessibilityLabel(score.kind == .faiTriangle ? "FAI triangle" : "Triangle")
+                            .accessibilityLabel(scoreKindWords(kind: score.kind, closed: score.closed))
                     }
                     Text("\(Format.kilometres(metres: flight.score?.distanceM ?? flight.trackLengthM)) km")
                         .font(.venti(.headline))

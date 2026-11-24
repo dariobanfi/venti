@@ -32,7 +32,7 @@ struct StationList: View {
                         description: Text(wind.problem ?? "Move the map to an area with wind stations.")
                     )
                 } else if shown.isEmpty {
-                    ContentUnavailableView.search(text: search)
+                    NothingFound(searched: search)
                 }
             }
             .searchable(text: $search, prompt: "Station")

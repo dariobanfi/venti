@@ -37,6 +37,7 @@ struct StatisticsScreen: View {
         // Worked out by the core from the logbook as it is now.
         let statistics = logbook.statistics()
         let places = logbook.siteStatistics()
+        let words = logbookStatisticsWords()
         VentiList {
             Section {
                 VentiSegmented(
@@ -65,13 +66,13 @@ struct StatisticsScreen: View {
                 .padding(.vertical, 4)
                 .accessibilityLabel("\(measure.rawValue) by month, in \(measure.unit)")
             } header: {
-                Text("Last twelve months")
+                Text(words.monthsTitle)
             } footer: {
                 Text("In \(measure.unit).")
             }
 
             if !statistics.years.isEmpty {
-                Section("Years") {
+                Section(words.yearsTitle) {
                     ForEach(statistics.years, id: \.year) { year in
                         row(
                             String(year.year),
@@ -109,7 +110,7 @@ struct StatisticsScreen: View {
                     .accessibilityLabel("\(measure.rawValue) by month of the year, in \(measure.unit)")
                     .accessibilityIdentifier("statistics-seasons")
                 } header: {
-                    Text("Through the year")
+                    Text(words.seasonsTitle)
                 } footer: {
                     Text("January to December, all years together, in \(measure.unit).")
                 }
@@ -124,19 +125,19 @@ struct StatisticsScreen: View {
                     LabeledContent("Highest", value: "\(Format.metres(Double(typical.highestM))) m")
                     LabeledContent("Best climb", value: "\(Format.climb(metresPerSecond: typical.bestClimbMs)) m/s")
                 } header: {
-                    Text("A typical flight")
+                    Text(words.typicalTitle)
                 } footer: {
-                    Text("The middle one of all your flights for each figure, so that one long day does not speak for the rest.")
+                    Text(words.typicalNote)
                 }
             }
 
             if !statistics.routes.isEmpty {
-                Section("Kinds of flight") {
+                Section(words.routesTitle) {
                     ForEach(statistics.routes, id: \.kind) { route in
                         if let farthest = route.farthest {
                             NavigationLink(value: FlightRoute(id: farthest.flightId)) {
                                 row(
-                                    Self.name(of: route.kind),
+                                    routeKindWords(kind: route.kind),
                                     value: "\(Format.kilometres(metres: route.distanceM)) km",
                                     words: Self.words(of: route, farthest: farthest)
                                 )
@@ -147,7 +148,7 @@ struct StatisticsScreen: View {
             }
 
             if !places.isEmpty {
-                Section("By take-off") {
+                Section(pilotsWords().sitesTitle) {
                     let shown = showsAllPlaces ? places : Array(places.prefix(Self.placesShown))
                     ForEach(Array(shown.enumerated()), id: \.offset) { index, place in
                         placeRow(place)
@@ -162,18 +163,18 @@ struct StatisticsScreen: View {
             }
 
             if !statistics.gliders.isEmpty {
-                Section("Gliders") {
+                Section(words.glidersTitle) {
                     ForEach(statistics.gliders, id: \.glider) { glider in
                         LabeledContent {
                             Text("\(Format.flights(glider.flights)) · \(Format.hoursMinutes(seconds: glider.airtimeS)) h")
                         } label: {
-                            Text(glider.glider ?? "Not named")
+                            Text(glider.glider ?? words.gliderNotNamed)
                         }
                     }
                 }
             }
 
-            Section("Your bests") {
+            Section(words.bestsTitle) {
                 best("Longest flight", statistics.longest) { "\(Format.hoursMinutes(seconds: Int64($0))) h" }
                 best("Farthest", statistics.farthest) { "\(Format.kilometres(metres: $0)) km" }
                 best("Most points", statistics.mostPoints) { Format.decimal($0, places: 2) }
@@ -186,13 +187,13 @@ struct StatisticsScreen: View {
                 NavigationLink {
                     HowYouFlyScreen()
                 } label: {
-                    Text("How you fly")
+                    Text(words.howYouFly)
                 }
                 .accessibilityIdentifier("statistics-how-you-fly")
             }
         }
         .monospacedDigit()
-        .navigationTitle("Statistics")
+        .navigationTitle(words.title)
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -283,14 +284,6 @@ struct StatisticsScreen: View {
             parts.append("farthest \(Format.kilometres(metres: farthest.value)) km on \(Format.day(unixSeconds: farthest.startUnixS, zone: farthest.timeZone))")
         }
         return parts.joined(separator: " · ")
-    }
-
-    private static func name(of kind: RouteKind) -> String {
-        switch kind {
-        case .freeFlight: "Free flight"
-        case .freeTriangle: "Triangle"
-        case .faiTriangle: "FAI triangle"
-        }
     }
 
     /// A month of the year as the chart's axis writes it: its place and

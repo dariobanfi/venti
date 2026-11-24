@@ -26,8 +26,8 @@ final class GlideReachModel {
     /// Whether a wind is reckoned with; off at first.
     var windIsOn = false
     /// Where the wind comes from, degrees, and how strong it is, km/h.
-    var windFromDeg = GlideReachWords.windFromDeg
-    var windKmh = GlideReachWords.windKmh
+    var windFromDeg = GlideReachSteps.windFromDeg
+    var windKmh = GlideReachSteps.windKmh
     /// The core's answer for the setting last asked; `nil` while there is
     /// none.
     private(set) var answer: GlideReach?
@@ -39,7 +39,7 @@ final class GlideReachModel {
     @ObservationIgnored var ground: (@MainActor (Bounds) async -> Terrain)?
     /// The ground brought for the place, and how far around it reaches.
     @ObservationIgnored private var terrain: Terrain?
-    @ObservationIgnored private var radiusKm = GlideReachWords.firstRadiusKm
+    @ObservationIgnored private var radiusKm = GlideReachSteps.firstRadiusKm
     @ObservationIgnored private var askedFor: GlideReachSetting?
 
     init(ground: (@MainActor (Bounds) async -> Terrain)? = nil) {
@@ -65,15 +65,15 @@ final class GlideReachModel {
     /// no wind. The ground and the answer follow with `ask()`.
     func start(from place: Coordinate, glideRatio: Double) {
         self.place = place
-        self.glideRatio = GlideReachWords.held(glideRatio)
+        self.glideRatio = GlideReachSteps.held(glideRatio)
         startHeightM = nil
         windIsOn = false
-        windFromDeg = GlideReachWords.windFromDeg
-        windKmh = GlideReachWords.windKmh
+        windFromDeg = GlideReachSteps.windFromDeg
+        windKmh = GlideReachSteps.windKmh
         answer = nil
         terrain = nil
         askedFor = nil
-        radiusKm = GlideReachWords.firstRadiusKm
+        radiusKm = GlideReachSteps.firstRadiusKm
     }
 
     /// Takes the area away.
@@ -104,7 +104,7 @@ final class GlideReachModel {
             let answer = await Self.reach(setting, over: terrain)
             guard askedFor == setting, !Task.isCancelled else { return }
             self.answer = answer
-            guard answer.cutShort, radiusKm < GlideReachWords.widestRadiusKm, ground != nil else { return }
+            guard answer.cutShort, radiusKm < GlideReachSteps.widestRadiusKm, ground != nil else { return }
             radiusKm *= 2
             self.terrain = await bring(around: setting)
             guard askedFor == setting, !Task.isCancelled else { return }
@@ -116,7 +116,7 @@ final class GlideReachModel {
     private func bring(around setting: GlideReachSetting) async -> Terrain {
         guard let ground else { return Terrain() }
         let place = Coordinate(lat: setting.lat, lon: setting.lon)
-        return await ground(GlideReachWords.box(around: place, radiusKm: radiusKm))
+        return await ground(GlideReachSteps.box(around: place, radiusKm: radiusKm))
     }
 
     /// The core's answer, off the main actor: 72 directions over the
@@ -131,28 +131,23 @@ final class GlideReachModel {
     /// above it; at most the core's highest start.
     func raiseStart() {
         let ground = answer?.groundM ?? 0
-        let step = GlideReachWords.startStepM
+        let step = GlideReachSteps.startStepM
         let next = startHeightM.map { $0 + step } ?? ((ground / step).rounded(.down) + 1) * step
-        startHeightM = min(next, GlideReachWords.highestStartM)
+        startHeightM = min(next, GlideReachSteps.highestStartM)
     }
 
     /// The start height one step down, and the ground again once a step
     /// would reach it.
     func lowerStart() {
         guard let height = startHeightM else { return }
-        let next = height - GlideReachWords.startStepM
+        let next = height - GlideReachSteps.startStepM
         startHeightM = next <= (answer?.groundM ?? 0) ? nil : next
     }
 }
 
-/// What the glide's reach says that is not the core's: the entry, the
-/// settings' names, their steps.
-enum GlideReachWords {
-    static let entry = "What a glide reaches from here"
-    static let title = "What a glide reaches"
-    static let working = "Reading the ground around the place."
-    static let clear = "Clear"
-
+/// The steps of the glide's reach's settings and where they begin; the
+/// words are the core's (`glideReachCardWords`).
+enum GlideReachSteps {
     /// The glide moves by this, between these: as in the settings.
     static let glideStep = 0.5
     static let glideRatios = 4.0...14.0

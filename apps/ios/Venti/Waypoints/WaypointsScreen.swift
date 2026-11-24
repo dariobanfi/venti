@@ -38,7 +38,7 @@ struct WaypointsScreen: View {
                     .buttonStyle(.venti(.primary))
                 }
             } else if shown.isEmpty {
-                ContentUnavailableView.search(text: search)
+                NothingFound(searched: search)
             }
         }
         .searchable(text: $search, prompt: "Waypoint")

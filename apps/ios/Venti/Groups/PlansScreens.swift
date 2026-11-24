@@ -18,7 +18,7 @@ struct PlansSheet: View {
             VentiList {
                 if !account.isSignedIn {
                     Section {
-                        Text("Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, then make a group or join one.")
+                        Text(groups.words.plansSignedOut)
                             .foregroundStyle(.secondary)
                             .accessibilityIdentifier("plans-signed-out")
                     }

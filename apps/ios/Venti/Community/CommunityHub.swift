@@ -5,7 +5,7 @@ import VentiCore
 /// owner's testing session of 2026-11-22, item 7), as the web's
 /// `/community/` has it. In this order: the plans of the pilot's groups
 /// for the coming days, each a card with its day and time large, its
-/// place, its group, the faces of who is in and "I am in"; the flights of
+/// place, its group, the faces of who is in and "I'm in"; the flights of
 /// the pilots they follow, each a card with the track's shape; the pilots
 /// near the iPhone's position, or the map's middle where the position is
 /// not allowed; and what the pilot was told. The field over it finds a
@@ -612,7 +612,7 @@ struct CommunityHub: View {
 
 /// One plan as a card: its day and time at the top, the time large; the
 /// place with the pack's site sign; its group; the faces of who is in
-/// with the core's sentence; and "I am in", pressed while the pilot is
+/// with the core's sentence; and "I'm in", pressed while the pilot is
 /// in. The upper part opens the plan's page, where everything else is.
 struct PlanCard: View {
     let plan: PlanView
@@ -659,7 +659,7 @@ struct PlanCard: View {
                 toggle()
             } label: {
                 Label {
-                    Text("I am in")
+                    Text(communityWords().imIn)
                 } icon: {
                     if plan.amIn {
                         ChipTick()

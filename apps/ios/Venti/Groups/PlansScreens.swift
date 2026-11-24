@@ -223,7 +223,7 @@ struct PlanScreen: View {
                             Text(name)
                         }
                     }
-                    Button(plan.amIn ? "I am out" : "I am in", systemImage: plan.amIn ? "xmark" : "checkmark") {
+                    Button(plan.amIn ? communityWords().imOut : communityWords().imIn, systemImage: plan.amIn ? "xmark" : "checkmark") {
                         act { try await groups.setIn(plan, !plan.amIn) }
                     }
                     .disabled(isWorking)

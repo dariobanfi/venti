@@ -15,7 +15,10 @@ use venti_api_types::v1::{
 use venti_domain::GeoPoint;
 
 use crate::community::{PublicFlightsOrder, Which, which};
-use crate::{Bounds, Coordinate, CoreError, GliderClassKind, RouteKind};
+use crate::{
+    Bounds, Coordinate, CoreError, GliderClassKind, PublicFlights, Ranking, RouteKind,
+    public_flights, ranking,
+};
 
 /// What a pilot chose to search public flights by. The default chooses
 /// nothing: every public flight.
@@ -164,7 +167,7 @@ fn sort(order: PublicFlightsOrder) -> Option<FlightSort> {
 
 /// The path and query to `GET` for one page of everyone's public flights
 /// that a search finds: as [`crate::public_flights_path`], narrowed by
-/// `search`. The answer is read by [`crate::public_flights`].
+/// `search`. The answer is read by [`searched_flights`].
 #[uniffi::export]
 pub fn public_flights_search_path(
     order: PublicFlightsOrder,
@@ -192,7 +195,8 @@ pub fn public_flights_search_path(
     .path_and_query())
 }
 
-/// The same for one pilot's public flights.
+/// The same for one pilot's public flights. The answer is read by
+/// [`searched_flights`].
 #[uniffi::export]
 pub fn pilot_flights_search_path(
     handle: String,
@@ -226,7 +230,7 @@ pub fn pilot_flights_search_path(
 /// finds: as [`crate::ranking_path`], narrowed by `search`. With
 /// `pilot_country`, an ISO 3166-1 alpha-2 code, only the pilots of that
 /// country are ranked (a national ranking; the take-off's country is
-/// `search.country`). The answer is read by [`crate::ranking`].
+/// `search.country`). The answer is read by [`searched_ranking`].
 #[uniffi::export(default(pilot_country = None))]
 pub fn ranking_search_path(
     area: Option<Bounds>,
@@ -251,6 +255,40 @@ pub fn ranking_search_path(
         ..RankingRequest::default()
     }
     .path_and_query())
+}
+
+/// What the pilot is told when the server gave a search up: it stops a
+/// read of everyone's flights after two seconds and answers `503`, and a
+/// narrower search is quicker.
+const SEARCH_TOO_LONG: &str =
+    "The search took too long. Narrow it: a smaller area, fewer days or more choices.";
+
+/// A search the server gave up on, in words; nothing for any other
+/// answer, which the list's own reader reads.
+fn gave_up(status: u16) -> Result<(), CoreError> {
+    if status == 503 {
+        return Err(CoreError::Server {
+            message: SEARCH_TOO_LONG.to_owned(),
+        });
+    }
+    Ok(())
+}
+
+/// Reads the server's answer to [`public_flights_search_path`] and to
+/// [`pilot_flights_search_path`]: as [`public_flights`], and a search the
+/// server gave up on is one to narrow.
+#[uniffi::export]
+pub fn searched_flights(status: u16, body: Vec<u8>) -> Result<PublicFlights, CoreError> {
+    gave_up(status)?;
+    public_flights(status, body)
+}
+
+/// Reads the server's answer to [`ranking_search_path`]: as [`ranking`],
+/// and a search the server gave up on is one to narrow.
+#[uniffi::export]
+pub fn searched_ranking(status: u16, body: Vec<u8>) -> Result<Ranking, CoreError> {
+    gave_up(status)?;
+    ranking(status, body)
 }
 
 /// The words of the chips that show a search, one a choice, in the order
@@ -461,5 +499,49 @@ mod tests {
         );
         assert_eq!(flight_search_bounds().max_radius_km, 100.0);
         assert_eq!(flight_search_bounds().max_area_points, 50);
+    }
+
+    /// The message of an error.
+    fn said<T: std::fmt::Debug>(answer: Result<T, CoreError>) -> String {
+        match answer {
+            Err(CoreError::Server { message }) => message,
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_search_the_server_gave_up_on_is_one_to_narrow() {
+        // What the server sends when a read of everyone's flights runs
+        // past its two seconds: the database cancels it, and the store
+        // says it is unavailable (`From<StoreError> for ApiError`).
+        let gave_up = serde_json::to_vec(&api::ErrorResponse::new(
+            api::ErrorCode::Unavailable,
+            "the server cannot reach its database; try again shortly",
+        ))
+        .unwrap();
+        assert_eq!(
+            String::from_utf8(gave_up.clone()).unwrap(),
+            r#"{"error":{"code":"unavailable","message":"the server cannot reach its database; try again shortly"}}"#
+        );
+        let narrow =
+            "The search took too long. Narrow it: a smaller area, fewer days or more choices.";
+        assert_eq!(said(searched_flights(503, gave_up.clone())), narrow);
+        assert_eq!(said(searched_ranking(503, gave_up.clone())), narrow);
+        // A list that is no search keeps the server's being busy.
+        assert_eq!(
+            said(public_flights(503, gave_up.clone())),
+            "The server is busy or being restarted. Try again in a moment."
+        );
+        assert_eq!(
+            said(ranking(503, gave_up)),
+            "The server is busy or being restarted. Try again in a moment."
+        );
+        // Every other answer is read as the list's own reader reads it.
+        let found = searched_flights(200, br#"{"flights":[]}"#.to_vec()).unwrap();
+        assert!(found.flights.is_empty() && found.next.is_none());
+        assert_eq!(
+            said(searched_ranking(500, b"not json".to_vec())),
+            "The server could not answer (status 500)."
+        );
     }
 }

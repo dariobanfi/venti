@@ -3201,8 +3201,8 @@ impl ThermalMapHours {
     }
 
     /// The forecast wind at a place in one hour, by the hour's number:
-    /// speed, direction it comes from, gust and band, for a take-off's
-    /// fan. Nothing outside the map, where there is no wind, and on the
+    /// speed, direction it comes from, gust, band and whether it is calm,
+    /// for a take-off's fan. Nothing outside the map, where there is no wind, and on the
     /// layers without one.
     #[wasm_bindgen(js_name = windAt)]
     pub fn wind_at(
@@ -3823,6 +3823,21 @@ pub fn ranking_search_path(
         pilot_country,
     )
     .map_err(thrown)
+}
+
+/// Reads the server's answer to `publicFlightsSearchPath` and to
+/// `pilotFlightsSearchPath`: as `publicFlights`, and a search the server
+/// gave up on is one to narrow.
+#[wasm_bindgen(js_name = searchedFlights)]
+pub fn searched_flights(status: u16, body: Vec<u8>) -> Result<Ts<PublicFlights>, JsValue> {
+    to_js(&venti_core::searched_flights(status, body).map_err(thrown)?)
+}
+
+/// Reads the server's answer to `rankingSearchPath`: as `ranking`, and a
+/// search the server gave up on is one to narrow.
+#[wasm_bindgen(js_name = searchedRanking)]
+pub fn searched_ranking(status: u16, body: Vec<u8>) -> Result<Ts<Ranking>, JsValue> {
+    to_js(&venti_core::searched_ranking(status, body).map_err(thrown)?)
 }
 
 /// The words of the chips that show a search: "Within 10 km",

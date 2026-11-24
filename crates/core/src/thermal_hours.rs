@@ -520,6 +520,10 @@ pub struct ThermalMapWind {
     /// The band of the mean speed, the step of the wind scale it is drawn
     /// in.
     pub band: WindBand,
+    /// Whether the mean speed is too light for a direction worth drawing,
+    /// under 2 km/h: a take-off's fan then shows calm, as the map's arrow
+    /// does.
+    pub calm: bool,
 }
 
 /// One layer of the hours of a day of the thermal map: the server's
@@ -716,6 +720,7 @@ impl ThermalMapHours {
             from_deg: at.wind_from_deg.get(cell).copied().flatten(),
             gust_kmh: at.gust_kmh.get(cell).copied().flatten(),
             band: band_of_kmh(f64::from(kmh)),
+            calm: kmh < CALM_BELOW_KMH,
         })
     }
 
@@ -1132,10 +1137,17 @@ mod tests {
                 from_deg: None,
                 gust_kmh: Some(41),
                 band: band_of_kmh(22.0),
+                calm: false,
             })
         );
         let west = hours.wind_at(47.01, 11.0, 1).unwrap();
         assert_eq!((west.kmh, west.from_deg), (12, Some(270)));
+        assert!(!west.calm);
+        // At eight, 1 km/h from the north-east is calm, though it has a
+        // direction; 9 km/h is not.
+        let light = hours.wind_at(47.01, 11.0, 0).unwrap();
+        assert_eq!((light.kmh, light.from_deg, light.calm), (1, Some(40), true));
+        assert!(!hours.wind_at(47.01, 11.1, 0).unwrap().calm);
         // No wind over the lake at eleven, nothing outside the map or the
         // day, and none on the layer of the thermals.
         assert_eq!(hours.wind_at(47.01, 11.2, 1), None);

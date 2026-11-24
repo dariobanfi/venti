@@ -101,7 +101,7 @@ object CommunityWords {
      * "Sat, 15 Aug 2026 · 🇦🇹 Brauneck · EN B · Sample Wing".
      */
     fun detail(flight: PublicFlight): String =
-        listOfNotNull(Format.day(flight.startUnixS), place(flight), glider(flight)).joinToString(" · ")
+        listOfNotNull(Format.day(flight.startUnixS, Format.zone(flight.timeZone)), place(flight), glider(flight)).joinToString(" · ")
 
     /** The take-off, with its country's flag before it; the flag alone where the site has no name. */
     fun place(flight: PublicFlight): String? =
@@ -132,7 +132,7 @@ object CommunityWords {
     fun spoken(flight: PublicFlight): String =
         listOfNotNull(
             flight.pilotCountry?.let(Countries::name),
-            Format.day(flight.startUnixS),
+            Format.day(flight.startUnixS, Format.zone(flight.timeZone)),
             flight.takeoffName,
             flight.takeoffCountry?.let(Countries::name),
             glider(flight),

@@ -79,6 +79,7 @@ import fly.venti.core.Totals
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import fly.venti.app.design.Common
 
@@ -467,7 +468,7 @@ private fun FlightList(
         for (year in years) {
             val days = LogbookDay.days(year.flights)
             days.forEachIndexed { index, day ->
-                item(key = "day-${day.startUnixS}") {
+                item(key = "day-${day.date}") {
                     DayHeader(day, year = year.takeIf { index == 0 })
                     Group {
                         for (entry in day.flights) {
@@ -498,26 +499,30 @@ internal fun groupedShape(index: Int, count: Int): Shape {
     return RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
 }
 
-/** The flights of one day, by the phone's own clock, newest first. */
+/** The flights of one day, by the clock of the place each was flown, newest first. */
 data class LogbookDay(
-    /** The day's first second, seconds since 1970. */
-    val startUnixS: Long,
+    /** The day, as the calendar where the flights took off has it. */
+    val date: LocalDate,
     val flights: List<LogbookEntry>,
 ) {
     /** The day's time in the air. */
     val airtimeS: Long get() = flights.sumOf { it.durationS }
 
     companion object {
-        /** The flights, already newest first, in runs of one calendar day. */
-        fun days(flights: List<LogbookEntry>, zone: ZoneId = ZoneId.systemDefault()): List<LogbookDay> {
+        /**
+         * The flights, already newest first, in runs of one calendar day:
+         * each flight's day by the zone it was flown in, the phone's own
+         * where the core knows none (or `zone`, for a test).
+         */
+        fun days(flights: List<LogbookEntry>, zone: ZoneId? = null): List<LogbookDay> {
             val days = mutableListOf<LogbookDay>()
             for (entry in flights) {
-                val start = Instant.ofEpochSecond(entry.startUnixS).atZone(zone).toLocalDate().atStartOfDay(zone).toEpochSecond()
+                val date = Instant.ofEpochSecond(entry.startUnixS).atZone(zone ?: Format.zone(entry.timeZone)).toLocalDate()
                 val last = days.lastOrNull()
-                if (last != null && last.startUnixS == start) {
+                if (last != null && last.date == date) {
                     days[days.lastIndex] = last.copy(flights = last.flights + entry)
                 } else {
-                    days += LogbookDay(start, listOf(entry))
+                    days += LogbookDay(date, listOf(entry))
                 }
             }
             return days
@@ -629,7 +634,7 @@ private fun DayHeader(day: LogbookDay, year: LogbookYear?) {
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                Format.dayInYear(day.startUnixS),
+                day.flights.first().let { Format.dayInYear(it.startUnixS, Format.zone(it.timeZone)) },
                 style = MaterialTheme.typography.titleMedium,
                 color = Venti.colours.text,
                 modifier = Modifier.padding(end = VentiSpace.s2),
@@ -708,7 +713,7 @@ private fun RowWords(entry: LogbookEntry, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                Format.time(entry.startUnixS),
+                Format.time(entry.startUnixS, Format.zone(entry.timeZone)),
                 style = VentiType.instrumentM.text,
                 color = Venti.colours.text,
                 maxLines = 1,
@@ -797,7 +802,7 @@ object LogbookWords {
      */
     fun place(entry: LogbookEntry): String {
         entry.takeoffName?.takeIf { it.isNotEmpty() }?.let { return it }
-        val first = entry.outline.firstOrNull() ?: return Format.dayInYear(entry.startUnixS)
+        val first = entry.outline.firstOrNull() ?: return Format.dayInYear(entry.startUnixS, Format.zone(entry.timeZone))
         return Format.place(first.lat, first.lon)
     }
 
@@ -812,7 +817,7 @@ object LogbookWords {
             else -> "Triangle"
         }
         return listOfNotNull(
-            "Took off at ${Format.time(entry.startUnixS)}",
+            "Took off at ${Format.time(entry.startUnixS, Format.zone(entry.timeZone))}",
             "airtime ${Format.hoursMinutes(entry.durationS)} h",
             entry.glider?.takeIf { it.isNotEmpty() },
             listOfNotNull(kind, distance(entry)).joinToString(" "),

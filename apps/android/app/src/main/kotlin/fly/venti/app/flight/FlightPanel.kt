@@ -201,7 +201,7 @@ private fun Header(
 
 /** What kind of flight it was and on which day: "FAI triangle · Sat, 4 Jul 2026". The day alone until it is scored. */
 internal fun kindAndDay(flight: FlightView, score: FlightScore?): String {
-    val day = Format.day(flight.startUnixS)
+    val day = Format.day(flight.startUnixS, Format.zone(flight.timeZone))
     score ?: return day
     val kind = when (score.kind) {
         RouteKind.FREE_FLIGHT -> "Free flight"
@@ -212,7 +212,8 @@ internal fun kindAndDay(flight: FlightView, score: FlightScore?): String {
 }
 
 private fun subtitle(flight: FlightView): String {
-    val times = "${Format.time(flight.startUnixS)} – ${Format.time(flight.startUnixS + flight.durationS)}"
+    val zone = Format.zone(flight.timeZone)
+    val times = "${Format.time(flight.startUnixS, zone)} – ${Format.time(flight.startUnixS + flight.durationS, zone)}"
     val glider = flight.glider
     return if (glider.isNullOrEmpty()) times else "$times · $glider"
 }
@@ -231,7 +232,7 @@ private fun Totals(flight: FlightView) {
 private fun Moment(flight: FlightView, point: TrackPoint, ground: List<GroundUnderFlight>) {
     val seconds = point.seconds.toLong()
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Metric("Time", Format.time(flight.startUnixS + seconds), Modifier.weight(1f))
+        Metric("Time", Format.time(flight.startUnixS + seconds, Format.zone(flight.timeZone)), Modifier.weight(1f))
         // How high over the ground the glider was, where the ground is
         // known; else how long it had been in the air.
         val above = GroundAtMoment.heightAbove(point.seconds, ground)

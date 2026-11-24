@@ -146,7 +146,7 @@ object CompareWords {
     const val NOT_IN_THE_AIR = "Not in the air then"
 
     /** One of the pilot's own flights, named: "Your flight of Sat, 4 Jul 2026". */
-    fun own(startUnixS: Long): String = "Your flight of ${Format.day(startUnixS)}"
+    fun own(startUnixS: Long, timeZone: String? = null): String = "Your flight of ${Format.day(startUnixS, Format.zone(timeZone))}"
 
     /** How far apart two places are over the ground, metres: on a sphere, which is near enough for a line in a panel. */
     fun metresBetween(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
@@ -293,7 +293,7 @@ fun CompareChooser(
                                             try {
                                                 val other = sources.logbook.flight(entry.id)
                                                 val otherAnalysis = runCatching { sources.logbook.analysis(entry.id) }.getOrNull()
-                                                finish(other, otherAnalysis, CompareWords.own(entry.startUnixS))
+                                                finish(other, otherAnalysis, CompareWords.own(entry.startUnixS, entry.timeZone))
                                             } catch (error: CancellationException) {
                                                 throw error
                                             } catch (error: Exception) {
@@ -337,7 +337,7 @@ private fun OwnFlightLine(entry: LogbookEntry, isLoading: Boolean, onChoose: () 
             .clickable(role = Role.Button, onClick = onChoose)
             .padding(horizontal = 12.dp, vertical = 10.dp)
             .clearAndSetSemantics {
-                contentDescription = Format.day(entry.startUnixS)
+                contentDescription = Format.day(entry.startUnixS, Format.zone(entry.timeZone))
                 stateDescription = "${Format.kilometres(entry.score?.distanceM ?: entry.trackLengthM)} kilometres, " +
                     "${Format.hoursMinutes(entry.durationS)} hours"
             },
@@ -346,9 +346,9 @@ private fun OwnFlightLine(entry: LogbookEntry, isLoading: Boolean, onChoose: () 
         TrackThumbnail(entry.outline)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(Format.day(entry.startUnixS), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(Format.day(entry.startUnixS, Format.zone(entry.timeZone)), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                entry.takeoffName ?: Format.time(entry.startUnixS),
+                entry.takeoffName ?: Format.time(entry.startUnixS, Format.zone(entry.timeZone)),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

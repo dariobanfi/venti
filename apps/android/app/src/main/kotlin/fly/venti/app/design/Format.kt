@@ -33,6 +33,15 @@ object Format {
     @Volatile
     var uses24HourClock: Boolean = true
 
+    /**
+     * The clock a flight's times are read by: the zone it was flown in, as
+     * the core names it (`Europe/Vienna`, `Etc/GMT-2`), or the phone's own
+     * where the core knows none or the name is one Java does not know.
+     * Forecasts, stations and "now" keep the phone's zone.
+     */
+    fun zone(timeZone: String?): ZoneId =
+        timeZone?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneId.systemDefault()
+
     private fun at(unixSeconds: Long, pattern: String, zone: ZoneId): String =
         DateTimeFormatter.ofPattern(pattern).format(Instant.ofEpochSecond(unixSeconds).atZone(zone))
 

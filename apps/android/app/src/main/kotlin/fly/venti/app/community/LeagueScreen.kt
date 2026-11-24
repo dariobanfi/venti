@@ -501,14 +501,14 @@ private fun RankedFlightLine(flight: PublicFlight, onClick: () -> Unit) {
             .heightIn(min = VentiSize.touch)
             .padding(horizontal = VentiSpace.s3)
             .clearAndSetSemantics {
-                contentDescription = Format.day(flight.startUnixS)
+                contentDescription = Format.day(flight.startUnixS, Format.zone(flight.timeZone))
                 stateDescription = listOfNotNull(triangle, CommunityWords.distance(flight), "$points points").joinToString(", ")
             },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
     ) {
         Text(
-            Format.day(flight.startUnixS),
+            Format.day(flight.startUnixS, Format.zone(flight.timeZone)),
             style = MaterialTheme.typography.bodyMedium,
             color = colours.textSecondary,
             maxLines = 1,

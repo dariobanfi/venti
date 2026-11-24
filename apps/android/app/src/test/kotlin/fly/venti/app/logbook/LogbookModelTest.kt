@@ -12,7 +12,10 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
+import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.TimeZone
 import java.util.concurrent.CountDownLatch
 
 /** Checks the logbook's model against the real core. */
@@ -412,10 +415,41 @@ class LogbookModelTest {
         )
         val days = LogbookDay.days(flights, ZoneOffset.UTC)
         assertEquals(listOf(listOf("c", "b"), listOf("a")), days.map { day -> day.flights.map { it.id } })
-        assertEquals(noon - 43_200, days.first().startUnixS)
+        assertEquals(Instant.ofEpochSecond(noon).atZone(ZoneOffset.UTC).toLocalDate(), days.first().date)
         assertEquals("0:58", Format.hoursMinutes(days.first().airtimeS))
         // The take-off's name, else where it is.
         assertEquals("Wallberg", LogbookWords.place(sample.copy(takeoffName = "Wallberg")))
         assertTrue(Regex("\\d+\\.\\d{4}° [NS], .*").matches(LogbookWords.place(sample.copy(takeoffName = null))))
+    }
+
+    @Test
+    fun aCaliforniaFlightShowsItsTimesByTheClockInLosAngeles() = runBlocking {
+        val phone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("Europe/Berlin"))
+        try {
+            val logbook = makeLogbook()
+            // Torrey Pines, at 03:00 UTC on 5 July 2026: 20:00 on 4 July in
+            // California, 05:00 on 5 July in Berlin.
+            val torreyPines = listOf(
+                "AXVE000",
+                "HFDTEDATE:050726,01",
+                "B0300003253394N11715096WA0011000110",
+                "B0300103253400N11715090WA0011500115",
+                "B0300203253406N11715084WA0012000120",
+                "",
+            ).joinToString("\r\n")
+            logbook.importFiles(listOf(FlightFileSource("torrey.igc") { torreyPines }))
+            val entry = logbook.view.years.first().flights.first()
+            assertEquals("America/Los_Angeles", entry.timeZone)
+            assertTrue(LogbookWords.spoken(entry), LogbookWords.spoken(entry).startsWith("Took off at 20:00"))
+            assertEquals(LocalDate.of(2026, 7, 4), LogbookDay.days(listOf(entry)).single().date)
+            val flight = logbook.flight(entry.id)
+            assertEquals("Sat, 4 Jul 2026", Format.day(flight.startUnixS, Format.zone(flight.timeZone)))
+            // The phone's own clock where the core knows no zone.
+            assertEquals("05:00", Format.time(entry.startUnixS, Format.zone(null)))
+            assertEquals("05:00", Format.time(entry.startUnixS, Format.zone("Not/AZone")))
+        } finally {
+            TimeZone.setDefault(phone)
+        }
     }
 }

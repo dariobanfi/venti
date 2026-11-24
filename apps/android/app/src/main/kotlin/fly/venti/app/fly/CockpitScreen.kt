@@ -1328,11 +1328,15 @@ private fun QuietButton(title: String, @DrawableRes icon: Int, modifier: Modifie
     }
 }
 
-/** How long a finger stays on "End" to end the session, milliseconds. */
-private const val HOLD_TO_END_MILLISECONDS = 1_000
+/**
+ * How long a finger stays on "End" to end the session, milliseconds: two
+ * thirds of a second (the owner, 2026-11-23; a whole second before). The
+ * pill fills over the same time.
+ */
+private const val HOLD_TO_END_MILLISECONDS = 670
 
 /**
- * "End" in the top line, which ends the session when held for a second, so
+ * "End" in the top line, which ends the session when held for two thirds of a second, so
  * that a glove, a line or a drop of rain ends nothing. It fills while the
  * finger stays, and nothing asks again. TalkBack's double tap ends it,
  * which is deliberate enough. The touch is as high as the line; the pill

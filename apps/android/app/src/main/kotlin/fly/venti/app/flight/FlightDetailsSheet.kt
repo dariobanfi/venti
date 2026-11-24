@@ -48,6 +48,7 @@ import fly.venti.core.GlideSummary
 import fly.venti.core.RouteKind
 import fly.venti.core.ThermalSummary
 import fly.venti.app.design.Common
+import java.time.ZoneId
 
 /**
  * Everything known about a flight, as a list. Opened from the flight panel.
@@ -110,14 +111,14 @@ fun FlightDetailsSheet(
             if (analysis != null && analysis.takeoff != null) {
                 item { AirSection(analysis) }
                 if (analysis.thermals.isNotEmpty()) {
-                    item { ThermalsSection(analysis.thermals, flight.startUnixS, onSelect) }
+                    item { ThermalsSection(analysis.thermals, flight.startUnixS, Format.zone(flight.timeZone), onSelect) }
                 }
                 if (analysis.glides.isNotEmpty()) {
-                    item { GlidesSection(analysis.glides, flight.startUnixS, onSelect) }
+                    item { GlidesSection(analysis.glides, flight.startUnixS, Format.zone(flight.timeZone), onSelect) }
                 }
             }
             if (airspace != null) {
-                item { AirspaceSection(airspace, flight.startUnixS, onSelect) }
+                item { AirspaceSection(airspace, flight.startUnixS, Format.zone(flight.timeZone), onSelect) }
             }
             item { ExtremesSection(flight) }
             item { ColoursSection() }
@@ -130,9 +131,10 @@ fun FlightDetailsSheet(
 private fun FlightSection(flight: FlightView) {
     SectionHeader("Flight")
     Group {
-        row { ValueRow("Date", Format.day(flight.startUnixS)) }
-        row { ValueRow("Take-off", Format.time(flight.startUnixS)) }
-        row { ValueRow("Landing", Format.time(flight.startUnixS + flight.durationS)) }
+        val zone = Format.zone(flight.timeZone)
+        row { ValueRow("Date", Format.day(flight.startUnixS, zone)) }
+        row { ValueRow("Take-off", Format.time(flight.startUnixS, zone)) }
+        row { ValueRow("Landing", Format.time(flight.startUnixS + flight.durationS, zone)) }
         row { ValueRow("Airtime", "${Format.hoursMinutes(flight.durationS)} h") }
         row { ValueRow("Track length", "${Format.kilometres(flight.trackLengthM)} km") }
     }
@@ -189,13 +191,13 @@ private fun share(seconds: Long, analysis: FlightAnalysis): String {
 
 /** Every thermal: when, how much height, how fast, and the wind it showed. */
 @Composable
-private fun ThermalsSection(thermals: List<ThermalSummary>, flightStart: Long, onSelect: (Int) -> Unit) {
+private fun ThermalsSection(thermals: List<ThermalSummary>, flightStart: Long, zone: ZoneId, onSelect: (Int) -> Unit) {
     SectionHeader("Thermals")
     Group {
         for (thermal in thermals) {
             row {
                 ValueRow(
-                    title = Format.time(flightStart + thermal.entry.seconds.toLong()),
+                    title = Format.time(flightStart + thermal.entry.seconds.toLong(), zone),
                     detail = detail(thermal),
                     value = "${Format.signedMetres(thermal.gainM)} m",
                     valueDetail = "${Format.climb(thermal.climbMs)} m/s",
@@ -216,13 +218,13 @@ private fun detail(thermal: ThermalSummary): String {
 
 /** Every glide: when, how far, at what glide ratio and speed. */
 @Composable
-private fun GlidesSection(glides: List<GlideSummary>, flightStart: Long, onSelect: (Int) -> Unit) {
+private fun GlidesSection(glides: List<GlideSummary>, flightStart: Long, zone: ZoneId, onSelect: (Int) -> Unit) {
     SectionHeader("Glides")
     Group {
         for (glide in glides) {
             row {
                 ValueRow(
-                    title = Format.time(flightStart + glide.start.seconds.toLong()),
+                    title = Format.time(flightStart + glide.start.seconds.toLong(), zone),
                     detail = "${Format.kilometresPerHour(glide.speedMs)} km/h",
                     value = "${Format.kilometres(glide.distanceM)} km",
                     valueDetail = glide.glideRatio?.let { "glide ${Format.glideRatio(it)}" } ?: "no height lost",
@@ -265,8 +267,8 @@ object FlightAirspaceWords {
     fun kind(crossing: AirspaceCrossing): String = "${crossing.kind} · ${crossing.lower} to ${crossing.upper}"
 
     /** When the flight went in, and between which heights it was inside: "10:12 · 1,704 to 1,727 m". */
-    fun moment(crossing: AirspaceCrossing, flightStart: Long): String =
-        "${Format.time(flightStart + crossing.entry.seconds.toLong())} · " +
+    fun moment(crossing: AirspaceCrossing, flightStart: Long, zone: ZoneId = ZoneId.systemDefault()): String =
+        "${Format.time(flightStart + crossing.entry.seconds.toLong(), zone)} · " +
             "${Format.metres(crossing.lowestM)} to ${Format.metres(crossing.highestM)} m"
 
     /** How long it stayed inside: "0:41 min". */
@@ -278,11 +280,11 @@ object FlightAirspaceWords {
  * Choosing a stretch marks where it began.
  */
 @Composable
-private fun AirspaceSection(airspace: FlightAirspace, flightStart: Long, onSelect: (Int) -> Unit) {
+private fun AirspaceSection(airspace: FlightAirspace, flightStart: Long, zone: ZoneId, onSelect: (Int) -> Unit) {
     SectionHeader("Airspace")
     Group {
         for (crossing in airspace.crossings) {
-            row { AirspaceCrossingRow(crossing, flightStart) { onSelect(crossing.entry.trackIndex.toInt()) } }
+            row { AirspaceCrossingRow(crossing, flightStart, zone) { onSelect(crossing.entry.trackIndex.toInt()) } }
         }
         FlightAirspaceWords.summary(airspace)?.let { summary ->
             row {
@@ -300,7 +302,7 @@ private fun AirspaceSection(airspace: FlightAirspace, flightStart: Long, onSelec
 
 /** One stretch of the flight inside an airspace, or possibly inside it. */
 @Composable
-private fun AirspaceCrossingRow(crossing: AirspaceCrossing, flightStart: Long, onClick: () -> Unit) {
+private fun AirspaceCrossingRow(crossing: AirspaceCrossing, flightStart: Long, zone: ZoneId, onClick: () -> Unit) {
     val quiet = MaterialTheme.colorScheme.onSurfaceVariant
     Row(
         modifier = Modifier
@@ -320,7 +322,7 @@ private fun AirspaceCrossingRow(crossing: AirspaceCrossing, flightStart: Long, o
             Text(FlightAirspaceWords.name(crossing), style = MaterialTheme.typography.bodyLarge)
             Text(FlightAirspaceWords.kind(crossing), style = MaterialTheme.typography.bodyMedium, color = quiet)
             Text(
-                FlightAirspaceWords.moment(crossing, flightStart),
+                FlightAirspaceWords.moment(crossing, flightStart, zone),
                 style = MaterialTheme.typography.bodyMedium.numbers,
                 color = quiet,
             )

@@ -80,7 +80,6 @@ import fly.venti.app.settings.SettingsScreen
 import fly.venti.app.task.TaskModel
 import fly.venti.app.task.TaskScreen
 import fly.venti.app.waypoints.WaypointsScreen
-import fly.venti.app.sites.KeptSitesScreen
 import fly.venti.app.sites.SiteActions
 import fly.venti.app.sites.SiteEditing
 import fly.venti.app.sites.SiteFormDraft
@@ -529,11 +528,6 @@ private fun Sections(
                     SettingsRoute.Waypoints -> kept.SaveableStateProvider("waypoints") {
                         WaypointsScreen(session.waypoints, onBack = { navigation.back() })
                     }
-                    SettingsRoute.KeptSites -> KeptSitesScreen(
-                        session.keptSites,
-                        session.preferences,
-                        onBack = { navigation.back() },
-                    )
                     SettingsRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
                     SettingsRoute.GliderAndCockpit -> CockpitSettingsScreen(
                         session.preferences,

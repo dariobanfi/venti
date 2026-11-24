@@ -90,6 +90,14 @@ fun CreditsScreen(wind: WindModel, onLicences: () -> Unit, onBack: () -> Unit) {
                 }
                 row {
                     Credit(
+                        "Time zones",
+                        "© OpenStreetMap contributors, under the Open Database License, by " +
+                            "timezone-boundary-builder.",
+                        link = "https://www.openstreetmap.org/copyright",
+                    )
+                }
+                row {
+                    Credit(
                         "Thermal map",
                         "thermal.kk7.ch by M. von Känel, under CC-BY-NC-SA 4.0. Shown only while it is switched on.",
                         link = "https://creativecommons.org/licenses/by-nc-sa/4.0/",

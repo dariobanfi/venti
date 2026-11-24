@@ -2,7 +2,6 @@ package fly.venti.app.sites
 
 import fly.venti.app.TestSupport
 import fly.venti.app.logbook.LogbookModel
-import fly.venti.core.Coordinate
 import fly.venti.core.SiteKind
 import fly.venti.core.sitesMap
 import kotlinx.coroutines.runBlocking
@@ -88,26 +87,6 @@ class KeptSitesModelTest {
         val all = checkNotNull(kept.all(null))
         assertEquals(map.asOfUnixS, all.sites.single().asOfUnixS)
         assertTrue(all.credits.any { "OpenStreetMap" in it.text })
-    }
-
-    @Test
-    fun aKeptSiteSaysHowFarItIsWhatItIsAndHowOldItsRecordIs() = runBlocking {
-        val kept = model()
-        kept.keep(takeoff, map.credits, map.asOfUnixS)
-
-        val byName = checkNotNull(kept.all(null)).sites.single()
-        val detail = KeptSitesWords.detail(byName)
-        assertTrue(detail, detail.startsWith(SiteWords.detail(takeoff)))
-        assertTrue(detail, "\nAs of " in detail)
-
-        // From a place due south of it, the distance and the direction come first.
-        val south = Coordinate(lat = takeoff.position.lat - 0.1, lon = takeoff.position.lon)
-        val near = checkNotNull(kept.all(south)).sites.single()
-        assertTrue(KeptSitesWords.detail(near), KeptSitesWords.detail(near).startsWith("11.1 km N · "))
-
-        val under = KeptSitesWords.under(checkNotNull(kept.all(null)))
-        assertTrue(under, under.startsWith("Kept on this device only"))
-        assertTrue(under, "© OpenStreetMap contributors" in under)
     }
 
     @Test

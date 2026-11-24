@@ -3,7 +3,6 @@ package fly.venti.app.settings
 import app.venti.design.VentiSpace
 import fly.venti.core.pagesWords
 import fly.venti.app.maps.OfflineMapsWords
-import fly.venti.app.sites.KeptSitesWords
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -132,11 +131,6 @@ fun SettingsScreen(
 
             SectionHeader("Cockpit")
             Group {
-                row {
-                    LinkRow(KeptSitesWords.TITLE, R.drawable.ic_chevron_right, Modifier.testTag("kept-sites-link")) {
-                        onOpen(SettingsRoute.KeptSites)
-                    }
-                }
                 row {
                     LinkRow("Waypoints", R.drawable.ic_chevron_right) { onOpen(SettingsRoute.Waypoints) }
                 }

@@ -99,7 +99,7 @@ object StatisticsWords {
     fun of(route: RouteStatistics, farthest: BestFlight): String = listOfNotNull(
         Format.flights(route.flights),
         route.closed.takeIf { it > 0u }?.let { "$it closed" },
-        "farthest ${Format.kilometres(farthest.value)} km on ${Format.day(farthest.startUnixS)}",
+        "farthest ${Format.kilometres(farthest.value)} km on ${Format.day(farthest.startUnixS, Format.zone(farthest.timeZone))}",
     ).joinToString(" · ")
 
     /** What a place is called: the pilot's name for it, or where it is: "47.4275° N, 11.6964° E". */
@@ -108,7 +108,7 @@ object StatisticsWords {
     /** "5:48 h · farthest 44.3 km on Sun, 31 Aug 2025" */
     fun of(site: SiteStatistics): String = listOfNotNull(
         "${Format.hoursMinutes(site.airtimeS)} h",
-        site.farthest?.let { "farthest ${Format.kilometres(it.value)} km on ${Format.day(it.startUnixS)}" },
+        site.farthest?.let { "farthest ${Format.kilometres(it.value)} km on ${Format.day(it.startUnixS, Format.zone(it.timeZone))}" },
     ).joinToString(" · ")
 
     /** How many places are listed before the rest are asked for. */
@@ -345,7 +345,7 @@ private fun GroupRows.best(
     row {
         ValueRow(
             title = title,
-            detail = Format.day(best.startUnixS),
+            detail = Format.day(best.startUnixS, Format.zone(best.timeZone)),
             value = text(best.value),
             onClick = { onOpen(best.flightId) },
         )

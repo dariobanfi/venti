@@ -106,10 +106,12 @@ fun AltitudeChart(
             drawText(text, topLeft = Offset(plot.right + 6.dp.toPx(), y(altitude) - text.size.height / 2f))
         }
         // Times of day, without AM or PM: the panel's heading says which.
-        for (time in Axis.clockTicks(flight.startUnixS, flight.startUnixS + flight.durationS, most = 4)) {
+        // By the clock where it was flown.
+        val zone = Format.zone(flight.timeZone)
+        for (time in Axis.clockTicks(flight.startUnixS, flight.startUnixS + flight.durationS, most = 4, zone = zone)) {
             val at = x((time - flight.startUnixS).toDouble())
             drawLine(grid, Offset(at, plot.top), Offset(at, plot.bottom), 1.dp.toPx())
-            val text = measurer.measure(Format.timeOnAxis(time), labels)
+            val text = measurer.measure(Format.timeOnAxis(time, zone), labels)
             val left = (at - text.size.width / 2f).coerceIn(plot.left, plot.right - text.size.width)
             drawText(text, topLeft = Offset(left, plot.bottom + 3.dp.toPx()))
         }

@@ -343,7 +343,7 @@ class LiveFlightTest {
         TestDevice.keepScreenshot("light-self-0-takeoff-seen-from-today")
 
         // Held for a second, "End" saves what was recorded.
-        screen.onNode(hasTestTag("cockpit-end")).performTouchInput { longClick(durationMillis = 1_600) }
+        screen.onNode(hasTestTag("cockpit-end")).performTouchInput { longClick(durationMillis = 1_100) }
         isFlying = false
         waitFor(hasContentDescription("Flight details"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !recordingNotificationIsShown() }
@@ -399,7 +399,7 @@ class LiveFlightTest {
         TestDevice.keepScreenshot("light-fly-7-recording")
 
         // Held for a second, "End" in the top line saves the flight; nothing asks again.
-        screen.onNode(hasTestTag("cockpit-end")).performTouchInput { longClick(durationMillis = 1_600) }
+        screen.onNode(hasTestTag("cockpit-end")).performTouchInput { longClick(durationMillis = 1_100) }
         isFlying = false
 
         // The flight is in the logbook and opens; the service has stopped.

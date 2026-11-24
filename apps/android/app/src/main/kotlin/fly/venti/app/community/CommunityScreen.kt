@@ -793,7 +793,7 @@ private fun FeedCard(row: FeedRow, onOpen: () -> Unit) {
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    Text(Format.day(flight.startUnixS), style = MaterialTheme.typography.bodyMedium, color = colours.textSecondary)
+                    Text(Format.day(flight.startUnixS, Format.zone(flight.timeZone)), style = MaterialTheme.typography.bodyMedium, color = colours.textSecondary)
                 }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s5), verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {

@@ -461,7 +461,7 @@ class VentiUiTest {
      */
     private fun holdToEnd() {
         waitFor(hasTestTag("cockpit-end"))
-        screen.onNode(hasTestTag("cockpit-end")).performTouchInput { longClick(durationMillis = 1_600) }
+        screen.onNode(hasTestTag("cockpit-end")).performTouchInput { longClick(durationMillis = 1_100) }
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("cockpit-end")) }
     }
 
@@ -834,7 +834,7 @@ class VentiUiTest {
 
         // Settings, and the credits the map data's licences ask for.
         openFromToday("Settings")
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
         keepScreenshot("$prefix-settings-1")
         // "Glider and cockpit", a page of its own: the class is none and
         // "Never land" off until the pilot chooses.
@@ -847,14 +847,14 @@ class VentiUiTest {
         TestDevice.letTheAppRun(screen, 1)
         keepScreenshot("$prefix-settings-1c-cockpit")
         tap(described("Back"))
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
 
         // The pilot's waypoints.
         tap(hasText("Waypoints"))
         waitFor(described("Sample turnpoint"))
         keepScreenshot("$prefix-settings-3-waypoints")
         tap(described("Back"))
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
 
         screen.onNode(hasText("Data and licences")).performScrollTo()
         tap(hasText("Data and licences"))
@@ -881,7 +881,7 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(hasTestTag("open-source-licences"))
         tap(described("Back"))
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
     }
 
     /**
@@ -1132,12 +1132,12 @@ class VentiUiTest {
 
         // The files behind the warnings.
         openFromToday("Settings")
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
         tap(hasText("Airspace"))
         waitFor(hasText("sample-zones-not-real"))
         keepScreenshot("$prefix-settings-4-airspace")
         tap(described("Back"))
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
 
         // And the zone on the map: with the sample flight in the logbook
         // the map shows the valley the flight ends in, beside the zone.
@@ -1469,7 +1469,7 @@ class VentiUiTest {
     private fun openTheAccount() {
         waitFor(described("Show my position"))
         openFromToday("Settings")
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
         screen.onNode(hasTestTag("account-link")).performScrollTo()
         assertTrue(exists(hasTestTag("account-link") and hasText("Not signed in")))
         tap(hasTestTag("account-link"))
@@ -1914,7 +1914,7 @@ class VentiUiTest {
     private fun openTheGoogleSignIn() {
         waitFor(described("Show my position"))
         openFromToday("Settings")
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
         screen.onNode(hasTestTag("account-link")).performScrollTo()
         tap(hasTestTag("account-link"))
         waitFor(hasTestTag("account-google"))
@@ -1951,7 +1951,7 @@ class VentiUiTest {
         // A new account on the server.
         val handle = "l${System.currentTimeMillis() % 1_000_000_000}"
         openFromToday("Settings")
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
         screen.onNode(hasTestTag("account-link")).performScrollTo()
         tap(hasTestTag("account-link"))
         waitForThePasswordForm()
@@ -2620,7 +2620,7 @@ class VentiUiTest {
 
         // The site that was kept is among the pilot's waypoints.
         openFromToday("Settings")
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
         tap(hasText("Waypoints"))
         waitFor(described(takeoff))
     }
@@ -3439,8 +3439,8 @@ class VentiUiTest {
      * A take-off of the pilot's own, against Venti in development mode:
      * kept on its page, where its source's fee and web page stand too; then
      * first on Today under "Your take-offs", with the others under "Within
-     * 30 km"; listed in the settings with the core's note, and forgotten
-     * there, after which Today is as it was. Another take-off has the
+     * 30 km"; forgotten on its page again, after which Today is as it
+     * was. Another take-off has the
      * sentence about rules for guests, and a ramp on the Wallberg, opened
      * on the map, its mapper's description. Skipped without a server.
      */
@@ -3532,34 +3532,23 @@ class VentiUiTest {
         tap(hasText("Done"))
         waitForSites()
 
-        // All of the pilot's own, in the settings, with where they are kept.
-        // Today comes back where it was scrolled to: the corner that opens
-        // the settings is at its head.
+        // Forgotten on its page again, opened from Today's list of the
+        // pilot's own. Today comes back where it was scrolled to.
         tap(tab("Today"))
-        waitFor(hasTestTag("today-card"))
-        screen.onNode(hasTestTag("today-head")).performScrollTo()
-        openFromToday("Settings")
-        waitFor(hasTestTag("kept-sites-link"))
-        screen.onNode(hasTestTag("kept-sites-link")).performScrollTo().performClick()
-        waitFor(hasTestTag("kept-site") and hasAnyDescendant(described(takeoff)))
-        assertTrue(exists(hasText("Kept on this device only", substring = true)))
-        assertTrue(exists(hasText("© OpenStreetMap contributors", substring = true)))
+        waitFor(hasTestTag("today-kept-title"))
+        screen.onAllNodes(hasText(takeoff) and hasClickAction()).onFirst().performScrollTo().performClick()
+        waitFor(page)
+        screen.onNode(page).performTouchInput { swipeUp() }
         TestDevice.letTheAppRun(screen, 1)
-        keepScreenshot("$prefix-own-4-list")
-
-        // Forgotten there, after the app has asked.
-        tap(hasTestTag("kept-forget"))
-        waitFor(hasTestTag("kept-forget-confirm"))
+        screen.onNode(page).performScrollToNode(hasTestTag("site-own"))
+        waitFor(hasTestTag("site-own") and hasText("Kept"))
+        tap(hasTestTag("site-own"))
+        waitFor(hasTestTag("site-own") and hasText("Keep as my take-off"))
         TestDevice.letTheAppRun(screen, 1)
-        keepScreenshot("$prefix-own-5-forget")
-        tap(hasTestTag("kept-forget-confirm"))
-        waitFor(hasText("No take-offs of your own yet"))
-        TestDevice.letTheAppRun(screen, 1)
-        keepScreenshot("$prefix-own-6-none")
+        keepScreenshot("$prefix-own-4-forgotten")
+        tap(hasText("Done"))
 
         // And Today is as it was.
-        tap(described("Back"))
-        waitFor(hasTestTag("kept-sites-link"))
         tap(tab("Today"))
         waitFor(hasTestTag("today-card"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("today-kept-title")) }
@@ -3586,10 +3575,10 @@ class VentiUiTest {
         keepScreenshot("today-0-not-reached")
 
         openFromToday("Settings")
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
         openTheCockpit()
         holdToEnd()
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
         // Tapped again, the tab goes back to Today itself.
         tap(tab("Today"))
         waitFor(hasText("The forecast could not be read"))
@@ -3908,7 +3897,7 @@ class VentiUiTest {
         openAndCloseTheCockpit(expected = 1f)
 
         openFromToday("Settings")
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
         openGliderAndCockpit()
         val switch = hasTestTag("cockpit-brightness")
         screen.onNode(switch).performScrollTo()
@@ -3919,13 +3908,13 @@ class VentiUiTest {
         tap(switch)
         waitFor(switch and isOff())
         tap(described("Back"))
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
         // Kept: the page says so when it opens again.
         openGliderAndCockpit()
         screen.onNode(switch).performScrollTo()
         assertTrue(exists(switch and isOff()))
         tap(described("Back"))
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
 
         openAndCloseTheCockpit(expected = -1f)
     }
@@ -5577,7 +5566,7 @@ class VentiUiTest {
     /** From Today to the account's form, by way of the settings. */
     private fun openTheAccountFromToday() {
         openFromToday("Settings")
-        waitFor(hasTestTag("kept-sites-link"))
+        waitFor(hasTestTag("cockpit-settings-link"))
         screen.onNode(hasTestTag("account-link")).performScrollTo().performClick()
         waitForThePasswordForm()
     }
@@ -5585,25 +5574,49 @@ class VentiUiTest {
     /** Today itself, from another tab: a page left over it is left with a second tap. */
     private fun backToToday() {
         tap(tab("Today"))
-        if (exists(hasTestTag("kept-sites-link"))) {
+        if (exists(hasTestTag("cockpit-settings-link"))) {
             tap(tab("Today"))
         }
         waitFor(hasTestTag("today-card"))
     }
 
-    /** The list of the pilot's own take-offs, from Today, by way of the settings. */
-    private fun openThePilotsTakeoffs() {
+    /**
+     * The account's page from Today, signed in, and a whole sync from it,
+     * which takes the pilot's own take-offs to the account; then back to
+     * Today.
+     */
+    private fun syncFromTheAccount() {
         screen.onNode(hasTestTag("today-head")).performScrollTo()
         openFromToday("Settings")
-        waitFor(hasTestTag("kept-sites-link"))
-        screen.onNode(hasTestTag("kept-sites-link")).performScrollTo().performClick()
+        waitFor(hasTestTag("cockpit-settings-link"))
+        screen.onNode(hasTestTag("account-link")).performScrollTo().performClick()
+        waitFor(hasText("Sync now"))
+        tap(hasText("Sync now"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("Working")) && exists(hasText("Sync now")) }
+        tap(described("Back"))
+        waitFor(hasTestTag("cockpit-settings-link"))
+        backToToday()
+    }
+
+    /** The own switch on a take-off's page, opened from Today: from `from` to the other side. */
+    private fun switchOwnOnTodaysPage(takeoff: String, from: String, to: String) {
+        val page = hasTestTag("site-page")
+        screen.onAllNodes(hasText(takeoff) and hasClickAction()).onFirst().performScrollTo().performClick()
+        waitFor(page)
+        screen.onNode(page).performTouchInput { swipeUp() }
+        TestDevice.letTheAppRun(screen, 1)
+        screen.onNode(page).performScrollToNode(hasTestTag("site-own"))
+        waitFor(hasTestTag("site-own") and hasText(from))
+        tap(hasTestTag("site-own"))
+        waitFor(hasTestTag("site-own") and hasText(to))
+        tap(hasText("Done"))
     }
 
     /**
-     * A take-off kept while signed in is on the pilot's account, and the
-     * list says so in the core's words; the app started again with nothing
-     * on the device, and signed in to the same account, has it back from
-     * the account. Against the development server, with an account the
+     * A take-off kept while signed in is on the pilot's account: the app
+     * started again with nothing on the device, and signed in to the same
+     * account, has it back from the account, and forgotten on its page it
+     * stays forgotten after a sync. Against the development server, with an account the
      * test makes. Skipped without a server.
      */
     @Test
@@ -5612,35 +5625,19 @@ class VentiUiTest {
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
         launch(onToday = true) { putExtra(LaunchOptions.SERVER, server) }
         val takeoff = "Fluggelände Jägerkamp/Nagelspitz"
-        val page = hasTestTag("site-page")
-        val onTheAccount = hasTestTag("kept-sites-note") and
-            hasText("Kept on your Venti account and on this device", substring = true)
         val handle = "k${System.currentTimeMillis() % 1_000_000_000}"
 
         waitFor(hasTestTag("today-card"))
         openTheAccountFromToday()
         makeAnAccountAndGoBackToTheMap(handle)
 
-        // Signed in, the take-off is kept from its page as ever.
+        // Signed in, the take-off is kept from its page as ever, and a
+        // sync takes it to the account.
         backToToday()
         waitFor(hasText(takeoff) and hasClickAction())
-        screen.onAllNodes(hasText(takeoff) and hasClickAction()).onFirst().performScrollTo().performClick()
-        waitFor(page)
-        screen.onNode(page).performTouchInput { swipeUp() }
-        TestDevice.letTheAppRun(screen, 1)
-        screen.onNode(page).performScrollToNode(hasTestTag("site-own"))
-        waitFor(hasTestTag("site-own") and hasText("Keep as my take-off"))
-        tap(hasTestTag("site-own"))
-        waitFor(hasTestTag("site-own") and hasText("Kept"))
-        tap(hasText("Done"))
+        switchOwnOnTodaysPage(takeoff, from = "Keep as my take-off", to = "Kept")
         waitFor(hasTestTag("today-kept-title") and hasText("Your take-offs"))
-
-        // Its list says where it lives, once the sync that followed is through.
-        openThePilotsTakeoffs()
-        waitFor(hasTestTag("kept-site") and hasAnyDescendant(described(takeoff)))
-        waitFor(onTheAccount)
-        TestDevice.letTheAppRun(screen, 1)
-        keepScreenshot("kept-account-1-on-the-account")
+        syncFromTheAccount()
         app?.close()
 
         // Started again with an empty device: nothing is kept, until the
@@ -5656,29 +5653,22 @@ class VentiUiTest {
         waitFor(hasText("@$handle"))
         waitFor(hasText("Sync now"))
         tap(described("Back"))
-        waitFor(hasTestTag("kept-sites-link"))
-        screen.onNode(hasTestTag("kept-sites-link")).performScrollTo().performClick()
-        waitFor(hasTestTag("kept-site") and hasAnyDescendant(described(takeoff)))
-        waitFor(onTheAccount)
-        assertTrue(exists(hasText("© OpenStreetMap contributors", substring = true)))
-        TestDevice.letTheAppRun(screen, 1)
-        keepScreenshot("kept-account-2-back-from-the-account")
+        waitFor(hasTestTag("cockpit-settings-link"))
 
-        // And Today lists it first again.
-        tap(described("Back"))
-        waitFor(hasTestTag("kept-sites-link"))
+        // Today lists it first again, from the account.
         backToToday()
         waitFor(hasTestTag("today-kept-title") and hasText("Your take-offs"))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("kept-account-1-back-from-the-account")
 
-        // Forgotten here, it is forgotten on the account: the list is empty, and stays so.
-        openThePilotsTakeoffs()
-        waitFor(hasTestTag("kept-forget"))
-        tap(hasTestTag("kept-forget"))
-        waitFor(hasTestTag("kept-forget-confirm"))
-        tap(hasTestTag("kept-forget-confirm"))
-        waitFor(hasText("No take-offs of your own yet"))
+        // Forgotten on its page, it is forgotten on the account: after a
+        // sync Today still lists none of the pilot's own.
+        switchOwnOnTodaysPage(takeoff, from = "Kept", to = "Keep as my take-off")
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("today-kept-title")) }
+        syncFromTheAccount()
+        waitFor(hasTestTag("today-card"))
         TestDevice.letTheAppRun(screen, 2)
-        assertTrue(exists(hasText("No take-offs of your own yet")))
+        assertFalse(exists(hasTestTag("today-kept-title")))
     }
 
     /**

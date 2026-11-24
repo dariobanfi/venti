@@ -20,8 +20,9 @@ pub enum ThermalLayer {
     /// Each hour's verdict and what its thermals count as: what the days
     /// of `GET /v1/thermals` are made of.
     Thermals,
-    /// The wind: 10 m above the model's ground with its gusts, or at one
-    /// height above mean sea level.
+    /// The wind: 10 m above the model's ground with its gusts, at one
+    /// height above the model's ground, or at one height above mean sea
+    /// level.
     Wind,
     /// The share of the sky covered by cloud.
     Cloud,
@@ -62,6 +63,11 @@ pub struct ThermalHoursRequest {
     /// metres, one of the answer's `heights_m`. `None` for the wind 10 m
     /// above the model's ground, and for every other layer.
     pub height_m: Option<i32>,
+    /// For the wind: the height above the model's ground to read it at,
+    /// metres, one of the answer's `heights_above_ground_m`, in place of
+    /// `height_m`. `None` for the wind 10 m above the ground, and for
+    /// every other layer.
+    pub above_ground_m: Option<i32>,
 }
 
 impl ThermalHoursRequest {
@@ -75,6 +81,8 @@ impl ThermalHoursRequest {
         );
         if let Some(height) = self.height_m {
             path.push_str(&format!("&height={height}"));
+        } else if let Some(height) = self.above_ground_m {
+            path.push_str(&format!("&above_ground={height}"));
         }
         path
     }
@@ -130,6 +138,12 @@ pub struct ThermalMapResponse {
     /// hours: such a server has no hours to ask for.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub heights_m: Vec<i32>,
+    /// The heights above the model's ground at which
+    /// `GET /v1/thermals/hours` gives the wind of each of the map's days,
+    /// metres, the lowest first, besides the 10 m of the wind at the
+    /// ground. Left out by a server older than this field.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub heights_above_ground_m: Vec<i32>,
     /// The days the map has, oldest first.
     pub days: Vec<ThermalMapDay>,
     /// The credit for the source, with what its licence asks a client to
@@ -285,9 +299,18 @@ pub struct ThermalHoursResponse {
     /// other layer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub height_m: Option<i32>,
+    /// For the wind at a height above the model's ground: that height,
+    /// metres. Left out otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub above_ground_m: Option<i32>,
     /// The heights above mean sea level the wind can be asked for at,
     /// metres, the lowest first. The same in every answer.
     pub heights_m: Vec<i32>,
+    /// The heights above the model's ground the wind can be asked for at
+    /// besides 10 m, metres, the lowest first. The same in every answer;
+    /// left out by a server older than this field.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub heights_above_ground_m: Vec<i32>,
     /// The weather model the day is read from: the one the day of
     /// `GET /v1/thermals` names. Every hour of the answer is this model's.
     pub model: ModelId,
@@ -348,7 +371,8 @@ pub struct ThermalMapHour {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cloud: Vec<bool>,
     /// Layer `wind`. For each cell, the wind's mean speed, whole km/h:
-    /// 10 m above the model's ground, or at the answer's `height_m`.
+    /// 10 m above the model's ground, at the answer's `above_ground_m`
+    /// over the model's ground there, or at the answer's `height_m`.
     ///
     /// At a height the wind is read between the model's levels
     /// (`venti_flight::aloft`): the speed in a straight line by height
@@ -470,9 +494,20 @@ mod tests {
                 date,
                 layer,
                 height_m,
+                above_ground_m: None,
             }
             .path_and_query()
         };
+        assert_eq!(
+            ThermalHoursRequest {
+                date,
+                layer: ThermalLayer::Wind,
+                height_m: None,
+                above_ground_m: Some(250),
+            }
+            .path_and_query(),
+            "/v1/thermals/hours?date=2026-07-12&layer=wind&above_ground=250"
+        );
         assert_eq!(
             request(ThermalLayer::Thermals, None),
             "/v1/thermals/hours?date=2026-07-12&layer=thermals"

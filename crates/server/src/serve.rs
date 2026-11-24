@@ -21,7 +21,7 @@ use crate::forecast::{self, Asking};
 use crate::imagery::{self, Imagery, TileCache};
 use crate::ingest::{Collector, DirArchive, HttpFetch, scheduler};
 use crate::maps::Maps;
-use crate::thermals::{InStore, ThermalMap};
+use crate::thermals::{InStore, SitesInStore, ThermalMap};
 use crate::{adapters, groups, live, maintenance, pilot_sites, plan, radar};
 
 /// How far back from the time of a run observations are taken. See
@@ -154,8 +154,19 @@ pub async fn serve(config: Config) -> Result<(), String> {
             .find(|job| job.kind == venti_sources::Kind::Forecasts)?
             .source
             .clone();
+        // The take-offs the forecast by region judges: those of the site
+        // layers the regions collect.
+        let site_sources: Vec<_> = jobs
+            .iter()
+            .filter(|job| job.kind == venti_sources::Kind::Sites)
+            .map(|job| job.source.clone())
+            .collect();
         let map = ThermalMap::for_source(forecasts.clone(), source, clock.clone())?
             .with_keeper(Arc::new(InStore(store.clone())))
+            .with_takeoffs(Arc::new(SitesInStore {
+                store: store.clone(),
+                sources: site_sources,
+            }))
             .with_alerts(checks.clone());
         tracing::info!(
             "thermal map: {} cells; {}",

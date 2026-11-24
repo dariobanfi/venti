@@ -139,8 +139,9 @@ use venti_api_types::v1::{
     GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_CLIMBS_PATH, LIVE_OTHERS_PATH, LIVE_PATH,
     LIVE_POSITIONS_PATH, LIVE_SITES_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PILOTS_PATH,
     PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH,
-    REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH,
-    SITES_PATH, STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
+    REGION_FORECAST_PATH, REGIONS_PATH, REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH,
+    SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, THERMAL_HOURS_PATH,
+    THERMALS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -754,6 +755,8 @@ impl<S: Store> Api<S> {
             .route(THERMALS_PATH, get(thermals::thermals::<S>))
             .route(THERMAL_HOURS_PATH, get(thermals::thermal_hours::<S>))
             .route(ROUTE_WEATHER_PATH, get(thermals::route_weather::<S>))
+            .route(REGIONS_PATH, get(thermals::regions))
+            .route(REGION_FORECAST_PATH, get(thermals::region_forecast::<S>))
             .route(RADAR_PATH, get(radar::radar::<S>))
             .route(venti_api_types::v1::FOEHN_PATH, get(foehn::foehn::<S>))
             .route(radar::FRAME_ROUTE, get(radar::frame::<S>))

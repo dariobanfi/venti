@@ -6,7 +6,7 @@ The server answers a small JSON API that the phone and web apps use: for the liv
 
 Everything here is version 1. It has four parts:
 
-- **Weather stations, airspace, flying sites, forecasts and map regions**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon), [the thermal map](#get-v1thermals), [the hours of its days](#get-v1thermalshoursdatelayerheight) and [the forecast along a route](#get-v1routeweatherdatepoints), [the map regions to download](#maps) and [their files](#get-and-head-v1mapsregionversionname), and [tiles of map imagery](#get-v1imagerysourcezxy).
+- **Weather stations, airspace, flying sites, forecasts and map regions**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon), [the thermal map](#get-v1thermals), [the hours of its days](#get-v1thermalshoursdatelayerheight), [the forecast by region](#get-v1regionsforecastdate) with [its regions](#get-v1regions) and [the forecast along a route](#get-v1routeweatherdatepoints), [the map regions to download](#maps) and [their files](#get-and-head-v1mapsregionversionname), and [tiles of map imagery](#get-v1imagerysourcezxy).
 - **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [the sites a pilot keeps as their own](#the-sites-a-pilot-keeps), [alarms](#alarms), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights) with [what changed among them](#get-v1flightspublicchangessincepilotlimit) and [a flight's track as GeoJSON](#get-v1flightsidtrack), which a program of another maker reads as [Following Venti's public flights](#following-ventis-public-flights) says, [the page a shared flight has](#the-page-a-shared-flight-has), and [reporting something to whoever runs the server](#reports), with [what they can then do](#what-whoever-runs-the-server-can-do).
 - **Live tracks**, where a glider is while it flies: [what a live track is](#live-tracks), [sending positions](#post-v1livepositions), [who is in the air](#get-v1livebboxwestsoutheastnorth), [one track](#get-v1liveidsinceafterlimit), [deleting one](#delete-v1liveid), and [the page a live track has](#the-page-a-live-track-has).
 - **Groups**, which only their members see: [what a group is](#groups), [making one](#post-v1groups), [the groups a pilot is in](#get-v1groups), [coming into one with an invite code](#post-v1groupsjoin), [a group and its members](#get-v1groupsid), [what its keeper can do](#patch-v1groupsid), [leaving](#delete-v1groupsidmembershandle), and [plans for a flying day](#plans-for-a-flying-day): [posting one](#post-v1groupsidplans), [a group's plans](#get-v1groupsidplansfromto), [the plans of all of a pilot's groups](#get-v1groupsplansfromto), and [saying "I am in"](#put-and-delete-v1groupsidplansplanin).
@@ -3110,6 +3110,9 @@ The answer of the development mode, whole:
     3000,
     4000
   ],
+  "heights_above_ground_m": [
+    250
+  ],
   "days": [
     {
       "date": "2026-11-21",
@@ -3300,6 +3303,7 @@ The answer of the development mode, whole:
 | `grid` | Where the cells are: see below |
 | `ground_m` | The height of the model's ground at each cell, whole metres above mean sea level, which is the height the cell is judged at. `null` where the model's answer for the cell is missing, and where the model's cell is water: such a cell is judged by the wind at the ground, the gusts and the rain alone, and has no thermals |
 | `heights_m` | The heights above mean sea level at which the hours of the map's days have the wind ([`GET /v1/thermals/hours`](#get-v1thermalshoursdatelayerheight)), whole metres, the lowest first. Since 2026-11-21; a server older than that leaves it out and has no hours to ask for, which is how a client tells |
+| `heights_above_ground_m` | The heights above the model's ground at which the hours have the wind besides its 10 m: `[250]`. Since 2026-11-24; left out by an older server |
 | `days` | The days the map has, oldest first: from yesterday, while the server has run for a day, to the day after tomorrow and, once a run of ICON-EU of 00, 06, 12 or 18 UTC has reached into its daylight, the day after that, which is ICON-EU's |
 
 **The grid.** Cell number `row * columns + column` is the square of `step_deg` degrees (0.1°: some 11 km north to south and 7.5 km east to west in the Alps) around the point at latitude `south + row * step_deg` and longitude `west + column * step_deg`. The first cell is the south-west one; cells run west to east, rows south to north. The points lie on multiples of the step, inside the area of the server's regions; the model's values for a cell are those of its own cell (about 2 km wide) nearest the point, one sample out of the twenty or so in the square. For the first region the grid has 23 rows of 79 cells, 1,817 in all, from 46.3 N 9.4 E to 48.5 N 17.2 E.
@@ -3347,6 +3351,9 @@ One day of the thermal map hour by hour, a layer at a time: for every daylight h
 | `date` | The day, written `YYYY-MM-DD`: one of `days[].date` of `GET /v1/thermals`. Needed |
 | `layer` | What of the hours to answer with: `thermals` (the hours' verdicts and thermals), `wind`, `cloud` or `rain`. Left out: `thermals` |
 | `height` | With `layer=wind` only: the height above mean sea level to read the wind at, whole metres, one of the map's `heights_m` (1000, 1500, 2000, 2500, 3000 and 4000; the set is ours). Left out: the wind 10 m above the model's ground, with its gusts |
+| `above_ground` | With `layer=wind` and without `height` only: the height above the model's ground to read the wind at, whole metres, one of the map's `heights_above_ground_m` (250; ours too). Since 2026-11-24 |
+
+**The wind 250 m above the ground** (`above_ground=250`) is read as a height above the sea, the model's ground and 250 m, between the model's levels, as the heights of `height` are. Open-Meteo has no wind of the models at 250 m above their ground: it serves 10, 80, 120 and 180 m (and 200 m, which the server does not ask for), and an hour asked for at 250 m comes back empty (checked 2026-11-24 for ICON-D2 and ICON-EU). So the wind there lies between the level 180 m above the ground and the pressure surface above it, often the one of 850 hPa at some 1500 m, in a straight line by height; what the wind does in between is not known. A cell without a height of its ground has none.
 
 **The hours are daylight hours, and no others.** The map judges, and keeps, the hours from an hour after sunrise to an hour before sunset, by the sun at each cell (`venti_flight::day::daylight_hours`): the first and the last hour of the sun are left to no judgement by wind and cloud alone. Seven hours in late November at 47° N, fourteen in July. The wind at night, a morning's first hour and an evening's last are not in the answer; `GET /v1/forecast` has every hour for one place.
 
@@ -3371,6 +3378,9 @@ The answer of the development mode, whole: the wind at 1000 m above the sea on t
     2500,
     3000,
     4000
+  ],
+  "heights_above_ground_m": [
+    250
   ],
   "model": "icon-d2",
   "run": "2026-11-21T06:00:00Z",
@@ -3514,7 +3524,9 @@ The answer of the development mode, whole: the wind at 1000 m above the sea on t
 | `date` | The day, by the sun at the cells |
 | `layer` | The layer the hours hold: `thermals`, `wind`, `cloud` or `rain` |
 | `height_m` | For the wind at a height above mean sea level: that height. Left out for the wind 10 m above the model's ground, and for the other layers |
+| `above_ground_m` | For the wind at a height above the model's ground: that height. Left out otherwise |
 | `heights_m` | The heights the wind can be asked for at, the lowest first: the same in every answer, and in `GET /v1/thermals` |
+| `heights_above_ground_m` | The heights above the model's ground the wind can be asked for at besides its 10 m: `[250]`, the same in every answer and in `GET /v1/thermals`. Since 2026-11-24; a server older than that leaves it out |
 | `model`, `run` | The model the day is read from, which is the one the day of `GET /v1/thermals` names, and when the newest run of it began that the day holds hours of. Every hour of the answer is that model's, and an earlier hour of the day can be an earlier run's. **Show the pilot both** |
 | `whole` | Whether every cell has all of the day's daylight hours, as `days[].whole` of `GET /v1/thermals`. On a day that is not whole the answer ends where the model's run does, or begins where it began |
 | `computed_at` | When the server worked the map out: the same moment as the map of the days it belongs to |
@@ -3531,7 +3543,7 @@ An hour has its `time` and the lists of the layer that was asked for, each as lo
 | `thermals` | `why` | Per cell the worst thing the air has against the hour, with the names of `GET /v1/thermals`; of two equally bad the first of wind, gusts, wind higher up, cloud base, storms. `null` in a flyable hour |
 | `thermals` | `thermals` | Per cell what the hour's thermals count as: `no_thermals`, `weak`, `local`, `cross_country` or `big`, by their climb, how far above the ground they reach and the wind in them. Never more than `local` in a marginal hour. `null` in an hour that is not flyable, and where there is no estimate |
 | `thermals` | `climb_ms`, `top_m`, `cloud` | Per cell the climb to expect in the hour's thermals, m/s to a tenth; how high they go, metres above mean sea level to the nearest fifty; and whether that height is a base of cumulus. As in a day of `GET /v1/thermals`, of the one hour |
-| `wind` | `wind_kmh` | Per cell the wind's mean speed, **whole km/h**: 10 m above the model's ground, or at `height_m` |
+| `wind` | `wind_kmh` | Per cell the wind's mean speed, **whole km/h**: 10 m above the model's ground, at `height_m`, or `above_ground_m` over the model's ground |
 | `wind` | `wind_from_deg` | Per cell the direction it comes from, degrees **to the nearest ten**, 0 to 350 |
 | `wind` | `gust_kmh` | Per cell the strongest gust of the hour 10 m above the model's ground, whole km/h. Left out at a height: the model has gusts at the ground alone |
 | `cloud` | `cloud_cover_pct` | Per cell the share of the sky covered by cloud at any height, whole percent. A thin high veil counts as much as a low layer; the cover by height is in `GET /v1/forecast` |
@@ -3565,7 +3577,7 @@ A day in late November has half the hours and half the size. One answer with eve
 | Status | `error.code` | When |
 |---|---|---|
 | `400` | `invalid_day` | `date` is missing or is not a date written `YYYY-MM-DD` |
-| `400` | `invalid_request` | `layer` is none of the four; `height` is none of the map's heights; or `height` is given with a layer other than `wind` |
+| `400` | `invalid_request` | `layer` is none of the four; `height` is none of the map's heights, or `above_ground` none of its heights above the ground; `height` or `above_ground` is given with a layer other than `wind`; or both are given |
 | `404` | `not_found` | The map has no hours for this day. `message` lists the days it has |
 | `501` | `no_forecasts` | The server has no forecast service, and no map |
 | `503` | `unavailable` | The server has no map yet. `Retry-After` says when to ask again (60 seconds) |
@@ -3642,6 +3654,680 @@ The development mode's eleven public flights are the sample flight, flown by six
 | `month`, `hours` | What was asked for; left out for the whole year and the whole day |
 | `flights` | How many public flights the server has read for the map |
 | `terms` | What the flights it is made from are given under; not decided yet, as for every answer made from public flights |
+
+## `GET /v1/regions`
+
+The regions of the forecast by region ([below](#get-v1regionsforecastdate)): the avalanche warning micro-regions of the Alpine members of the EAWS, the European Avalanche Warning Services, under CC0 1.0 (the repository's LICENSE, <https://gitlab.com/eaws/eaws-regions/-/blob/master/LICENSE>, read 2026-11-24). 459 regions of Austria's seven Länder that have them, Bavaria, Switzerland, France's Alps, Piedmont, the Aosta Valley, Lombardy, South Tyrol, Trentino, the Veneto, Friuli and Slovenia, current on 2026-11-24: massifs and groups of valleys as the services split their areas, the Prealps included. The foreland (around Munich, the Swiss Mittelland, the Po plain) is in none. They are an asset of the server (`crates/sources-eawsregions`), made once from the EAWS's files and never fetched.
+
+The answer is a GeoJSON `FeatureCollection` that a map takes as it is, with two members of its own: `version` and `attributions`. 709 kB, 193 kB with gzip, and the same until `version` changes: keep it, ask again with `If-None-Match` (it may be reused for an hour), and fetch it again when an answer of the forecast names another `regions_version`.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/regions'
+```
+
+The answer with its first two regions; the whole has 459:
+
+```json
+{
+  "type": "FeatureCollection",
+  "version": "eaws-regions 439ec676 2026-11-24",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "AT-02-01-01",
+        "names": {
+          "de": "Glocknergruppe Pasterze",
+          "it": "Gruppo del Glockner Pasterze",
+          "en": "Glockner Group Pasterze",
+          "fr": "Groupe du Glockner Pasterze",
+          "sl": "Glockner Group Pasterze"
+        },
+        "label": [
+          12.732,
+          47.0717
+        ]
+      },
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                12.785,
+                47.0509
+              ],
+              [
+                12.7868,
+                47.0519
+              ],
+              [
+                12.7797,
+                47.06
+              ],
+              [
+                12.7632,
+                47.0689
+              ],
+              [
+                12.7673,
+                47.0816
+              ],
+              [
+                12.7783,
+                47.0961
+              ],
+              [
+                12.7722,
+                47.1014
+              ],
+              [
+                12.7567,
+                47.0979
+              ],
+              [
+                12.7395,
+                47.0996
+              ],
+              [
+                12.7335,
+                47.104
+              ],
+              [
+                12.7363,
+                47.111
+              ],
+              [
+                12.7308,
+                47.1305
+              ],
+              [
+                12.7128,
+                47.1281
+              ],
+              [
+                12.7037,
+                47.1222
+              ],
+              [
+                12.689,
+                47.1242
+              ],
+              [
+                12.6723,
+                47.1206
+              ],
+              [
+                12.6662,
+                47.1229
+              ],
+              [
+                12.6662,
+                47.1164
+              ],
+              [
+                12.6722,
+                47.1093
+              ],
+              [
+                12.6561,
+                47.1
+              ],
+              [
+                12.6654,
+                47.0932
+              ],
+              [
+                12.6762,
+                47.0905
+              ],
+              [
+                12.6882,
+                47.0783
+              ],
+              [
+                12.6999,
+                47.0732
+              ],
+              [
+                12.707,
+                47.0568
+              ],
+              [
+                12.7154,
+                47.046
+              ],
+              [
+                12.7263,
+                47.043
+              ],
+              [
+                12.7453,
+                47.0426
+              ],
+              [
+                12.7681,
+                47.0477
+              ],
+              [
+                12.7801,
+                47.0482
+              ],
+              [
+                12.785,
+                47.0509
+              ]
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "AT-02-01-02-01",
+        "names": {
+          "de": "Goldberggruppe Süd",
+          "it": "Gruppo del Goldberg meridionale",
+          "en": "Goldberg Group South",
+          "fr": "Groupe du Goldberg méridional",
+          "sl": "Goldberg Group South"
+        },
+        "label": [
+          12.9342,
+          46.9986
+        ]
+      },
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                13.1016,
+                47.0047
+              ],
+              [
+                13.0896,
+                47.0261
+              ],
+              [
+                13.0787,
+                47.026
+              ],
+              [
+                13.0727,
+                47.0132
+              ],
+              [
+                13.0198,
+                47.0294
+              ],
+              [
+                13.0212,
+                47.0389
+              ],
+              [
+                13.003,
+                47.0439
+              ],
+              [
+                12.9856,
+                47.0355
+              ],
+              [
+                12.9798,
+                47.0388
+              ],
+              [
+                12.9649,
+                47.039
+              ],
+              [
+                12.9565,
+                47.0431
+              ],
+              [
+                12.9528,
+                47.0491
+              ],
+              [
+                12.9553,
+                47.0543
+              ],
+              [
+                12.9427,
+                47.059
+              ],
+              [
+                12.9372,
+                47.0759
+              ],
+              [
+                12.9193,
+                47.0813
+              ],
+              [
+                12.8943,
+                47.0809
+              ],
+              [
+                12.8695,
+                47.0866
+              ],
+              [
+                12.8587,
+                47.0813
+              ],
+              [
+                12.8368,
+                47.0831
+              ],
+              [
+                12.8311,
+                47.0915
+              ],
+              [
+                12.8202,
+                47.0978
+              ],
+              [
+                12.8161,
+                47.0955
+              ],
+              [
+                12.8048,
+                47.0979
+              ],
+              [
+                12.7951,
+                47.093
+              ],
+              [
+                12.7829,
+                47.0921
+              ],
+              [
+                12.7783,
+                47.0961
+              ],
+              [
+                12.7673,
+                47.0816
+              ],
+              [
+                12.7632,
+                47.0689
+              ],
+              [
+                12.7797,
+                47.06
+              ],
+              [
+                12.7868,
+                47.0519
+              ],
+              [
+                12.7921,
+                47.052
+              ],
+              [
+                12.8015,
+                47.0485
+              ],
+              [
+                12.8184,
+                47.0461
+              ],
+              [
+                12.8381,
+                47.0395
+              ],
+              [
+                12.8515,
+                47.0326
+              ],
+              [
+                12.8615,
+                47.0237
+              ],
+              [
+                12.8752,
+                47.0022
+              ],
+              [
+                12.8747,
+                46.9916
+              ],
+              [
+                12.8769,
+                46.9852
+              ],
+              [
+                12.8915,
+                46.9727
+              ],
+              [
+                12.895,
+                46.9676
+              ],
+              [
+                12.8958,
+                46.9552
+              ],
+              [
+                12.9087,
+                46.9246
+              ],
+              [
+                12.9117,
+                46.9114
+              ],
+              [
+                12.9274,
+                46.9242
+              ],
+              [
+                12.9392,
+                46.9456
+              ],
+              [
+                12.9467,
+                46.9501
+              ],
+              [
+                12.9826,
+                46.9635
+              ],
+              [
+                12.9977,
+                46.9658
+              ],
+              [
+                13.0291,
+                46.9544
+              ],
+              [
+                13.0394,
+                46.9522
+              ],
+              [
+                13.0568,
+                46.9621
+              ],
+              [
+                13.0873,
+                46.9486
+              ],
+              [
+                13.1009,
+                46.9407
+              ],
+              [
+                13.1076,
+                46.9359
+              ],
+              [
+                13.1078,
+                46.9314
+              ],
+              [
+                13.114,
+                46.9325
+              ],
+              [
+                13.1211,
+                46.9306
+              ],
+              [
+                13.146,
+                46.9341
+              ],
+              [
+                13.158,
+                46.933
+              ],
+              [
+                13.1806,
+                46.9349
+              ],
+              [
+                13.1834,
+                46.9405
+              ],
+              [
+                13.1903,
+                46.9665
+              ],
+              [
+                13.1855,
+                46.975
+              ],
+              [
+                13.177,
+                46.9781
+              ],
+              [
+                13.1709,
+                46.9899
+              ],
+              [
+                13.1507,
+                46.9922
+              ],
+              [
+                13.1285,
+                47.0019
+              ],
+              [
+                13.1187,
+                47.0005
+              ],
+              [
+                13.1016,
+                47.0047
+              ]
+            ]
+          ]
+        ]
+      }
+    }
+  ],
+  "attributions": [
+    {
+      "source": "eaws-regions",
+      "provider": "EAWS, the European Avalanche Warning Services (regions.avalanches.org, gitlab.com/eaws/eaws-regions)",
+      "licence": "CC0 1.0",
+      "text": "Regions: EAWS (CC0)",
+      "url": "https://gitlab.com/eaws/eaws-regions/-/blob/master/LICENSE"
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `version` | Which set of regions this is: the EAWS's commit it was made from and the day that chose the regions current then |
+| `features[].properties.id` | The EAWS identifier: the warning service's code and the region's number, `AT-07-14-01`, `CH-4115`, `IT-32-BZ-05-01`. What the forecast names a region by |
+| `features[].properties.names` | Its names in German, Italian, English, French and Slovenian, as the EAWS gives them. Where a language has none of its own the EAWS's fallback stands, most often the English |
+| `features[].properties.label` | A point inside the region for its label, `[longitude, latitude]`: the point of its largest polygon furthest from the edges |
+| `features[].geometry` | The outline, a `MultiPolygon`, each ring simplified by about 100 m (0.001°, Douglas-Peucker) and rounded to four decimals. Each region was simplified on its own, so two neighbours may part or overlap along their border by up to that much |
+| `attributions` | The credit, "Regions: EAWS (CC0)". CC0 asks for none; Venti gives it so that a pilot knows whose regions they are |
+
+## `GET /v1/regions/forecast?date=`
+
+One day of the thermal map read region by region: for the day and for each of its daylight hours, the level of each region of [`GET /v1/regions`](#get-v1regions). Made with the map, from the same hours, each time a model's part is made whole, so it says what the map says and costs no request to the forecast's source.
+
+| Parameter | Meaning |
+|---|---|
+| `date` | The day, written `YYYY-MM-DD`: one of `days[].date` of `GET /v1/thermals`. Left out: today, or the map's first day where it has no today |
+
+**The levels**, the worst first (owner decision 27 in [plan.md](plan.md#owner-decisions)): `not_flyable`; `glides_only`, flyable with nothing to climb in; `weak`, weak or local thermals, maybe to stay up; `good`, thermals to leave with; `very_good`, strong high thermals for most of the day. They are the map's verdicts and kinds of thermals (`no_thermals` is glides only, `weak` and `local` are weak, `cross_country` good, `big` very good); that local counts as weak is the session's choice, for the owner to change.
+
+**How a region gets its level.** Each of the region's known take-offs is judged at its own height, in the map's cell it lies in: the cell's hours with their thermals as the map worked them out at the model's ground, judged again for the take-off, by how far the thermals reach above it and by a cumulus base under it or within 200 m above it. The known take-offs are the sites of the layers the server collects (OpenStreetMap's, the FFVL's) that are for taking off, have a height and are not marked as unsafe. A region with fewer than two that have hours takes its cells instead, those whose model ground lies below 2,500 m, each at that ground; a region too small to hold the centre of a cell takes the cell its label lies in. Of the take-offs or cells, the region's level is **the best level at least a third of them reach**; it is `not_flyable` only when fewer than a third are flyable, with the reason met most often among those that are not. A day is judged for each take-off or cell as a day of the map is, from its hours at its height, and the region's day is the third of those days. A region without a take-off or cell of the day, or with only cells higher than 2,500 m, is not in the lists: no data, no level.
+
+It is a reading of a model, by fixed limits, over a region tens of kilometres wide: no statement that any place in it can be flown. Show the model and its run with it.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/regions/forecast?date=2026-11-22'
+```
+
+The answer of the development mode, whole: its four recorded cells lie in two regions, either side of the border at the Achensee, and late November glides.
+
+```json
+{
+  "source": "open-meteo",
+  "date": "2026-11-22",
+  "dates": [
+    "2026-11-21",
+    "2026-11-22",
+    "2026-11-23",
+    "2026-11-24"
+  ],
+  "model": "icon-d2",
+  "run": "2026-11-21T06:00:00Z",
+  "whole": true,
+  "computed_at": "2026-11-21T09:30:00Z",
+  "regions_version": "eaws-regions 439ec676 2026-11-24",
+  "day": [
+    {
+      "id": "AT-07-05",
+      "level": "glides_only"
+    },
+    {
+      "id": "DE-BY-42",
+      "level": "glides_only"
+    }
+  ],
+  "hours": [
+    {
+      "time": "2026-11-22T08:00:00Z",
+      "regions": [
+        {
+          "id": "AT-07-05",
+          "level": "glides_only"
+        },
+        {
+          "id": "DE-BY-42",
+          "level": "glides_only"
+        }
+      ]
+    },
+    {
+      "time": "2026-11-22T09:00:00Z",
+      "regions": [
+        {
+          "id": "AT-07-05",
+          "level": "glides_only"
+        },
+        {
+          "id": "DE-BY-42",
+          "level": "glides_only"
+        }
+      ]
+    },
+    {
+      "time": "2026-11-22T10:00:00Z",
+      "regions": [
+        {
+          "id": "AT-07-05",
+          "level": "glides_only"
+        },
+        {
+          "id": "DE-BY-42",
+          "level": "glides_only"
+        }
+      ]
+    },
+    {
+      "time": "2026-11-22T11:00:00Z",
+      "regions": [
+        {
+          "id": "AT-07-05",
+          "level": "glides_only"
+        },
+        {
+          "id": "DE-BY-42",
+          "level": "glides_only"
+        }
+      ]
+    },
+    {
+      "time": "2026-11-22T12:00:00Z",
+      "regions": [
+        {
+          "id": "AT-07-05",
+          "level": "glides_only"
+        },
+        {
+          "id": "DE-BY-42",
+          "level": "glides_only"
+        }
+      ]
+    },
+    {
+      "time": "2026-11-22T13:00:00Z",
+      "regions": [
+        {
+          "id": "AT-07-05",
+          "level": "glides_only"
+        },
+        {
+          "id": "DE-BY-42",
+          "level": "glides_only"
+        }
+      ]
+    },
+    {
+      "time": "2026-11-22T14:00:00Z",
+      "regions": [
+        {
+          "id": "AT-07-05",
+          "level": "glides_only"
+        },
+        {
+          "id": "DE-BY-42",
+          "level": "glides_only"
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "open-meteo",
+      "provider": "Open-Meteo, with models of Deutscher Wetterdienst",
+      "licence": "CC BY 4.0",
+      "text": "Weather data by Open-Meteo.com. Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    {
+      "source": "eaws-regions",
+      "provider": "EAWS, the European Avalanche Warning Services (regions.avalanches.org, gitlab.com/eaws/eaws-regions)",
+      "licence": "CC0 1.0",
+      "text": "Regions: EAWS (CC0)",
+      "url": "https://gitlab.com/eaws/eaws-regions/-/blob/master/LICENSE"
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `source`, `model`, `run`, `whole`, `computed_at` | As in [`GET /v1/thermals/hours`](#get-v1thermalshoursdatelayerheight) for the same day. **Show the pilot the model and the run** |
+| `date`, `dates` | The day of the answer, and every day there is one of: the days of `GET /v1/thermals` |
+| `regions_version` | The `version` of `GET /v1/regions` the identifiers are of. Another than the one a client keeps: fetch the regions again |
+| `day[]` | Each region's level for the day: `id`, `level`, `why` where it is `not_flyable` (the names of `GET /v1/thermals`), and `takeoffs`, how many of its take-offs the level is from; left out where it is from its cells |
+| `hours[]` | The day's daylight hours, oldest first, each its `time` and its `regions`, as `day[]` without `takeoffs` |
+| `attributions` | The credit of the forecast source, and of the regions |
+
+Some 40 bytes a region and hour: for all 459 regions over a summer day of fourteen hours some 250 kB plain and 18 kB with gzip, which the server sends to a client that asks for it (reckoned over made-up levels, not measured on a server: the first region's grid reaches fewer regions).
+
+| Status | `error.code` | When |
+|---|---|---|
+| `400` | `invalid_day` | `date` is not a date written `YYYY-MM-DD` |
+| `404` | `not_found` | The map has no hours for this day. `message` lists the days it has |
+| `501` | `no_forecasts` | The server has no forecast service, and no map |
+| `503` | `unavailable` | The server has no map yet. `Retry-After` says when to ask again (60 seconds) |
 
 ## `GET /v1/route/weather?date=&points=`
 

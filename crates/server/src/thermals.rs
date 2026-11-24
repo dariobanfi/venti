@@ -59,10 +59,10 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use chrono::{Duration, NaiveDate};
 use venti_api_types::v1::{
-    ForecastNearby, NearbyHour, NearbyStrongest, RouteWeatherHour, RouteWeatherPoint,
-    RouteWeatherResponse, RouteWindAloft, THERMAL_GRID_DEG, ThermalGrid, ThermalHoursResponse,
-    ThermalKind, ThermalLayer, ThermalMapDay, ThermalMapHour, ThermalMapResponse, ThermalReason,
-    ThermalVerdict,
+    ForecastNearby, NearbyHour, NearbyStrongest, RegionForecastResponse, RouteWeatherHour,
+    RouteWeatherPoint, RouteWeatherResponse, RouteWindAloft, THERMAL_GRID_DEG, ThermalGrid,
+    ThermalHoursResponse, ThermalKind, ThermalLayer, ThermalMapDay, ThermalMapHour,
+    ThermalMapResponse, ThermalReason, ThermalVerdict,
 };
 use venti_domain::{
     BoundingBox, ForecastHour, ForecastSeries, GeoPoint, ModelId, SourceId, Timestamp,
@@ -73,10 +73,12 @@ use venti_flight::nearby;
 
 use futures::FutureExt;
 use futures::future::BoxFuture;
+use venti_domain::SiteUse;
 use venti_store::{Store, StoreError, ThermalPart};
 
 use crate::clock::Clock;
 use crate::forecast::{Forecasts, Refusal};
+use crate::region_forecast::{self, CellOfDay, Placed, RegionDay, Regions, TakeOff};
 
 /// The models the map is made of, the finest first. ICON-D2: some 2 km a
 /// cell, a new run every three hours that reaches 48 hours. ICON-EU: some
@@ -97,6 +99,18 @@ pub const MAP_MODELS: [&str; 2] = ["icon-d2", "icon-eu"];
 /// change; a part written down with another set is made again.
 pub const MAP_HEIGHTS_M: [u16; 6] = [1000, 1500, 2000, 2500, 3000, 4000];
 
+/// The heights above the model's ground the map keeps the wind at besides
+/// its 10 m, metres: 250 m, the air a pilot is in soon after take-off and
+/// on the way to a landing. Open-Meteo has no wind of the models 250 m
+/// above their ground (it serves 10, 80, 120 and 180 m, and 200 m, which
+/// the adapter does not ask for; a 250 m comes back empty, checked
+/// 2026-11-24 for ICON-D2 and ICON-EU), so it is read as a height above
+/// the sea, the model's ground and 250 m, between the 180 m level and the
+/// pressure surface above it (`venti_flight::aloft`), as the heights of
+/// [`MAP_HEIGHTS_M`] are. The set is ours, and the owner's to change; a
+/// part written down with another set is made again.
+pub const MAP_ABOVE_GROUND_M: [u16; 1] = [250];
+
 /// What the map keeps of an hour's wind, cloud and rain, in the whole
 /// numbers it is served in: a map shows no more, and a region's hours in
 /// floats would be several times the size, in memory, in the store and on
@@ -115,6 +129,11 @@ struct Weather {
     aloft_kmh: [Option<u16>; MAP_HEIGHTS_M.len()],
     /// The direction of each, in tens of degrees.
     aloft_from: [Option<u8>; MAP_HEIGHTS_M.len()],
+    /// The wind at each height of [`MAP_ABOVE_GROUND_M`] above the model's
+    /// ground, km/h. `None` where the model gives no height of its ground.
+    above_ground_kmh: [Option<u16>; MAP_ABOVE_GROUND_M.len()],
+    /// The direction of each, in tens of degrees.
+    above_ground_from: [Option<u8>; MAP_ABOVE_GROUND_M.len()],
     /// The share of the sky covered by cloud at any height, percent.
     cloud_pct: Option<u8>,
     /// The rain, showers and snow of the hour, tenths of a millimetre.
@@ -132,12 +151,25 @@ impl Weather {
                 aloft_from[at] = wind.from_deg.and_then(tens_of_degrees);
             }
         }
+        let mut above_ground_kmh = [None; MAP_ABOVE_GROUND_M.len()];
+        let mut above_ground_from = [None; MAP_ABOVE_GROUND_M.len()];
+        if let Some(ground) = ground_m {
+            for (at, height) in MAP_ABOVE_GROUND_M.iter().enumerate() {
+                let over = ground + f64::from(*height);
+                if let Some(wind) = wind_at_height(hour, ground_m, over).wind() {
+                    above_ground_kmh[at] = kmh(wind.speed_ms);
+                    above_ground_from[at] = wind.from_deg.and_then(tens_of_degrees);
+                }
+            }
+        }
         Self {
             wind_kmh: hour.wind_speed_ms.and_then(kmh),
             wind_from: hour.wind_direction_deg.and_then(tens_of_degrees),
             gust_kmh: hour.wind_gust_ms.and_then(kmh),
             aloft_kmh,
             aloft_from,
+            above_ground_kmh,
+            above_ground_from,
             cloud_pct: hour.cloud_cover_pct.and_then(percent),
             rain_tenths: hour
                 .precipitation_mm
@@ -150,6 +182,15 @@ impl Weather {
 /// The heights the map keeps the wind at, as an answer lists them.
 fn heights() -> Vec<i32> {
     MAP_HEIGHTS_M
+        .iter()
+        .map(|height| i32::from(*height))
+        .collect()
+}
+
+/// The heights above the ground the map keeps the wind at, as an answer
+/// lists them.
+fn heights_above_ground() -> Vec<i32> {
+    MAP_ABOVE_GROUND_M
         .iter()
         .map(|height| i32::from(*height))
         .collect()
@@ -317,11 +358,12 @@ struct State {
 }
 
 /// The map as it is served, without the credit, which is the API's: the
-/// days, and the hours of each day. Made together from the same kept
-/// hours, so that a day and its hours say the same.
+/// days, the hours of each day and the forecast by region of each day.
+/// Made together from the same kept hours, so that they say the same.
 struct Served {
     map: Arc<ThermalMapResponse>,
     hours: BTreeMap<NaiveDate, Arc<DayHours>>,
+    regions: BTreeMap<NaiveDate, Arc<RegionDay>>,
 }
 
 /// The hours of one day of the map with every layer of them, as the
@@ -357,6 +399,8 @@ struct HourOfDay {
     gust_kmh: Vec<Option<u16>>,
     /// The wind at each height of [`MAP_HEIGHTS_M`].
     aloft: Vec<WindAtHeight>,
+    /// The wind at each height of [`MAP_ABOVE_GROUND_M`].
+    above_ground: Vec<WindAtHeight>,
     cloud_cover_pct: Vec<Option<u8>>,
     precipitation_mm: Vec<Option<f64>>,
 }
@@ -409,28 +453,34 @@ impl DayHours {
 
     /// One layer of the day as the API answers it, without the credit,
     /// which is the API's. `height_m` chooses the wind at a height above
-    /// the sea in place of the wind at the ground, and is of no account
-    /// to another layer. `None` for a height the map does not keep.
+    /// the sea in place of the wind at the ground, `above_ground_m` the
+    /// wind at a height above the model's ground; the first is taken where
+    /// both are given, and both are of no account to another layer. `None`
+    /// for a height the map does not keep.
     pub fn layer(
         &self,
         layer: ThermalLayer,
         height_m: Option<i32>,
+        above_ground_m: Option<i32>,
     ) -> Option<ThermalHoursResponse> {
         let height_m = height_m.filter(|_| layer == ThermalLayer::Wind);
-        let height = match height_m {
-            Some(asked) => Some(
-                MAP_HEIGHTS_M
-                    .iter()
-                    .position(|kept| i32::from(*kept) == asked)?,
-            ),
-            None => None,
+        let above_ground_m =
+            above_ground_m.filter(|_| layer == ThermalLayer::Wind && height_m.is_none());
+        let position = |kept: &[u16], asked: Option<i32>| match asked {
+            Some(asked) => kept
+                .iter()
+                .position(|kept| i32::from(*kept) == asked)
+                .map(Some),
+            None => Some(None),
         };
+        let height = position(&MAP_HEIGHTS_M, height_m)?;
+        let above_ground = position(&MAP_ABOVE_GROUND_M, above_ground_m)?;
         let hours = self
             .hours
             .iter()
             .map(|hour| {
                 let time = hour.time;
-                match (layer, height) {
+                match (layer, height.or(above_ground)) {
                     (ThermalLayer::Thermals, _) => ThermalMapHour {
                         time,
                         verdict: hour.verdict.clone(),
@@ -448,12 +498,19 @@ impl DayHours {
                         gust_kmh: hour.gust_kmh.clone(),
                         ..ThermalMapHour::default()
                     },
-                    (ThermalLayer::Wind, Some(height)) => ThermalMapHour {
-                        time,
-                        wind_kmh: hour.aloft[height].kmh.clone(),
-                        wind_from_deg: hour.aloft[height].from_deg.clone(),
-                        ..ThermalMapHour::default()
-                    },
+                    (ThermalLayer::Wind, Some(at)) => {
+                        let wind = if height.is_some() {
+                            &hour.aloft[at]
+                        } else {
+                            &hour.above_ground[at]
+                        };
+                        ThermalMapHour {
+                            time,
+                            wind_kmh: wind.kmh.clone(),
+                            wind_from_deg: wind.from_deg.clone(),
+                            ..ThermalMapHour::default()
+                        }
+                    }
                     (ThermalLayer::Cloud, _) => ThermalMapHour {
                         time,
                         cloud_cover_pct: hour.cloud_cover_pct.clone(),
@@ -472,7 +529,9 @@ impl DayHours {
             date: self.date,
             layer,
             height_m,
+            above_ground_m,
             heights_m: heights(),
+            heights_above_ground_m: heights_above_ground(),
             model: self.model.clone(),
             run: self.run,
             whole: self.whole,
@@ -578,6 +637,56 @@ pub struct ThermalMap {
     keeper: Option<Arc<dyn Keeper>>,
     /// The alarms pilots set, told of each map made with a new run.
     alerts: Option<Arc<dyn crate::alerts::Watch>>,
+    /// The regions of the forecast by region over the grid.
+    regions: Regions,
+    /// Where the take-offs the forecast by region judges come from.
+    takeoffs: Option<Arc<dyn TakeOffs>>,
+    /// The take-offs as they were last read, each in its region and cell.
+    placed: Mutex<Vec<Placed>>,
+}
+
+/// Where the forecast by region finds the take-offs it judges: the flying
+/// sites the server holds.
+pub trait TakeOffs: Send + Sync {
+    /// The take-offs with a height inside an area.
+    fn within(&self, area: BoundingBox) -> BoxFuture<'_, Result<Vec<TakeOff>, StoreError>>;
+}
+
+/// The most take-offs the forecast by region reads: more than the Alps
+/// have in every layer together.
+const MOST_TAKEOFFS: usize = 50_000;
+
+/// The take-offs of the site layers a store holds: every site of
+/// `sources` that is used to take off from and has a height, and that its
+/// source does not mark as unsafe.
+pub struct SitesInStore<S> {
+    /// The store.
+    pub store: Arc<S>,
+    /// The sources of the site layers.
+    pub sources: Vec<SourceId>,
+}
+
+impl<S: Store + 'static> TakeOffs for SitesInStore<S> {
+    fn within(&self, area: BoundingBox) -> BoxFuture<'_, Result<Vec<TakeOff>, StoreError>> {
+        async move {
+            let layers = self
+                .store
+                .sites_in(&self.sources, &area, MOST_TAKEOFFS)
+                .await?;
+            Ok(layers
+                .into_iter()
+                .flat_map(|layer| layer.sites)
+                .filter(|site| site.uses.contains(&SiteUse::Takeoff) && !site.discouraged)
+                .filter_map(|site| {
+                    Some(TakeOff {
+                        at: site.position,
+                        height_m: site.elevation_m?,
+                    })
+                })
+                .collect())
+        }
+        .boxed()
+    }
 }
 
 /// Where the map writes down what it judged and reads it back after a
@@ -662,6 +771,7 @@ impl ThermalMap {
                 .collect(),
             served: None,
         };
+        let regions = Regions::over(&grid, &points);
         Some(Self {
             forecasts,
             source,
@@ -675,7 +785,56 @@ impl ThermalMap {
             fetching: tokio::sync::Mutex::new(()),
             keeper: None,
             alerts: None,
+            regions,
+            takeoffs: None,
+            placed: Mutex::new(Vec::new()),
         })
+    }
+
+    /// The same map, judging the regions of the forecast by region by the
+    /// take-offs `takeoffs` holds, each time a model's part is made whole
+    /// and after a start.
+    #[must_use]
+    pub fn with_takeoffs(mut self, takeoffs: Arc<dyn TakeOffs>) -> Self {
+        self.takeoffs = Some(takeoffs);
+        self
+    }
+
+    /// Reads the take-offs again. One that cannot be read leaves the ones
+    /// read before.
+    async fn read_takeoffs(&self) {
+        let Some(takeoffs) = &self.takeoffs else {
+            return;
+        };
+        let step = self.grid.step_deg;
+        let north = self.grid.south + f64::from(self.grid.rows) * step;
+        let east = self.grid.west + f64::from(self.grid.columns) * step;
+        let Ok(area) = BoundingBox::new(
+            self.grid.south - step / 2.0,
+            self.grid.west - step / 2.0,
+            north - step / 2.0,
+            east - step / 2.0,
+        ) else {
+            return;
+        };
+        match takeoffs.within(area).await {
+            Ok(found) => {
+                let placed = Regions::place(&self.grid, &found);
+                tracing::info!(
+                    source = %self.source,
+                    "forecast by region: {} take-offs with a height, {} of them in a region; \
+                     {} regions over the map",
+                    found.len(),
+                    placed.len(),
+                    self.regions.over_the_grid(),
+                );
+                *self.placed.lock().unwrap_or_else(PoisonError::into_inner) = placed;
+            }
+            Err(error) => tracing::warn!(
+                source = %self.source,
+                "forecast by region: the take-offs could not be read, the last ones stand: {error}"
+            ),
+        }
     }
 
     /// The same map, writing down what it judged in `keeper` each time it
@@ -723,6 +882,36 @@ impl ThermalMap {
             .served
             .as_ref()
             .and_then(|served| served.hours.get(&date).cloned())
+    }
+
+    /// The forecast by region of one day as the API answers it, without
+    /// the credit, which is the API's. `date` `None` asks for today by the
+    /// map's clock, or the first day the map has where it has no today.
+    /// `None` before a map was made and for a day the map does not have.
+    pub fn region_forecast(&self, date: Option<NaiveDate>) -> Option<RegionForecastResponse> {
+        let state = self.lock();
+        let served = state.served.as_ref()?;
+        let dates: Vec<NaiveDate> = served.regions.keys().copied().collect();
+        let today = self.clock.now().date_naive();
+        let date = match date {
+            Some(date) => date,
+            None if dates.contains(&today) => today,
+            None => *dates.first()?,
+        };
+        let (hours, regions) = (served.hours.get(&date)?, served.regions.get(&date)?);
+        Some(RegionForecastResponse {
+            source: self.source.clone(),
+            date,
+            dates,
+            model: hours.model.clone(),
+            run: hours.run,
+            whole: hours.whole,
+            computed_at: hours.computed_at,
+            regions_version: venti_sources_eawsregions::version().to_owned(),
+            day: regions.day.clone(),
+            hours: regions.hours.clone(),
+            attributions: Vec::new(),
+        })
     }
 
     /// The strongest wind and the strongest gust among the cells of the
@@ -900,6 +1089,7 @@ impl ThermalMap {
             }
         }
 
+        self.read_takeoffs().await;
         let now = self.clock.now();
         let mut made = None;
         let written = {
@@ -966,6 +1156,7 @@ impl ThermalMap {
     /// left out, and is made again from the source at the next look.
     pub async fn restore(&self) {
         let Some(keeper) = &self.keeper else { return };
+        self.read_takeoffs().await;
         let parts = match keeper.load(self.source.clone()).await {
             Ok(parts) => parts,
             Err(error) => {
@@ -1011,6 +1202,19 @@ impl ThermalMap {
         }
     }
 
+    /// Reads the take-offs again and works the forecast by region out
+    /// anew from the hours the map holds, without asking the source: for a
+    /// server whose sites arrive after its map was made, as in the
+    /// development mode.
+    pub async fn judge_regions_again(&self) {
+        self.read_takeoffs().await;
+        let now = self.clock.now();
+        let mut state = self.lock();
+        if let Some(served) = self.made(&state.models, now) {
+            state.served = Some(served);
+        }
+    }
+
     fn left(&self, index: usize) -> usize {
         self.lock().models[index]
             .making
@@ -1033,6 +1237,12 @@ impl ThermalMap {
             .flat_map(|read| read.days.iter().flatten().map(|day| day.date))
             .collect();
         let mut hours = BTreeMap::new();
+        let mut regions = BTreeMap::new();
+        let placed = self
+            .placed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
         let days = dates
             .into_iter()
             .filter_map(|date| {
@@ -1052,6 +1262,16 @@ impl ThermalMap {
                 let day = read.day(date);
                 let of_day = read.hours(&day, &self.source, self.grid, now);
                 hours.insert(date, Arc::new(of_day));
+                let cells = read.cells_of(date);
+                regions.insert(
+                    date,
+                    Arc::new(region_forecast::day_of(
+                        date,
+                        &cells,
+                        &self.regions,
+                        &placed,
+                    )),
+                );
                 Some(day)
             })
             .collect();
@@ -1073,12 +1293,14 @@ impl ThermalMap {
                 .map(|kept| kept.ground_m.map(metres))
                 .collect(),
             heights_m: heights(),
+            heights_above_ground_m: heights_above_ground(),
             days,
             attributions: Vec::new(),
         };
         Some(Served {
             map: Arc::new(map),
             hours,
+            regions,
         })
     }
 }
@@ -1103,6 +1325,26 @@ impl<'a> Read<'a> {
             })
             .collect();
         Self { of, points, days }
+    }
+
+    /// What the model has of a day at each cell: the forecast by region
+    /// is read from it.
+    fn cells_of(&self, date: NaiveDate) -> Vec<CellOfDay> {
+        self.of
+            .cells
+            .iter()
+            .zip(self.points)
+            .map(|(kept, point)| CellOfDay {
+                hours: kept
+                    .hours
+                    .values()
+                    .filter(|hour| day::solar_date(hour.rated.time, *point) == date)
+                    .map(|hour| hour.rated)
+                    .collect(),
+                ground_m: kept.ground_m,
+                point: Some(*point),
+            })
+            .collect()
     }
 
     /// How many judged hours of a day the model has, over the cells
@@ -1273,6 +1515,23 @@ impl<'a> Read<'a> {
                                 .collect(),
                         })
                         .collect(),
+                    above_ground: (0..MAP_ABOVE_GROUND_M.len())
+                        .map(|height| WindAtHeight {
+                            kmh: at
+                                .iter()
+                                .map(|hour| {
+                                    hour.and_then(|hour| hour.weather.above_ground_kmh[height])
+                                })
+                                .collect(),
+                            from_deg: at
+                                .iter()
+                                .map(|hour| {
+                                    hour.and_then(|hour| hour.weather.above_ground_from[height])
+                                        .map(degrees)
+                                })
+                                .collect(),
+                        })
+                        .collect(),
                     cloud_cover_pct: at
                         .iter()
                         .map(|hour| hour.and_then(|hour| hour.weather.cloud_pct))
@@ -1326,7 +1585,7 @@ fn verdict(verdict: Verdict) -> ThermalVerdict {
     }
 }
 
-fn reason(reason: Reason) -> ThermalReason {
+pub(crate) fn reason(reason: Reason) -> ThermalReason {
     match reason {
         Reason::Rain => ThermalReason::Rain,
         Reason::Wind => ThermalReason::Wind,
@@ -1365,12 +1624,12 @@ mod stored {
     use venti_flight::convection::Convection;
     use venti_flight::day::{Against, Kind, RatedHour, Verdict};
 
-    use super::{Kept, KeptHour, MAP_HEIGHTS_M, Weather};
+    use super::{Kept, KeptHour, MAP_ABOVE_GROUND_M, MAP_HEIGHTS_M, Weather};
 
     /// The form's number. Raised when the form changes; a part of another
-    /// form is not read. 2 since an hour has its weather; 1 was the judged
-    /// hour alone.
-    const FORM: u32 = 2;
+    /// form is not read. 3 since an hour has the wind above the ground; 2
+    /// since it has its weather; 1 was the judged hour alone.
+    const FORM: u32 = 3;
 
     /// The most a part may unpack to. ICON-EU's part of the first region
     /// in midsummer, five days of fifteen daylight hours, is some 35 MB of
@@ -1385,6 +1644,8 @@ mod stored {
         /// The heights the hours' wind higher up is at: a part of other
         /// heights is not read.
         heights: Vec<u16>,
+        /// The heights above the ground, the same.
+        above_ground: Vec<u16>,
         cells: Vec<Cell>,
     }
 
@@ -1403,7 +1664,8 @@ mod stored {
 
     /// The weather of an hour, as [`Weather`] has it: the wind at the
     /// ground, its direction and the gusts; the wind at each height and
-    /// the direction of each; the cloud and the rain.
+    /// the direction of each; the cloud and the rain; the wind at each
+    /// height above the ground and the direction of each.
     #[derive(Serialize, Deserialize)]
     struct Sky(
         Option<u16>,
@@ -1413,6 +1675,8 @@ mod stored {
         [Option<u8>; MAP_HEIGHTS_M.len()],
         Option<u8>,
         Option<u16>,
+        [Option<u16>; MAP_ABOVE_GROUND_M.len()],
+        [Option<u8>; MAP_ABOVE_GROUND_M.len()],
     );
 
     #[derive(Serialize, Deserialize)]
@@ -1480,13 +1744,25 @@ mod stored {
                 weather.aloft_from,
                 weather.cloud_pct,
                 weather.rain_tenths,
+                weather.above_ground_kmh,
+                weather.above_ground_from,
             ),
         )
     }
 
     fn kept(hour: Hour) -> Option<KeptHour> {
         let Hour(time, run, verdict, kind, why, air, sky) = hour;
-        let Sky(wind_kmh, wind_from, gust_kmh, aloft_kmh, aloft_from, cloud_pct, rain_tenths) = sky;
+        let Sky(
+            wind_kmh,
+            wind_from,
+            gust_kmh,
+            aloft_kmh,
+            aloft_from,
+            cloud_pct,
+            rain_tenths,
+            above_ground_kmh,
+            above_ground_from,
+        ) = sky;
         let against = why.map(|why| match why {
             Why::R => Against::Rain,
             Why::W(kmh) => Against::Wind { kmh },
@@ -1508,6 +1784,8 @@ mod stored {
                 gust_kmh,
                 aloft_kmh,
                 aloft_from,
+                above_ground_kmh,
+                above_ground_from,
                 cloud_pct,
                 rain_tenths,
             },
@@ -1536,6 +1814,7 @@ mod stored {
             form: FORM,
             grid: *grid,
             heights: MAP_HEIGHTS_M.to_vec(),
+            above_ground: MAP_ABOVE_GROUND_M.to_vec(),
             cells: cells
                 .iter()
                 .map(|kept| Cell {
@@ -1564,6 +1843,7 @@ mod stored {
         if part.form != FORM
             || part.grid != *grid
             || part.heights != MAP_HEIGHTS_M
+            || part.above_ground != MAP_ABOVE_GROUND_M
             || part.cells.len() != grid.cells()
         {
             return None;
@@ -2063,7 +2343,7 @@ mod tests {
 
         // What goes out is a layer of the day: its lists and no others,
         // under the same head.
-        let layer = |layer, height| today.layer(layer, height).unwrap();
+        let layer = |layer, height| today.layer(layer, height, None).unwrap();
         let judged = layer(ThermalLayer::Thermals, None);
         assert_eq!(
             (judged.layer, judged.height_m),
@@ -2101,7 +2381,31 @@ mod tests {
         assert_eq!(high.hours[7].wind_from_deg[0], Some(310));
         assert!(high.hours[7].gust_kmh.is_empty());
         // A height the map does not keep is none of its layers.
-        assert!(today.layer(ThermalLayer::Wind, Some(1800)).is_none());
+        assert!(today.layer(ThermalLayer::Wind, Some(1800), None).is_none());
+        // 250 m above the model's ground: at 1050 m over the ground of
+        // 800 m, a quarter of the way from the level 80 m above it (3 m/s
+        // from 280°) to the surface of 850 hPa at 1500 m (5 m/s from 300°);
+        // at 2850 m over the ground of 2600 m, half way from the level 80 m
+        // above it to the surface of 700 hPa at 3000 m (10 m/s from 330°);
+        // none over the cell of water, which has no ground.
+        let low = today.layer(ThermalLayer::Wind, None, Some(250)).unwrap();
+        assert_eq!((low.height_m, low.above_ground_m), (None, Some(250)));
+        assert_eq!(low.heights_above_ground_m, [250]);
+        assert_eq!(
+            low.hours[7].wind_kmh,
+            [Some(13), Some(24), None, Some(13), Some(13), Some(13)]
+        );
+        assert_eq!(
+            low.hours[7].wind_from_deg,
+            [Some(290), Some(310), None, Some(290), Some(290), Some(290)]
+        );
+        assert!(low.hours[7].gust_kmh.is_empty());
+        assert!(today.layer(ThermalLayer::Wind, None, Some(300)).is_none());
+        // A height above the sea is taken before one above the ground.
+        assert_eq!(
+            today.layer(ThermalLayer::Wind, Some(2000), Some(250)),
+            Some(high.clone())
+        );
         let cloud = layer(ThermalLayer::Cloud, None);
         assert_eq!(cloud.hours[7].cloud_cover_pct, [Some(40); 6]);
         assert!(cloud.hours[7].precipitation_mm.is_empty());
@@ -2109,7 +2413,10 @@ mod tests {
         assert_eq!(rain.hours[7].precipitation_mm, [Some(0.0); 6]);
         assert!(rain.hours[7].cloud_cover_pct.is_empty());
         // A height asked of a layer that has none is of no account.
-        assert_eq!(today.layer(ThermalLayer::Rain, Some(2000)), Some(rain));
+        assert_eq!(
+            today.layer(ThermalLayer::Rain, Some(2000), None),
+            Some(rain)
+        );
     }
 
     #[tokio::test]
@@ -2731,8 +3038,9 @@ mod tests {
                 day.model,
                 day.hours.len()
             );
-            let layer =
-                |layer, height| serde_json::to_value(day.layer(layer, height).unwrap()).unwrap();
+            let layer = |layer, height| {
+                serde_json::to_value(day.layer(layer, height, None).unwrap()).unwrap()
+            };
             weigh("layer=thermals", &layer(ThermalLayer::Thermals, None));
             weigh(
                 "layer=wind (at the ground, with gusts)",
@@ -2818,14 +3126,27 @@ mod tests {
             r#"{{"form":1,"grid":{grid_text},"cells":[{{"g":800.0,"h":[[1783857600,1783814400,0,null,null,null]]}}]}}"#
         );
         assert!(stored::decode(&packed(&before), &grid).is_none());
+        // The form before the wind above the ground, of the same hour, is
+        // made again too.
+        let second = format!(
+            r#"{{"form":2,"grid":{grid_text},"heights":[1000,1500,2000,2500,3000,4000],"cells":[{{"g":800.0,"h":[[1783857600,1783814400,0,null,null,null,[7,27,14,[12,18,24,30,36,null],[28,30,31,32,33,null],40,0]]]}}]}}"#
+        );
+        assert!(stored::decode(&packed(&second), &grid).is_none());
         // This form, of the same hour, is read.
         let now = format!(
-            r#"{{"form":2,"grid":{grid_text},"heights":[1000,1500,2000,2500,3000,4000],"cells":[{{"g":800.0,"h":[[1783857600,1783814400,0,null,null,null,[7,27,14,[12,18,24,30,36,null],[28,30,31,32,33,null],40,0]]]}}]}}"#
+            r#"{{"form":3,"grid":{grid_text},"heights":[1000,1500,2000,2500,3000,4000],"above_ground":[250],"cells":[{{"g":800.0,"h":[[1783857600,1783814400,0,null,null,null,[7,27,14,[12,18,24,30,36,null],[28,30,31,32,33,null],40,0,[11],[26]]]]}}]}}"#
         );
         let read = stored::decode(&packed(&now), &grid).unwrap();
         let hour = read[0].hours.values().next().unwrap();
         assert_eq!(hour.weather.wind_from, Some(27));
         assert_eq!(hour.weather.aloft_kmh[4], Some(36));
+        assert_eq!(
+            (
+                hour.weather.above_ground_kmh,
+                hour.weather.above_ground_from
+            ),
+            ([Some(11)], [Some(26)])
+        );
         // Written for other heights, it is made again.
         let other_heights = now.replace("[1000,1500,", "[1200,1500,");
         assert!(stored::decode(&packed(&other_heights), &grid).is_none());
@@ -2980,7 +3301,8 @@ mod tests {
         println!("days: {days:?}");
         for day in &current.days {
             let hours = map.hours_of(day.date).unwrap();
-            let json = serde_json::to_vec(&hours.layer(ThermalLayer::Thermals, None)).unwrap();
+            let json =
+                serde_json::to_vec(&hours.layer(ThermalLayer::Thermals, None, None)).unwrap();
             println!(
                 "{}: the thermals layer {} bytes of JSON",
                 day.date,

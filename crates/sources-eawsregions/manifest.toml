@@ -1,0 +1,52 @@
+id = "eaws-regions"
+provider = "EAWS, the European Avalanche Warning Services (regions.avalanches.org, gitlab.com/eaws/eaws-regions)"
+kinds = ["boundaries"]
+# The countries of the Alpine warning services whose micro-regions the
+# asset holds: Austria's seven Länder that have them, Bavaria, Switzerland,
+# France's Alps, Piedmont, the Aosta Valley, Lombardy, South Tyrol,
+# Trentino, the Veneto, Friuli and Slovenia.
+countries = ["AT", "CH", "DE", "FR", "IT", "SI"]
+# The services redraw a region at the start of a winter at most; nothing
+# is fetched at run time, so this is how often the asset should be looked
+# at again.
+cadence_seconds = 31536000
+auth = "none"
+
+[licence]
+name = "CC0 1.0"
+commercial = true
+redistribution = true
+share_alike = false
+# CC0 asks for no credit; the session's proposal of 2026-11-23 gives one
+# anyway, so that a pilot knows whose regions they are.
+attribution = "Regions: EAWS (CC0)"
+link = "https://gitlab.com/eaws/eaws-regions/-/blob/master/LICENSE"
+constraints = [
+    "The repository's LICENSE file is the Creative Commons CC0 1.0 Universal dedication: the affirmer \"waives, abandons, and surrenders all of Affirmer's Copyright and Related Rights\" in the work, for any purpose, \"including without limitation commercial\" ones. Nothing is asked of who uses it.",
+    "The regions are drawn for avalanche bulletins: massifs and their valleys as the services split them, not areas of flying. The foreland (around Munich, the Swiss Mittelland, the Po plain) is in none of them.",
+    "Simplified by about 100 m: a place within about 100 m of a border between two regions may be given the neighbour.",
+]
+verified_on = "2026-11-24"
+verified_from = [
+    "https://gitlab.com/eaws/eaws-regions/-/blob/master/LICENSE",
+    "https://gitlab.com/eaws/eaws-regions/-/raw/439ec67625ab5531653a9c49888da4dcea586e2f/LICENSE",
+]
+
+[[asset]]
+name = "The Alpine avalanche warning micro-regions"
+file = "assets/regions.geojson"
+provider = "EAWS"
+made_from = "The micro-regions of gitlab.com/eaws/eaws-regions at commit 439ec67625ab5531653a9c49888da4dcea586e2f (2026-11-23), downloaded 2026-11-24 from https://gitlab.com/eaws/eaws-regions/-/raw/<commit>/public/micro-regions/<provider>_micro-regions.geojson.json for AT-02 to AT-08, CH, DE-BY, FR, IT-21, IT-23, IT-25, IT-32-BZ, IT-32-TN, IT-34, IT-36 and SI, with the names of public/micro-regions_names in de, it, en, fr and sl: the regions current on 2026-11-24 (no start_date after it, no end_date on or before it), of France's only those of the Alps (a label east of 5° E and north of 43.5° N), 459 regions, each ring simplified by 0.001° (about 100 m, Douglas-Peucker) and rounded to four decimals, with a label point inside each. tools/build_regions.py makes it again."
+
+[asset.licence]
+name = "CC0 1.0"
+commercial = true
+redistribution = true
+share_alike = false
+attribution = "Regions: EAWS (CC0)"
+link = "https://gitlab.com/eaws/eaws-regions/-/blob/master/LICENSE"
+constraints = [
+    "As the source's own licence above; nothing is asked of who uses it.",
+]
+verified_on = "2026-11-24"
+verified_from = ["https://gitlab.com/eaws/eaws-regions/-/blob/master/LICENSE"]

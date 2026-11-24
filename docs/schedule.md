@@ -28,7 +28,7 @@ A source runs when a region pack names it (`regions/*/region.toml`), first when 
 | `slf-imis` | station readings | 30 min | 30 min, then 1 h | none stated | `crates/sources-slf/manifest.toml` |
 | `suedtirol-meteo` | station readings | 10 min | 10 min, 20 min, 40 min, then 1 h | none stated | `crates/sources-suedtirol/manifest.toml` |
 
-Not on the schedule: `basemap-at` (map imagery: fetched when an app asks for a tile); `ign-ortho` (map imagery: fetched when an app asks for a tile); `natural-earth` (boundaries: built into the server, never fetched); `ogn` (live positions: a connection held open, below); `timezone-boundary-builder` (boundaries: built into the server, never fetched).
+Not on the schedule: `basemap-at` (map imagery: fetched when an app asks for a tile); `eaws-regions` (boundaries: built into the server, never fetched); `ign-ortho` (map imagery: fetched when an app asks for a tile); `natural-earth` (boundaries: built into the server, never fetched); `ogn` (live positions: a connection held open, below); `timezone-boundary-builder` (boundaries: built into the server, never fetched).
 
 ## The server's own jobs
 

@@ -131,6 +131,13 @@ pub(crate) fn slow_json(request: &HeaderMap, value: &impl Serialize) -> Response
     }
 }
 
+/// A JSON body written once, of an answer that is the same for everyone
+/// and changes with a release of the server at most: it may be reused for
+/// an hour.
+pub(crate) fn slow_json_body(request: &HeaderMap, body: Vec<u8>) -> Response {
+    validated(request, "application/json", body, SLOW_MAX_AGE)
+}
+
 /// Serialises `value` as the JSON body of an answer that its pilot shares
 /// and can take back: kept by `keeper`, checked before every reuse.
 pub(crate) fn shared_json(request: &HeaderMap, value: &impl Serialize, keeper: Keeper) -> Response {

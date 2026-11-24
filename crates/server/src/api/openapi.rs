@@ -40,9 +40,9 @@ use venti_api_types::v1::{
     GROUPS_PATH, HEALTH_PATH, JSON_LINES_MEDIA_TYPE, KEPT_SITE_CHANGES_PATH, LIVE_OTHERS_PATH,
     LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, PILOTS_PATH, PLAN_BOARD_PATH,
     PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, PUSH_KEY_PATH, PUSH_SUBSCRIPTION_PATH,
-    RADAR_PATH, RANKING_PATH, REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH,
-    SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, Scope, THERMAL_HOURS_PATH,
-    THERMALS_PATH,
+    RADAR_PATH, RANKING_PATH, REGION_FORECAST_PATH, REGIONS_PATH, REPORTS_PATH, ROUTE_WEATHER_PATH,
+    SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, Scope,
+    THERMAL_HOURS_PATH, THERMALS_PATH,
 };
 use venti_api_types::v1::{FLOWN_THERMALS_PATH, LIVE_CLIMBS_PATH, LIVE_SITES_PATH};
 
@@ -75,11 +75,12 @@ const TAGS: &[(&str, &str, &[&str])] = &[
     ),
     (
         "Weather",
-        "Stations, forecasts, thermals, the weather along a route, rain radar and foehn.",
+        "Stations, forecasts, thermals, the forecast by region, the weather along a route, rain radar and foehn.",
         &[
             "/v1/stations",
             "/v1/forecast",
             "/v1/thermals",
+            "/v1/regions",
             "/v1/route/weather",
             "/v1/radar",
             "/v1/foehn",
@@ -553,8 +554,20 @@ fn operations() -> Vec<Op> {
             "One day of the thermal map hour by hour, a layer at a time",
         )
         .docs("GET /v1/thermals/hours?date=&layer=&height=")
-        .query(&["date!", "layer", "height"])
+        .query(&["date!", "layer", "height", "above_ground"])
         .json("ThermalHoursResponse"),
+        get(
+            REGIONS_PATH,
+            "The regions of the forecast by region: outlines, names and labels, as GeoJSON",
+        )
+        .json("RegionsResponse"),
+        get(
+            REGION_FORECAST_PATH,
+            "One day of the thermal map read region by region, for the day and each hour",
+        )
+        .docs("GET /v1/regions/forecast?date=")
+        .query(&["date:region-forecast"])
+        .json("RegionForecastResponse"),
         get(
             FLOWN_THERMALS_PATH,
             "Where thermals have been: the cells in which several pilots' public flights climbed",
@@ -1385,6 +1398,14 @@ fn query_parameter(spec: &str) -> Value {
         "height" => (
             "A height of the wind layer; the error for an unknown one lists those there are.",
             json!({"type": "string"}),
+        ),
+        "above_ground" => (
+            "A height above the model's ground of the wind layer, in place of height; the error for an unknown one lists those there are.",
+            json!({"type": "string"}),
+        ),
+        "date:region-forecast" => (
+            "A day the thermal map has, written YYYY-MM-DD. Without it: today, or the map's first day where it has no today.",
+            json!({"type": "string", "format": "date"}),
         ),
         "layers" => (
             "The layers wanted, by name and separated by commas, for example osm-free-flying,venti,venti-pilots; `default` stands for those a request that names none gets. Without it: every source's layer and `venti`, and not the crowdsourced `venti-pilots`.",

@@ -3083,15 +3083,18 @@ pub fn thermal_map_strip(
 /// The path and query to `GET` for one layer of the hours of a day of the
 /// thermal map. `date` is the day as the map names it, `height_m` the
 /// level the wind is wanted at: left out for the wind at the ground, and
-/// of no account to the other layers. The wind at the ground and the gusts
-/// are one answer, asked for by the same path.
+/// of no account to the other layers. `above_ground_m` is a level above
+/// the model's ground in its place (a level's `aboveGroundM`), and may be
+/// left out. The wind at the ground and the gusts are one answer, asked
+/// for by the same path.
 #[wasm_bindgen(js_name = thermalHoursPath)]
 pub fn thermal_hours_path(
     date: String,
     layer: Ts<ThermalHoursLayer>,
     height_m: Option<i32>,
+    above_ground_m: Option<i32>,
 ) -> Result<String, JsValue> {
-    venti_core::thermal_hours_path(date, from_js(&layer)?, height_m).map_err(thrown)
+    venti_core::thermal_hours_path(date, from_js(&layer)?, height_m, above_ground_m).map_err(thrown)
 }
 
 /// One layer of the hours of a day of the thermal map: the server's
@@ -3164,6 +3167,121 @@ impl ThermalMapHours {
             .as_ref()
             .map(to_js)
             .transpose()
+    }
+}
+
+// The thermal forecast by region: the regions read once, a day read for
+// the day and hour by hour.
+
+/// The path to `GET` for the regions of the forecast by region.
+#[wasm_bindgen(js_name = regionsPath)]
+#[must_use]
+pub fn regions_path() -> String {
+    venti_core::regions_path()
+}
+
+/// The path and query to `GET` for the forecast by region of a day, as the
+/// thermal map names it; left out for today.
+#[wasm_bindgen(js_name = regionForecastPath)]
+pub fn region_forecast_path(date: Option<String>) -> Result<String, JsValue> {
+    venti_core::region_forecast_path(date).map_err(thrown)
+}
+
+/// The key of the forecast by region, the best level first.
+#[wasm_bindgen(js_name = regionLevels)]
+pub fn region_levels() -> Result<Vec<Ts<venti_core::RegionLevelKey>>, JsValue> {
+    venti_core::region_levels().iter().map(to_js).collect()
+}
+
+/// The regions, read once: the outlines and labels a map draws.
+#[wasm_bindgen]
+#[derive(Debug)]
+pub struct ForecastRegions {
+    regions: Arc<venti_core::ForecastRegions>,
+}
+
+#[wasm_bindgen]
+impl ForecastRegions {
+    /// Reads the server's answer to `regionsPath`; `language` is that of
+    /// the names, "de", "it", "en", "fr" or "sl". Throws, in words for
+    /// the pilot, when the answer is a refusal or cannot be read.
+    #[wasm_bindgen(constructor)]
+    pub fn new(status: u16, body: Vec<u8>, language: String) -> Result<ForecastRegions, JsValue> {
+        Ok(Self {
+            regions: venti_core::ForecastRegions::read(status, body, language).map_err(thrown)?,
+        })
+    }
+
+    /// Which set of regions this is.
+    pub fn version(&self) -> String {
+        self.regions.version()
+    }
+
+    /// The outlines, GeoJSON, each feature with `id` and `name`.
+    pub fn outlines(&self) -> String {
+        self.regions.outlines()
+    }
+
+    /// The labels, GeoJSON points, each with `id` and `name`.
+    pub fn labels(&self) -> String {
+        self.regions.labels()
+    }
+
+    /// A region's name by its `id`.
+    #[wasm_bindgen(js_name = nameOf)]
+    pub fn name_of(&self, id: String) -> Option<String> {
+        self.regions.name_of(id)
+    }
+
+    /// The credits to show wherever the regions are.
+    pub fn credits(&self) -> Result<Vec<Ts<Credit>>, JsValue> {
+        self.regions.credits().iter().map(to_js).collect()
+    }
+}
+
+/// A day of the forecast by region.
+#[wasm_bindgen]
+#[derive(Debug)]
+pub struct RegionForecast {
+    forecast: Arc<venti_core::RegionForecast>,
+}
+
+#[wasm_bindgen]
+impl RegionForecast {
+    /// Reads the server's answer to `regionForecastPath`. `utc_offset_s`
+    /// labels the hours; `now_unix_s` decides the hour to show first.
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        status: u16,
+        body: Vec<u8>,
+        utc_offset_s: i32,
+        now_unix_s: f64,
+    ) -> Result<RegionForecast, JsValue> {
+        Ok(Self {
+            forecast: venti_core::RegionForecast::read(
+                status,
+                body,
+                utc_offset_s,
+                whole_seconds(now_unix_s),
+            )
+            .map_err(thrown)?,
+        })
+    }
+
+    /// What a card says of the day.
+    pub fn view(&self) -> Result<Ts<venti_core::RegionForecastView>, JsValue> {
+        to_js(&self.forecast.view())
+    }
+
+    /// Each region's level for the whole day.
+    pub fn day(&self) -> Result<Vec<Ts<venti_core::RegionReadingView>>, JsValue> {
+        self.forecast.day().iter().map(to_js).collect()
+    }
+
+    /// Each region's level in one hour, by its number in the view's
+    /// `hours`.
+    pub fn hour(&self, hour: u32) -> Result<Vec<Ts<venti_core::RegionReadingView>>, JsValue> {
+        self.forecast.hour(hour).iter().map(to_js).collect()
     }
 }
 

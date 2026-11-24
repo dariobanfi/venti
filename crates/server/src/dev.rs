@@ -1923,13 +1923,23 @@ pub async fn recorded_with_its_store(
         .find(|job| job.kind == venti_sources::Kind::Forecasts)
         .map(|job| job.source.clone())
         .ok_or("the first region lists no forecast source")?;
+    let site_sources: Vec<_> = jobs
+        .iter()
+        .filter(|job| job.kind == venti_sources::Kind::Sites)
+        .map(|job| job.source.clone())
+        .collect();
     let map = ThermalMap::on_grid(
         map_forecasts,
         source,
         adapters::recorded_thermal_grid(),
         map_clock,
     )
-    .ok_or("the forecast source cannot be asked for several places")?;
+    .ok_or("the forecast source cannot be asked for several places")?
+    .with_takeoffs(Arc::new(crate::thermals::SitesInStore {
+        store: store.clone(),
+        sources: site_sources,
+    }));
+    let map = Arc::new(map);
     map.update(&adapters::thermal_map_recorded_runs()).await;
     if map.current().is_none() {
         return Err("the recorded answers for several places no longer make a thermal map".into());
@@ -1992,7 +2002,7 @@ pub async fn recorded_with_its_store(
         .with_station_priority(plan::station_priority(&packs))
         .with_site_priority(plan::site_priority(&packs))
         .with_forecasts(forecasts.clone())
-        .with_thermal_map(Arc::new(map))
+        .with_thermal_map(map.clone())
         .with_radar(radar.clone())
         .with_networks(networks)
         .with_flown_thermals(flown)
@@ -2020,6 +2030,9 @@ pub async fn recorded_with_its_store(
             ));
         }
     }
+    // The forecast by region judges the sites' take-offs, which arrive
+    // with the collection after the map was made.
+    map.judge_regions_again().await;
     add_made_up_pressures(&store, now).await?;
     Ok((api, store))
 }

@@ -337,6 +337,8 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "forecast.json",
         "thermals.json",
         "thermal_hours_wind.json",
+        "regions.json",
+        "region_forecast.json",
         "route_weather.json",
         "radar.json",
         "foehn.json",

@@ -5444,6 +5444,257 @@
         ],
         "type": "object"
       },
+      "RegionFeature": {
+        "properties": {
+          "geometry": {
+            "$ref": "#/components/schemas/RegionGeometry"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/RegionProperties"
+          },
+          "type": {
+            "enum": [
+              "Feature"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "properties",
+          "geometry"
+        ],
+        "type": "object"
+      },
+      "RegionForecastResponse": {
+        "properties": {
+          "attributions": {
+            "items": {
+              "$ref": "#/components/schemas/Attribution"
+            },
+            "type": "array"
+          },
+          "computed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "dates": {
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "day": {
+            "items": {
+              "$ref": "#/components/schemas/RegionReading"
+            },
+            "type": "array"
+          },
+          "hours": {
+            "items": {
+              "$ref": "#/components/schemas/RegionHour"
+            },
+            "type": "array"
+          },
+          "model": {
+            "type": "string"
+          },
+          "regions_version": {
+            "type": "string"
+          },
+          "run": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "whole": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "source",
+          "date",
+          "dates",
+          "model",
+          "run",
+          "whole",
+          "computed_at",
+          "regions_version",
+          "day",
+          "hours",
+          "attributions"
+        ],
+        "type": "object"
+      },
+      "RegionGeometry": {
+        "properties": {
+          "coordinates": {
+            "items": {
+              "items": {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "type": {
+            "enum": [
+              "MultiPolygon"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "type": "object"
+      },
+      "RegionHour": {
+        "properties": {
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/RegionReading"
+            },
+            "type": "array"
+          },
+          "time": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "time",
+          "regions"
+        ],
+        "type": "object"
+      },
+      "RegionLevel": {
+        "enum": [
+          "not_flyable",
+          "glides_only",
+          "weak",
+          "good",
+          "very_good"
+        ],
+        "type": "string"
+      },
+      "RegionNames": {
+        "properties": {
+          "de": {
+            "type": "string"
+          },
+          "en": {
+            "type": "string"
+          },
+          "fr": {
+            "type": "string"
+          },
+          "it": {
+            "type": "string"
+          },
+          "sl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "de",
+          "it",
+          "en",
+          "fr",
+          "sl"
+        ],
+        "type": "object"
+      },
+      "RegionProperties": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "description": "[longitude, latitude]",
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "names": {
+            "$ref": "#/components/schemas/RegionNames"
+          }
+        },
+        "required": [
+          "id",
+          "names",
+          "label"
+        ],
+        "type": "object"
+      },
+      "RegionReading": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/RegionLevel"
+          },
+          "takeoffs": {
+            "type": "integer"
+          },
+          "why": {
+            "$ref": "#/components/schemas/ThermalReason"
+          }
+        },
+        "required": [
+          "id",
+          "level"
+        ],
+        "type": "object"
+      },
+      "RegionsResponse": {
+        "properties": {
+          "attributions": {
+            "items": {
+              "$ref": "#/components/schemas/Attribution"
+            },
+            "type": "array"
+          },
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/RegionFeature"
+            },
+            "type": "array"
+          },
+          "type": {
+            "enum": [
+              "FeatureCollection"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "version",
+          "features",
+          "attributions"
+        ],
+        "type": "object"
+      },
       "RegistrationMode": {
         "type": "string",
         "x-venti-values": [
@@ -6927,6 +7178,9 @@
       },
       "ThermalHoursResponse": {
         "properties": {
+          "above_ground_m": {
+            "type": "integer"
+          },
           "attributions": {
             "items": {
               "$ref": "#/components/schemas/Attribution"
@@ -6960,6 +7214,12 @@
           },
           "height_m": {
             "type": "integer"
+          },
+          "heights_above_ground_m": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
           },
           "heights_m": {
             "items": {
@@ -7356,6 +7616,12 @@
                   "type": "null"
                 }
               ]
+            },
+            "type": "array"
+          },
+          "heights_above_ground_m": {
+            "items": {
+              "type": "integer"
             },
             "type": "array"
           },
@@ -20797,6 +21063,689 @@
         "x-venti-docs": "GET /v1/ranking?bbox=&from=&to=&month=&limit="
       }
     },
+    "/v1/regions": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_regions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "regions": {
+                    "value": {
+                      "attributions": [
+                        {
+                          "licence": "CC0 1.0",
+                          "provider": "EAWS, the European Avalanche Warning Services (regions.avalanches.org, gitlab.com/eaws/eaws-regions)",
+                          "source": "eaws-regions",
+                          "text": "Regions: EAWS (CC0)",
+                          "url": "https://gitlab.com/eaws/eaws-regions/-/blob/master/LICENSE"
+                        }
+                      ],
+                      "features": [
+                        {
+                          "geometry": {
+                            "coordinates": [
+                              [
+                                [
+                                  [
+                                    12.785,
+                                    47.0509
+                                  ],
+                                  [
+                                    12.7868,
+                                    47.0519
+                                  ],
+                                  [
+                                    12.7797,
+                                    47.06
+                                  ],
+                                  [
+                                    12.7632,
+                                    47.0689
+                                  ],
+                                  [
+                                    12.7673,
+                                    47.0816
+                                  ],
+                                  [
+                                    12.7783,
+                                    47.0961
+                                  ],
+                                  [
+                                    12.7722,
+                                    47.1014
+                                  ],
+                                  [
+                                    12.7567,
+                                    47.0979
+                                  ],
+                                  [
+                                    12.7395,
+                                    47.0996
+                                  ],
+                                  [
+                                    12.7335,
+                                    47.104
+                                  ],
+                                  [
+                                    12.7363,
+                                    47.111
+                                  ],
+                                  [
+                                    12.7308,
+                                    47.1305
+                                  ],
+                                  [
+                                    12.7128,
+                                    47.1281
+                                  ],
+                                  [
+                                    12.7037,
+                                    47.1222
+                                  ],
+                                  [
+                                    12.689,
+                                    47.1242
+                                  ],
+                                  [
+                                    12.6723,
+                                    47.1206
+                                  ],
+                                  [
+                                    12.6662,
+                                    47.1229
+                                  ],
+                                  [
+                                    12.6662,
+                                    47.1164
+                                  ],
+                                  [
+                                    12.6722,
+                                    47.1093
+                                  ],
+                                  [
+                                    12.6561,
+                                    47.1
+                                  ],
+                                  [
+                                    12.6654,
+                                    47.0932
+                                  ],
+                                  [
+                                    12.6762,
+                                    47.0905
+                                  ],
+                                  [
+                                    12.6882,
+                                    47.0783
+                                  ],
+                                  [
+                                    12.6999,
+                                    47.0732
+                                  ],
+                                  [
+                                    12.707,
+                                    47.0568
+                                  ],
+                                  [
+                                    12.7154,
+                                    47.046
+                                  ],
+                                  [
+                                    12.7263,
+                                    47.043
+                                  ],
+                                  [
+                                    12.7453,
+                                    47.0426
+                                  ],
+                                  [
+                                    12.7681,
+                                    47.0477
+                                  ],
+                                  [
+                                    12.7801,
+                                    47.0482
+                                  ],
+                                  [
+                                    12.785,
+                                    47.0509
+                                  ]
+                                ]
+                              ]
+                            ],
+                            "type": "MultiPolygon"
+                          },
+                          "properties": {
+                            "id": "AT-02-01-01",
+                            "label": [
+                              12.732,
+                              47.0717
+                            ],
+                            "names": {
+                              "de": "Glocknergruppe Pasterze",
+                              "en": "Glockner Group Pasterze",
+                              "fr": "Groupe du Glockner Pasterze",
+                              "it": "Gruppo del Glockner Pasterze",
+                              "sl": "Glockner Group Pasterze"
+                            }
+                          },
+                          "type": "Feature"
+                        },
+                        {
+                          "geometry": {
+                            "coordinates": [
+                              [
+                                [
+                                  [
+                                    13.1016,
+                                    47.0047
+                                  ],
+                                  [
+                                    13.0896,
+                                    47.0261
+                                  ],
+                                  [
+                                    13.0787,
+                                    47.026
+                                  ],
+                                  [
+                                    13.0727,
+                                    47.0132
+                                  ],
+                                  [
+                                    13.0198,
+                                    47.0294
+                                  ],
+                                  [
+                                    13.0212,
+                                    47.0389
+                                  ],
+                                  [
+                                    13.003,
+                                    47.0439
+                                  ],
+                                  [
+                                    12.9856,
+                                    47.0355
+                                  ],
+                                  [
+                                    12.9798,
+                                    47.0388
+                                  ],
+                                  [
+                                    12.9649,
+                                    47.039
+                                  ],
+                                  [
+                                    12.9565,
+                                    47.0431
+                                  ],
+                                  [
+                                    12.9528,
+                                    47.0491
+                                  ],
+                                  [
+                                    12.9553,
+                                    47.0543
+                                  ],
+                                  [
+                                    12.9427,
+                                    47.059
+                                  ],
+                                  [
+                                    12.9372,
+                                    47.0759
+                                  ],
+                                  [
+                                    12.9193,
+                                    47.0813
+                                  ],
+                                  [
+                                    12.8943,
+                                    47.0809
+                                  ],
+                                  [
+                                    12.8695,
+                                    47.0866
+                                  ],
+                                  [
+                                    12.8587,
+                                    47.0813
+                                  ],
+                                  [
+                                    12.8368,
+                                    47.0831
+                                  ],
+                                  [
+                                    12.8311,
+                                    47.0915
+                                  ],
+                                  [
+                                    12.8202,
+                                    47.0978
+                                  ],
+                                  [
+                                    12.8161,
+                                    47.0955
+                                  ],
+                                  [
+                                    12.8048,
+                                    47.0979
+                                  ],
+                                  [
+                                    12.7951,
+                                    47.093
+                                  ],
+                                  [
+                                    12.7829,
+                                    47.0921
+                                  ],
+                                  [
+                                    12.7783,
+                                    47.0961
+                                  ],
+                                  [
+                                    12.7673,
+                                    47.0816
+                                  ],
+                                  [
+                                    12.7632,
+                                    47.0689
+                                  ],
+                                  [
+                                    12.7797,
+                                    47.06
+                                  ],
+                                  [
+                                    12.7868,
+                                    47.0519
+                                  ],
+                                  [
+                                    12.7921,
+                                    47.052
+                                  ],
+                                  [
+                                    12.8015,
+                                    47.0485
+                                  ],
+                                  [
+                                    12.8184,
+                                    47.0461
+                                  ],
+                                  [
+                                    12.8381,
+                                    47.0395
+                                  ],
+                                  [
+                                    12.8515,
+                                    47.0326
+                                  ],
+                                  [
+                                    12.8615,
+                                    47.0237
+                                  ],
+                                  [
+                                    12.8752,
+                                    47.0022
+                                  ],
+                                  [
+                                    12.8747,
+                                    46.9916
+                                  ],
+                                  [
+                                    12.8769,
+                                    46.9852
+                                  ],
+                                  [
+                                    12.8915,
+                                    46.9727
+                                  ],
+                                  [
+                                    12.895,
+                                    46.9676
+                                  ],
+                                  [
+                                    12.8958,
+                                    46.9552
+                                  ],
+                                  [
+                                    12.9087,
+                                    46.9246
+                                  ],
+                                  [
+                                    12.9117,
+                                    46.9114
+                                  ],
+                                  [
+                                    12.9274,
+                                    46.9242
+                                  ],
+                                  [
+                                    12.9392,
+                                    46.9456
+                                  ],
+                                  [
+                                    12.9467,
+                                    46.9501
+                                  ],
+                                  [
+                                    12.9826,
+                                    46.9635
+                                  ],
+                                  [
+                                    12.9977,
+                                    46.9658
+                                  ],
+                                  [
+                                    13.0291,
+                                    46.9544
+                                  ],
+                                  [
+                                    13.0394,
+                                    46.9522
+                                  ],
+                                  [
+                                    13.0568,
+                                    46.9621
+                                  ],
+                                  [
+                                    13.0873,
+                                    46.9486
+                                  ],
+                                  [
+                                    13.1009,
+                                    46.9407
+                                  ],
+                                  [
+                                    13.1076,
+                                    46.9359
+                                  ],
+                                  [
+                                    13.1078,
+                                    46.9314
+                                  ],
+                                  [
+                                    13.114,
+                                    46.9325
+                                  ],
+                                  [
+                                    13.1211,
+                                    46.9306
+                                  ],
+                                  [
+                                    13.146,
+                                    46.9341
+                                  ],
+                                  [
+                                    13.158,
+                                    46.933
+                                  ],
+                                  [
+                                    13.1806,
+                                    46.9349
+                                  ],
+                                  [
+                                    13.1834,
+                                    46.9405
+                                  ],
+                                  [
+                                    13.1903,
+                                    46.9665
+                                  ],
+                                  [
+                                    13.1855,
+                                    46.975
+                                  ],
+                                  [
+                                    13.177,
+                                    46.9781
+                                  ],
+                                  [
+                                    13.1709,
+                                    46.9899
+                                  ],
+                                  [
+                                    13.1507,
+                                    46.9922
+                                  ],
+                                  [
+                                    13.1285,
+                                    47.0019
+                                  ],
+                                  [
+                                    13.1187,
+                                    47.0005
+                                  ],
+                                  [
+                                    13.1016,
+                                    47.0047
+                                  ]
+                                ]
+                              ]
+                            ],
+                            "type": "MultiPolygon"
+                          },
+                          "properties": {
+                            "id": "AT-02-01-02-01",
+                            "label": [
+                              12.9342,
+                              46.9986
+                            ],
+                            "names": {
+                              "de": "Goldberggruppe Süd",
+                              "en": "Goldberg Group South",
+                              "fr": "Groupe du Goldberg méridional",
+                              "it": "Gruppo del Goldberg meridionale",
+                              "sl": "Goldberg Group South"
+                            }
+                          },
+                          "type": "Feature"
+                        }
+                      ],
+                      "type": "FeatureCollection",
+                      "version": "eaws-regions 439ec676 2026-11-24"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/RegionsResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "The regions of the forecast by region: outlines, names and labels, as GeoJSON",
+        "tags": [
+          "Weather"
+        ],
+        "x-venti-docs": "GET /v1/regions"
+      }
+    },
+    "/v1/regions/forecast": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_regions_forecast",
+        "parameters": [
+          {
+            "description": "A day the thermal map has, written YYYY-MM-DD. Without it: today, or the map's first day where it has no today.",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "region_forecast": {
+                    "value": {
+                      "attributions": [
+                        {
+                          "licence": "CC BY 4.0",
+                          "provider": "Open-Meteo, with models of Deutscher Wetterdienst",
+                          "source": "open-meteo",
+                          "text": "Weather data by Open-Meteo.com. Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo",
+                          "url": "https://open-meteo.com/"
+                        },
+                        {
+                          "licence": "CC0 1.0",
+                          "provider": "EAWS, the European Avalanche Warning Services (regions.avalanches.org, gitlab.com/eaws/eaws-regions)",
+                          "source": "eaws-regions",
+                          "text": "Regions: EAWS (CC0)",
+                          "url": "https://gitlab.com/eaws/eaws-regions/-/blob/master/LICENSE"
+                        }
+                      ],
+                      "computed_at": "2026-11-21T09:30:00Z",
+                      "date": "2026-11-22",
+                      "dates": [
+                        "2026-11-21",
+                        "2026-11-22",
+                        "2026-11-23",
+                        "2026-11-24"
+                      ],
+                      "day": [
+                        {
+                          "id": "AT-07-05",
+                          "level": "glides_only"
+                        },
+                        {
+                          "id": "DE-BY-42",
+                          "level": "glides_only"
+                        }
+                      ],
+                      "hours": [
+                        {
+                          "regions": [
+                            {
+                              "id": "AT-07-05",
+                              "level": "glides_only"
+                            },
+                            {
+                              "id": "DE-BY-42",
+                              "level": "glides_only"
+                            }
+                          ],
+                          "time": "2026-11-22T08:00:00Z"
+                        },
+                        {
+                          "regions": [
+                            {
+                              "id": "AT-07-05",
+                              "level": "glides_only"
+                            },
+                            {
+                              "id": "DE-BY-42",
+                              "level": "glides_only"
+                            }
+                          ],
+                          "time": "2026-11-22T09:00:00Z"
+                        },
+                        {
+                          "regions": [
+                            {
+                              "id": "AT-07-05",
+                              "level": "glides_only"
+                            },
+                            {
+                              "id": "DE-BY-42",
+                              "level": "glides_only"
+                            }
+                          ],
+                          "time": "2026-11-22T10:00:00Z"
+                        },
+                        {
+                          "regions": [
+                            {
+                              "id": "AT-07-05",
+                              "level": "glides_only"
+                            },
+                            {
+                              "id": "DE-BY-42",
+                              "level": "glides_only"
+                            }
+                          ],
+                          "time": "2026-11-22T11:00:00Z"
+                        },
+                        {
+                          "regions": [
+                            {
+                              "id": "AT-07-05",
+                              "level": "glides_only"
+                            },
+                            {
+                              "id": "DE-BY-42",
+                              "level": "glides_only"
+                            }
+                          ],
+                          "time": "2026-11-22T12:00:00Z"
+                        },
+                        {
+                          "regions": [
+                            {
+                              "id": "AT-07-05",
+                              "level": "glides_only"
+                            },
+                            {
+                              "id": "DE-BY-42",
+                              "level": "glides_only"
+                            }
+                          ],
+                          "time": "2026-11-22T13:00:00Z"
+                        },
+                        {
+                          "regions": [
+                            {
+                              "id": "AT-07-05",
+                              "level": "glides_only"
+                            },
+                            {
+                              "id": "DE-BY-42",
+                              "level": "glides_only"
+                            }
+                          ],
+                          "time": "2026-11-22T14:00:00Z"
+                        }
+                      ],
+                      "model": "icon-d2",
+                      "regions_version": "eaws-regions 439ec676 2026-11-24",
+                      "run": "2026-11-21T06:00:00Z",
+                      "source": "open-meteo",
+                      "whole": true
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/RegionForecastResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "One day of the thermal map read region by region, for the day and each hour",
+        "tags": [
+          "Weather"
+        ],
+        "x-venti-docs": "GET /v1/regions/forecast?date="
+      }
+    },
     "/v1/reports": {
       "post": {
         "description": "The pilot: a session's token, or a token for a program with the scope `reports:write`.",
@@ -24302,6 +25251,9 @@
                         1069,
                         947
                       ],
+                      "heights_above_ground_m": [
+                        250
+                      ],
                       "heights_m": [
                         1000,
                         1500,
@@ -24465,6 +25417,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "A height above the model's ground of the wind layer, in place of height; the error for an unknown one lists those there are.",
+            "in": "query",
+            "name": "above_ground",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -24497,6 +25458,9 @@
                         1046,
                         1069,
                         947
+                      ],
+                      "heights_above_ground_m": [
+                        250
                       ],
                       "heights_m": [
                         1000,
@@ -24815,6 +25779,9 @@
                         947
                       ],
                       "height_m": 1000,
+                      "heights_above_ground_m": [
+                        250
+                      ],
                       "heights_m": [
                         1000,
                         1500,
@@ -24936,6 +25903,158 @@
                       "source": "open-meteo",
                       "whole": true
                     }
+                  },
+                  "thermal_hours_wind_above_ground": {
+                    "value": {
+                      "above_ground_m": 250,
+                      "attributions": [
+                        {
+                          "licence": "CC BY 4.0",
+                          "provider": "Open-Meteo, with models of Deutscher Wetterdienst",
+                          "source": "open-meteo",
+                          "text": "Weather data by Open-Meteo.com. Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo",
+                          "url": "https://open-meteo.com/"
+                        }
+                      ],
+                      "computed_at": "2026-11-21T09:30:00Z",
+                      "date": "2026-11-22",
+                      "grid": {
+                        "columns": 2,
+                        "rows": 2,
+                        "south": 47.6,
+                        "step_deg": 0.1,
+                        "west": 11.8
+                      },
+                      "ground_m": [
+                        1118,
+                        1046,
+                        1069,
+                        947
+                      ],
+                      "heights_above_ground_m": [
+                        250
+                      ],
+                      "heights_m": [
+                        1000,
+                        1500,
+                        2000,
+                        2500,
+                        3000,
+                        4000
+                      ],
+                      "hours": [
+                        {
+                          "time": "2026-11-22T08:00:00Z",
+                          "wind_from_deg": [
+                            120,
+                            140,
+                            190,
+                            110
+                          ],
+                          "wind_kmh": [
+                            3,
+                            3,
+                            2,
+                            2
+                          ]
+                        },
+                        {
+                          "time": "2026-11-22T09:00:00Z",
+                          "wind_from_deg": [
+                            120,
+                            150,
+                            190,
+                            140
+                          ],
+                          "wind_kmh": [
+                            3,
+                            4,
+                            3,
+                            2
+                          ]
+                        },
+                        {
+                          "time": "2026-11-22T10:00:00Z",
+                          "wind_from_deg": [
+                            120,
+                            160,
+                            170,
+                            90
+                          ],
+                          "wind_kmh": [
+                            4,
+                            5,
+                            3,
+                            2
+                          ]
+                        },
+                        {
+                          "time": "2026-11-22T11:00:00Z",
+                          "wind_from_deg": [
+                            110,
+                            150,
+                            180,
+                            60
+                          ],
+                          "wind_kmh": [
+                            2,
+                            5,
+                            3,
+                            2
+                          ]
+                        },
+                        {
+                          "time": "2026-11-22T12:00:00Z",
+                          "wind_from_deg": [
+                            80,
+                            150,
+                            240,
+                            100
+                          ],
+                          "wind_kmh": [
+                            1,
+                            4,
+                            1,
+                            2
+                          ]
+                        },
+                        {
+                          "time": "2026-11-22T13:00:00Z",
+                          "wind_from_deg": [
+                            300,
+                            100,
+                            250,
+                            340
+                          ],
+                          "wind_kmh": [
+                            1,
+                            1,
+                            2,
+                            2
+                          ]
+                        },
+                        {
+                          "time": "2026-11-22T14:00:00Z",
+                          "wind_from_deg": [
+                            280,
+                            330,
+                            290,
+                            330
+                          ],
+                          "wind_kmh": [
+                            5,
+                            3,
+                            4,
+                            3
+                          ]
+                        }
+                      ],
+                      "layer": "wind",
+                      "model": "icon-d2",
+                      "run": "2026-11-21T06:00:00Z",
+                      "source": "open-meteo",
+                      "whole": true
+                    }
                   }
                 },
                 "schema": {
@@ -24970,7 +26089,7 @@
       "name": "Server"
     },
     {
-      "description": "Stations, forecasts, thermals, the weather along a route, rain radar and foehn.",
+      "description": "Stations, forecasts, thermals, the forecast by region, the weather along a route, rain radar and foehn.",
       "name": "Weather"
     },
     {

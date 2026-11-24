@@ -23,6 +23,7 @@ venti-sources-ffvl.workspace = true
 venti-sources-osm.workspace = true
 venti-sources-basemapat.workspace = true
 venti-sources-ign.workspace = true
+venti-sources-eawsregions.workspace = true
 venti-sources-naturalearth.workspace = true
 venti-sources-openmeteo.workspace = true
 venti-sources-suedtirol.workspace = true

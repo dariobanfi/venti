@@ -128,6 +128,7 @@ async fn the_development_mode_serves_the_hours_of_each_recorded_day_layer_by_lay
             date,
             layer,
             height_m,
+            above_ground_m: None,
         }
         .path_and_query()
     };
@@ -456,4 +457,147 @@ async fn a_look_that_sees_a_run_has_the_map_made() {
     }
     let made = map.current().expect("the map is made after the look");
     assert_eq!(made.run, adapters::thermal_map_recorded_runs()[0].1);
+}
+
+#[tokio::test]
+async fn the_development_mode_serves_the_wind_250_m_above_the_ground() {
+    let router = recorded().await;
+    let map: ThermalMapResponse = get(&router, THERMALS_PATH).await.ok(StatusCode::OK);
+    assert_eq!(map.heights_above_ground_m, [250]);
+    let tomorrow = map.days[1].date;
+    let asked = ThermalHoursRequest {
+        date: tomorrow,
+        layer: ThermalLayer::Wind,
+        height_m: None,
+        above_ground_m: Some(250),
+    }
+    .path_and_query();
+    assert_eq!(
+        asked,
+        "/v1/thermals/hours?date=2026-11-22&layer=wind&above_ground=250"
+    );
+    let low: ThermalHoursResponse = get(&router, &asked).await.ok(StatusCode::OK);
+    assert_eq!((low.height_m, low.above_ground_m), (None, Some(250)));
+    assert_eq!(low.heights_above_ground_m, [250]);
+    let ground: ThermalHoursResponse =
+        get(&router, "/v1/thermals/hours?date=2026-11-22&layer=wind")
+            .await
+            .ok(StatusCode::OK);
+    for (hour, at_ground) in low.hours.iter().zip(&ground.hours) {
+        assert!(hour.gust_kmh.is_empty());
+        // Every cell has a ground, so every cell has a wind 250 m above it.
+        for cell in 0..4 {
+            assert!(hour.wind_kmh[cell].is_some(), "{} cell {cell}", hour.time);
+            assert!(hour.wind_from_deg[cell].is_some_and(|from| from % 10 == 0 && from < 360));
+        }
+        assert_eq!(hour.time, at_ground.time);
+    }
+    assert_golden(&golden("thermal_hours_wind_above_ground.json"), &low);
+
+    // A height above the ground the map does not keep, one with a height
+    // above the sea, and one of a layer that has none.
+    for (path, says) in [
+        (
+            "/v1/thermals/hours?date=2026-11-22&layer=wind&above_ground=100",
+            "above_ground is one of 250",
+        ),
+        (
+            "/v1/thermals/hours?date=2026-11-22&layer=wind&height=1000&above_ground=250",
+            "without height",
+        ),
+        (
+            "/v1/thermals/hours?date=2026-11-22&layer=cloud&above_ground=250",
+            "goes with layer=wind",
+        ),
+    ] {
+        let message = get(&router, path)
+            .await
+            .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidRequest);
+        assert!(message.contains(says), "{message}");
+    }
+}
+
+#[tokio::test]
+async fn the_regions_are_served_once_as_geojson_with_their_credit() {
+    use venti_api_types::v1::{REGIONS_PATH, RegionsResponse};
+
+    let router = recorded().await;
+    let answer = get(&router, REGIONS_PATH).await;
+    assert_eq!(answer.header(header::CACHE_CONTROL), "public, max-age=3600");
+    let etag = answer.header(header::ETAG).to_owned();
+    let again = get_with(&router, REGIONS_PATH, &[(header::IF_NONE_MATCH, &etag)]).await;
+    assert_eq!(again.status, StatusCode::NOT_MODIFIED);
+    let size = answer.body.len();
+    let packed = get_with(&router, REGIONS_PATH, &[(header::ACCEPT_ENCODING, "gzip")]).await;
+    assert_eq!(packed.header(header::CONTENT_ENCODING), "gzip");
+    println!(
+        "GET /v1/regions: {size} bytes, {} packed",
+        packed.body.len()
+    );
+    let mut regions: RegionsResponse = answer.ok(StatusCode::OK);
+    assert_eq!(regions.kind, "FeatureCollection");
+    assert!(regions.version.starts_with("eaws-regions "));
+    assert_eq!(regions.features.len(), 459);
+    assert_eq!(regions.attributions.len(), 1);
+    assert_eq!(regions.attributions[0].text, "Regions: EAWS (CC0)");
+    assert_eq!(regions.attributions[0].licence, "CC0 1.0");
+    assert!(size < 1_000_000, "{size}");
+    // The golden file and the documentation's example: the first two.
+    regions.features.truncate(2);
+    assert_golden(&golden("regions.json"), &regions);
+}
+
+#[tokio::test]
+async fn the_development_mode_serves_the_forecast_by_region() {
+    use venti_api_types::v1::{
+        REGION_FORECAST_PATH, RegionForecastRequest, RegionForecastResponse,
+    };
+
+    let router = recorded().await;
+    let map: ThermalMapResponse = get(&router, THERMALS_PATH).await.ok(StatusCode::OK);
+    let tomorrow = map.days[1].date;
+    let asked = RegionForecastRequest {
+        date: Some(tomorrow),
+    }
+    .path_and_query();
+    assert_eq!(asked, "/v1/regions/forecast?date=2026-11-22");
+    let forecast: RegionForecastResponse = get(&router, &asked).await.ok(StatusCode::OK);
+    assert_eq!(forecast.date, tomorrow);
+    let dates: Vec<_> = map.days.iter().map(|day| day.date).collect();
+    assert_eq!(forecast.dates, dates);
+    assert_eq!(Some(&forecast.model), map.days[1].model.as_ref());
+    assert!(forecast.regions_version.starts_with("eaws-regions "));
+    let credits: Vec<&str> = forecast
+        .attributions
+        .iter()
+        .map(|credit| credit.text.as_str())
+        .collect();
+    assert!(credits[0].contains("Open-Meteo.com"), "{credits:?}");
+    assert_eq!(credits[1], "Regions: EAWS (CC0)");
+    // The four recorded cells lie in the Prealps either side of the
+    // border at the Achensee: their regions have a level for the day and
+    // for each hour that the map has.
+    assert!(!forecast.day.is_empty());
+    assert!(
+        forecast
+            .day
+            .iter()
+            .all(|reading| reading.id.starts_with("DE-BY-") || reading.id.starts_with("AT-07-"))
+    );
+    let hours: ThermalHoursResponse = get(&router, "/v1/thermals/hours?date=2026-11-22")
+        .await
+        .ok(StatusCode::OK);
+    let times: Vec<_> = forecast.hours.iter().map(|hour| hour.time).collect();
+    let map_times: Vec<_> = hours.hours.iter().map(|hour| hour.time).collect();
+    assert_eq!(times, map_times);
+    assert_golden(&golden("region_forecast.json"), &forecast);
+
+    // Without a day: today by the map's clock, the 21st.
+    let first: RegionForecastResponse = get(&router, REGION_FORECAST_PATH).await.ok(StatusCode::OK);
+    assert_eq!(first.date, map.days[0].date);
+    // A day the map does not have.
+    let answer = get(&router, "/v1/regions/forecast?date=2026-12-24").await;
+    answer.error(StatusCode::NOT_FOUND, ErrorCode::NotFound);
+    let answer = get(&router, "/v1/regions/forecast?date=tomorrow").await;
+    answer.error(StatusCode::BAD_REQUEST, ErrorCode::InvalidDay);
 }

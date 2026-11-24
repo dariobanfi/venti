@@ -135,6 +135,7 @@ mod phones;
 mod pictures;
 mod push;
 mod radar;
+mod regions;
 mod report;
 mod request;
 mod route;
@@ -290,6 +291,11 @@ pub use push::{
 pub use radar::{
     RADAR_PATH, RadarFrameRef, RadarLayer, RadarResponse, format_radar_time, parse_radar_time,
     radar_frame_path,
+};
+pub use regions::{
+    REGION_FORECAST_PATH, REGIONS_PATH, RegionFeature, RegionForecastRequest,
+    RegionForecastResponse, RegionGeometry, RegionHour, RegionLevel, RegionNames, RegionProperties,
+    RegionReading, RegionsResponse,
 };
 pub use report::{
     MAX_REPORT_TEXT_LENGTH, ReportReason, ReportRequest, ReportResponse, ReportSubject,

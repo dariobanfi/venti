@@ -282,7 +282,7 @@ pub fn thermal_map(
         levels: if response.heights_m.is_empty() {
             Vec::new()
         } else {
-            levels(&response.heights_m)
+            levels(&response.heights_m, &response.heights_above_ground_m)
         },
         credits: response.attributions.iter().map(credit).collect(),
     })

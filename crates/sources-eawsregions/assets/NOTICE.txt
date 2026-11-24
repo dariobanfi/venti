@@ -1,0 +1,17 @@
+regions.geojson in this folder holds the avalanche warning micro-regions
+of the Alpine members of the EAWS, made from the repository
+gitlab.com/eaws/eaws-regions at commit
+439ec67625ab5531653a9c49888da4dcea586e2f (2026-11-23), downloaded
+2026-11-24. The repository's LICENSE file is Creative Commons CC0 1.0
+Universal (https://gitlab.com/eaws/eaws-regions/-/blob/master/LICENSE,
+read 2026-11-24). No credit is asked; Venti gives "Regions: EAWS (CC0)".
+
+What was done to it: of the files public/micro-regions/<provider>_
+micro-regions.geojson.json of AT-02, AT-03, AT-04, AT-05, AT-06, AT-07,
+AT-08, CH, DE-BY, FR, IT-21, IT-23, IT-25, IT-32-BZ, IT-32-TN, IT-34,
+IT-36 and SI, the regions current on 2026-11-24 kept (no start_date after
+it, no end_date on or before it), of France's those of the Alps alone,
+each ring simplified by 0.001 degrees (Douglas-Peucker) and rounded to
+four decimals, a ring of less than about a hectare left out; each region
+given its names in de, it, en, fr and sl from public/micro-regions_names
+and a label point inside it. ../tools/build_regions.py makes it again.

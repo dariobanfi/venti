@@ -1,0 +1,4641 @@
+{
+  "places": [
+    {
+      "place": "Planfait, Annecy",
+      "region": "FR-02"
+    },
+    {
+      "place": "Fiesch",
+      "region": "CH-4214"
+    },
+    {
+      "place": "Niesen",
+      "region": "CH-1226"
+    },
+    {
+      "place": "Monte Cucco, Feltre",
+      "region": "IT-34-BL-06"
+    },
+    {
+      "place": "Brauneck",
+      "region": "DE-BY-41"
+    },
+    {
+      "place": "Hochfelln",
+      "region": "DE-BY-51"
+    },
+    {
+      "place": "Kössen, Unterberg",
+      "region": "AT-07-06"
+    },
+    {
+      "place": "Greifenburg, Emberger Alm",
+      "region": "AT-02-09"
+    },
+    {
+      "place": "Kobala",
+      "region": "SI-9"
+    },
+    {
+      "place": "Munich",
+      "region": null
+    },
+    {
+      "place": "Milan",
+      "region": null
+    }
+  ],
+  "regions": [
+    {
+      "en": "Glockner Group Pasterze",
+      "id": "AT-02-01-01",
+      "label": [
+        12.732,
+        47.0717
+      ],
+      "points": 31,
+      "polygons": 1
+    },
+    {
+      "en": "Goldberg Group South",
+      "id": "AT-02-01-02-01",
+      "label": [
+        12.9342,
+        46.9986
+      ],
+      "points": 71,
+      "polygons": 1
+    },
+    {
+      "en": "Sadnig Group",
+      "id": "AT-02-01-02-02",
+      "label": [
+        12.9733,
+        46.9116
+      ],
+      "points": 31,
+      "polygons": 1
+    },
+    {
+      "en": "Schober Group East",
+      "id": "AT-02-02",
+      "label": [
+        12.8185,
+        46.9859
+      ],
+      "points": 44,
+      "polygons": 1
+    },
+    {
+      "en": "Ankogel-Hochalm Group",
+      "id": "AT-02-03-01-01",
+      "label": [
+        13.3108,
+        47.0359
+      ],
+      "points": 46,
+      "polygons": 1
+    },
+    {
+      "en": "Reisseck Group",
+      "id": "AT-02-03-01-02",
+      "label": [
+        13.4187,
+        46.9021
+      ],
+      "points": 61,
+      "polygons": 1
+    },
+    {
+      "en": "Hafner Group",
+      "id": "AT-02-03-02",
+      "label": [
+        13.5451,
+        46.9965
+      ],
+      "points": 49,
+      "polygons": 1
+    },
+    {
+      "en": "Nockberge Central",
+      "id": "AT-02-04-01",
+      "label": [
+        13.693,
+        46.8955
+      ],
+      "points": 127,
+      "polygons": 1
+    },
+    {
+      "en": "Nockberge South",
+      "id": "AT-02-04-02",
+      "label": [
+        13.8455,
+        46.7241
+      ],
+      "points": 114,
+      "polygons": 1
+    },
+    {
+      "en": "Gurktal Alps Central",
+      "id": "AT-02-05-01",
+      "label": [
+        14.1197,
+        46.9986
+      ],
+      "points": 67,
+      "polygons": 1
+    },
+    {
+      "en": "Gurktal Alps South",
+      "id": "AT-02-05-02",
+      "label": [
+        14.1834,
+        46.8906
+      ],
+      "points": 111,
+      "polygons": 1
+    },
+    {
+      "en": "Saualpe North",
+      "id": "AT-02-06-01",
+      "label": [
+        14.5025,
+        46.9415
+      ],
+      "points": 72,
+      "polygons": 1
+    },
+    {
+      "en": "Saualpe South",
+      "id": "AT-02-06-02",
+      "label": [
+        14.6717,
+        46.8167
+      ],
+      "points": 84,
+      "polygons": 1
+    },
+    {
+      "en": "Packalpe",
+      "id": "AT-02-07",
+      "label": [
+        14.8506,
+        46.9798
+      ],
+      "points": 36,
+      "polygons": 1
+    },
+    {
+      "en": "Koralpe West",
+      "id": "AT-02-08",
+      "label": [
+        14.9415,
+        46.8835
+      ],
+      "points": 84,
+      "polygons": 1
+    },
+    {
+      "en": "Kreuzeck Group",
+      "id": "AT-02-09",
+      "label": [
+        13.1502,
+        46.8357
+      ],
+      "points": 81,
+      "polygons": 1
+    },
+    {
+      "en": "Gailtal Alps West",
+      "id": "AT-02-10",
+      "label": [
+        12.9028,
+        46.7277
+      ],
+      "points": 49,
+      "polygons": 1
+    },
+    {
+      "en": "Gailtal Alps Central",
+      "id": "AT-02-11",
+      "label": [
+        13.1973,
+        46.687
+      ],
+      "points": 59,
+      "polygons": 1
+    },
+    {
+      "en": "Gailtal Alps East",
+      "id": "AT-02-12-01",
+      "label": [
+        13.5597,
+        46.6582
+      ],
+      "points": 80,
+      "polygons": 1
+    },
+    {
+      "en": "Goldeck Group",
+      "id": "AT-02-12-02",
+      "label": [
+        13.4195,
+        46.7605
+      ],
+      "points": 64,
+      "polygons": 1
+    },
+    {
+      "en": "Villach Alps",
+      "id": "AT-02-13",
+      "label": [
+        13.7922,
+        46.6056
+      ],
+      "points": 43,
+      "polygons": 1
+    },
+    {
+      "en": "Carnic Alps Lesachtal",
+      "id": "AT-02-14",
+      "label": [
+        12.7365,
+        46.6713
+      ],
+      "points": 34,
+      "polygons": 1
+    },
+    {
+      "en": "Carnic Alps Plöckenpass",
+      "id": "AT-02-15-01",
+      "label": [
+        12.9443,
+        46.6421
+      ],
+      "points": 46,
+      "polygons": 1
+    },
+    {
+      "en": "Carnic Alps Nassfeld",
+      "id": "AT-02-15-02",
+      "label": [
+        13.2597,
+        46.5922
+      ],
+      "points": 54,
+      "polygons": 1
+    },
+    {
+      "en": "Carnic Alps Oisternig",
+      "id": "AT-02-16",
+      "label": [
+        13.4846,
+        46.5862
+      ],
+      "points": 53,
+      "polygons": 1
+    },
+    {
+      "en": "Karawanks West",
+      "id": "AT-02-17",
+      "label": [
+        14.0132,
+        46.5195
+      ],
+      "points": 77,
+      "polygons": 1
+    },
+    {
+      "en": "Karawanks Central",
+      "id": "AT-02-18",
+      "label": [
+        14.373,
+        46.4938
+      ],
+      "points": 57,
+      "polygons": 1
+    },
+    {
+      "en": "Karawanks East",
+      "id": "AT-02-19",
+      "label": [
+        14.5189,
+        46.4954
+      ],
+      "points": 120,
+      "polygons": 1
+    },
+    {
+      "en": "Ybbstaler Alps",
+      "id": "AT-03-01-01",
+      "label": [
+        15.0787,
+        47.8718
+      ],
+      "points": 140,
+      "polygons": 1
+    },
+    {
+      "en": "Ybbstal Prealps",
+      "id": "AT-03-01-02",
+      "label": [
+        14.8552,
+        47.9954
+      ],
+      "points": 70,
+      "polygons": 1
+    },
+    {
+      "en": "Türnitzer Alps",
+      "id": "AT-03-02",
+      "label": [
+        15.4335,
+        47.9523
+      ],
+      "points": 113,
+      "polygons": 1
+    },
+    {
+      "en": "Gutensteiner Alps",
+      "id": "AT-03-03-01",
+      "label": [
+        15.9653,
+        47.9075
+      ],
+      "points": 86,
+      "polygons": 1
+    },
+    {
+      "en": "Vienna Woods",
+      "id": "AT-03-03-02",
+      "label": [
+        15.7361,
+        48.1061
+      ],
+      "points": 72,
+      "polygons": 1
+    },
+    {
+      "en": "Rax - Schneeberg Region",
+      "id": "AT-03-04",
+      "label": [
+        15.7974,
+        47.7318
+      ],
+      "points": 73,
+      "polygons": 1
+    },
+    {
+      "en": "Lower Austrian Wechsel Area",
+      "id": "AT-03-05-01",
+      "label": [
+        15.9527,
+        47.5708
+      ],
+      "points": 51,
+      "polygons": 1
+    },
+    {
+      "en": "Bucklige Welt",
+      "id": "AT-03-05-02",
+      "label": [
+        16.211,
+        47.62
+      ],
+      "points": 104,
+      "polygons": 1
+    },
+    {
+      "en": "Gippel - Göller Region",
+      "id": "AT-03-06",
+      "label": [
+        15.6293,
+        47.811
+      ],
+      "points": 52,
+      "polygons": 1
+    },
+    {
+      "en": "Dachstein, Gosaukamm",
+      "id": "AT-04-01",
+      "label": [
+        13.6571,
+        47.5278
+      ],
+      "points": 48,
+      "polygons": 1
+    },
+    {
+      "en": "Kalmberg, Katergebirge",
+      "id": "AT-04-02",
+      "label": [
+        13.595,
+        47.6567
+      ],
+      "points": 43,
+      "polygons": 1
+    },
+    {
+      "en": "Totes Gebirge North",
+      "id": "AT-04-03",
+      "label": [
+        14.0805,
+        47.7155
+      ],
+      "points": 83,
+      "polygons": 1
+    },
+    {
+      "en": "Phyrgas, Haller Mauern",
+      "id": "AT-04-04",
+      "label": [
+        14.298,
+        47.6599
+      ],
+      "points": 68,
+      "polygons": 1
+    },
+    {
+      "en": "Zimnitzmassiv, Höllengebirge",
+      "id": "AT-04-05",
+      "label": [
+        13.6618,
+        47.8509
+      ],
+      "points": 82,
+      "polygons": 1
+    },
+    {
+      "en": "Traunstein, Eibenberg",
+      "id": "AT-04-06",
+      "label": [
+        13.8735,
+        47.827
+      ],
+      "points": 67,
+      "polygons": 1
+    },
+    {
+      "en": "Kasbergblock",
+      "id": "AT-04-07",
+      "label": [
+        14.037,
+        47.8494
+      ],
+      "points": 69,
+      "polygons": 1
+    },
+    {
+      "en": "Sengsengebirge",
+      "id": "AT-04-08",
+      "label": [
+        14.2647,
+        47.8035
+      ],
+      "points": 121,
+      "polygons": 1
+    },
+    {
+      "en": "Ennstaler Voralpen",
+      "id": "AT-04-09",
+      "label": [
+        14.567,
+        47.8129
+      ],
+      "points": 116,
+      "polygons": 1
+    },
+    {
+      "en": "Nock Mountains",
+      "id": "AT-05-01",
+      "label": [
+        13.7974,
+        47.0515
+      ],
+      "points": 64,
+      "polygons": 1
+    },
+    {
+      "en": "Lower Tauern South ",
+      "id": "AT-05-02",
+      "label": [
+        13.6544,
+        47.1816
+      ],
+      "points": 71,
+      "polygons": 1
+    },
+    {
+      "en": "Weisseck, Muhr Valley",
+      "id": "AT-05-03",
+      "label": [
+        13.3979,
+        47.1481
+      ],
+      "points": 41,
+      "polygons": 1
+    },
+    {
+      "en": "Lower Tauern Central ",
+      "id": "AT-05-04",
+      "label": [
+        13.2974,
+        47.1768
+      ],
+      "points": 66,
+      "polygons": 1
+    },
+    {
+      "en": "Goldberg Group Central",
+      "id": "AT-05-05",
+      "label": [
+        13.1042,
+        47.0822
+      ],
+      "points": 81,
+      "polygons": 1
+    },
+    {
+      "en": "Glockner Group Central",
+      "id": "AT-05-06",
+      "label": [
+        12.6415,
+        47.1471
+      ],
+      "points": 50,
+      "polygons": 1
+    },
+    {
+      "en": "Venediger Group Central",
+      "id": "AT-05-07",
+      "label": [
+        12.25,
+        47.1139
+      ],
+      "points": 52,
+      "polygons": 1
+    },
+    {
+      "en": "Lower Tauern North",
+      "id": "AT-05-08",
+      "label": [
+        13.2777,
+        47.2754
+      ],
+      "points": 70,
+      "polygons": 1
+    },
+    {
+      "en": "Goldberg Group North",
+      "id": "AT-05-09",
+      "label": [
+        13.0385,
+        47.2168
+      ],
+      "points": 70,
+      "polygons": 1
+    },
+    {
+      "en": "Glockner Group North",
+      "id": "AT-05-10",
+      "label": [
+        12.6927,
+        47.2271
+      ],
+      "points": 43,
+      "polygons": 1
+    },
+    {
+      "en": "Venediger Group North",
+      "id": "AT-05-11",
+      "label": [
+        12.1425,
+        47.1945
+      ],
+      "points": 50,
+      "polygons": 1
+    },
+    {
+      "en": "Pongau Grass Mountains",
+      "id": "AT-05-12",
+      "label": [
+        13.2711,
+        47.3824
+      ],
+      "points": 54,
+      "polygons": 1
+    },
+    {
+      "en": "Dienten Mountains",
+      "id": "AT-05-13",
+      "label": [
+        12.8794,
+        47.3484
+      ],
+      "points": 65,
+      "polygons": 1
+    },
+    {
+      "en": "Kitzbühel Alps Glemmtal",
+      "id": "AT-05-14",
+      "label": [
+        12.6813,
+        47.3642
+      ],
+      "points": 67,
+      "polygons": 1
+    },
+    {
+      "en": "Kitzbühel Alps Upper Pinzgau",
+      "id": "AT-05-15",
+      "label": [
+        12.3087,
+        47.2902
+      ],
+      "points": 44,
+      "polygons": 1
+    },
+    {
+      "en": "Tennen Mountains, Gosaukamm",
+      "id": "AT-05-16",
+      "label": [
+        13.3192,
+        47.5054
+      ],
+      "points": 73,
+      "polygons": 1
+    },
+    {
+      "en": "Steinernes Meer, Hochkönig, Hagen Mountains, Göll massif",
+      "id": "AT-05-17",
+      "label": [
+        13.1119,
+        47.4751
+      ],
+      "points": 98,
+      "polygons": 1
+    },
+    {
+      "en": "Lofer and Leogang Mountains",
+      "id": "AT-05-18",
+      "label": [
+        12.7386,
+        47.4772
+      ],
+      "points": 46,
+      "polygons": 1
+    },
+    {
+      "en": "Osterhorn Group,Gamsfeld Group",
+      "id": "AT-05-19",
+      "label": [
+        13.2408,
+        47.7007
+      ],
+      "points": 108,
+      "polygons": 1
+    },
+    {
+      "en": "Untersberg Massif",
+      "id": "AT-05-20",
+      "label": [
+        13.0556,
+        47.737
+      ],
+      "points": 46,
+      "polygons": 1
+    },
+    {
+      "en": "Chiemgau Alps South",
+      "id": "AT-05-21",
+      "label": [
+        12.6823,
+        47.6338
+      ],
+      "points": 47,
+      "polygons": 1
+    },
+    {
+      "en": "Dachstein Mountains",
+      "id": "AT-06-01",
+      "label": [
+        13.8316,
+        47.4961
+      ],
+      "points": 79,
+      "polygons": 1
+    },
+    {
+      "en": "Totes Gebirge South",
+      "id": "AT-06-02",
+      "label": [
+        13.9552,
+        47.6266
+      ],
+      "points": 84,
+      "polygons": 1
+    },
+    {
+      "en": "Ennstal Alps",
+      "id": "AT-06-03",
+      "label": [
+        14.6005,
+        47.6098
+      ],
+      "points": 93,
+      "polygons": 1
+    },
+    {
+      "en": "Schladming Tauern North",
+      "id": "AT-06-04-01",
+      "label": [
+        13.9017,
+        47.3453
+      ],
+      "points": 108,
+      "polygons": 1
+    },
+    {
+      "en": "Schladming Tauern South",
+      "id": "AT-06-04-02",
+      "label": [
+        13.9912,
+        47.2155
+      ],
+      "points": 75,
+      "polygons": 1
+    },
+    {
+      "en": "Wölz Tauern North",
+      "id": "AT-06-05",
+      "label": [
+        14.1213,
+        47.4013
+      ],
+      "points": 70,
+      "polygons": 1
+    },
+    {
+      "en": "Rottenmann Tauern",
+      "id": "AT-06-06",
+      "label": [
+        14.3428,
+        47.4703
+      ],
+      "points": 50,
+      "polygons": 1
+    },
+    {
+      "en": "Southern Wölz Tauern",
+      "id": "AT-06-07-01",
+      "label": [
+        14.3795,
+        47.3247
+      ],
+      "points": 72,
+      "polygons": 1
+    },
+    {
+      "en": "Eastern Mur Mountains",
+      "id": "AT-06-07-02",
+      "label": [
+        14.3495,
+        47.1783
+      ],
+      "points": 60,
+      "polygons": 1
+    },
+    {
+      "en": "Triebener Tauern",
+      "id": "AT-06-08-01",
+      "label": [
+        14.5606,
+        47.4238
+      ],
+      "points": 80,
+      "polygons": 1
+    },
+    {
+      "en": "Gaal Alps",
+      "id": "AT-06-08-02",
+      "label": [
+        14.7563,
+        47.288
+      ],
+      "points": 105,
+      "polygons": 1
+    },
+    {
+      "en": "Eisenerzer Alps",
+      "id": "AT-06-09",
+      "label": [
+        14.8256,
+        47.4824
+      ],
+      "points": 66,
+      "polygons": 1
+    },
+    {
+      "en": "Styrian Ybbstaler Alps",
+      "id": "AT-06-10-01",
+      "label": [
+        15.114,
+        47.6964
+      ],
+      "points": 122,
+      "polygons": 1
+    },
+    {
+      "en": "Hochschwab Mountains",
+      "id": "AT-06-10-02",
+      "label": [
+        15.0082,
+        47.5809
+      ],
+      "points": 115,
+      "polygons": 1
+    },
+    {
+      "en": "Mürzsteg Alps",
+      "id": "AT-06-11",
+      "label": [
+        15.426,
+        47.6776
+      ],
+      "points": 95,
+      "polygons": 1
+    },
+    {
+      "en": "Mürztal Alps",
+      "id": "AT-06-12",
+      "label": [
+        15.1104,
+        47.4559
+      ],
+      "points": 173,
+      "polygons": 1
+    },
+    {
+      "en": "Eastern Fischbach Alps",
+      "id": "AT-06-13-01",
+      "label": [
+        15.7138,
+        47.5431
+      ],
+      "points": 57,
+      "polygons": 1
+    },
+    {
+      "en": "Styrian Wechsel Area",
+      "id": "AT-06-13-02",
+      "label": [
+        15.9995,
+        47.456
+      ],
+      "points": 83,
+      "polygons": 1
+    },
+    {
+      "en": "Jogelland",
+      "id": "AT-06-13-03",
+      "label": [
+        15.8015,
+        47.3544
+      ],
+      "points": 96,
+      "polygons": 1
+    },
+    {
+      "en": "Western Fischbach Alps",
+      "id": "AT-06-14-01",
+      "label": [
+        15.521,
+        47.4031
+      ],
+      "points": 144,
+      "polygons": 1
+    },
+    {
+      "en": "Graz Highlands East",
+      "id": "AT-06-14-02",
+      "label": [
+        15.4144,
+        47.198
+      ],
+      "points": 85,
+      "polygons": 1
+    },
+    {
+      "en": "Stub and Gleinalpe",
+      "id": "AT-06-15-01",
+      "label": [
+        14.9237,
+        47.1246
+      ],
+      "points": 159,
+      "polygons": 1
+    },
+    {
+      "en": "Graz Highlands West",
+      "id": "AT-06-15-02",
+      "label": [
+        15.2539,
+        47.1709
+      ],
+      "points": 73,
+      "polygons": 1
+    },
+    {
+      "en": "Koralpe East",
+      "id": "AT-06-16",
+      "label": [
+        15.1285,
+        46.926
+      ],
+      "points": 105,
+      "polygons": 1
+    },
+    {
+      "en": "Seetaler Alps",
+      "id": "AT-06-17",
+      "label": [
+        14.5893,
+        47.1104
+      ],
+      "points": 86,
+      "polygons": 1
+    },
+    {
+      "en": "Western Mur Mountains",
+      "id": "AT-06-18-01",
+      "label": [
+        14.1249,
+        47.1451
+      ],
+      "points": 55,
+      "polygons": 1
+    },
+    {
+      "en": "Eastern Gurktal Alps",
+      "id": "AT-06-18-02",
+      "label": [
+        14.2753,
+        47.0825
+      ],
+      "points": 44,
+      "polygons": 1
+    },
+    {
+      "en": "Western Gurktal Alps",
+      "id": "AT-06-18-03",
+      "label": [
+        13.9535,
+        47.0233
+      ],
+      "points": 67,
+      "polygons": 1
+    },
+    {
+      "en": "Allgäu Alps East",
+      "id": "AT-07-01",
+      "label": [
+        10.5336,
+        47.4698
+      ],
+      "points": 121,
+      "polygons": 1
+    },
+    {
+      "en": "Ammergau Alps South",
+      "id": "AT-07-02-01",
+      "label": [
+        10.8105,
+        47.4692
+      ],
+      "points": 72,
+      "polygons": 1
+    },
+    {
+      "en": "Lechtal Alps East",
+      "id": "AT-07-02-02",
+      "label": [
+        10.7063,
+        47.3425
+      ],
+      "points": 77,
+      "polygons": 1
+    },
+    {
+      "en": "Mieming Mountains",
+      "id": "AT-07-03",
+      "label": [
+        10.9509,
+        47.3414
+      ],
+      "points": 105,
+      "polygons": 1
+    },
+    {
+      "en": "Karwendel Mountains West",
+      "id": "AT-07-04-01",
+      "label": [
+        11.4804,
+        47.3689
+      ],
+      "points": 101,
+      "polygons": 1
+    },
+    {
+      "en": "Karwendel Mountains East",
+      "id": "AT-07-04-02",
+      "label": [
+        11.6414,
+        47.4873
+      ],
+      "points": 58,
+      "polygons": 1
+    },
+    {
+      "en": "Brandenberg Alps",
+      "id": "AT-07-05",
+      "label": [
+        11.8019,
+        47.4948
+      ],
+      "points": 94,
+      "polygons": 1
+    },
+    {
+      "en": "Kaiser Mountains - Waidring Alps",
+      "id": "AT-07-06",
+      "label": [
+        12.3176,
+        47.6044
+      ],
+      "points": 101,
+      "polygons": 1
+    },
+    {
+      "en": "Lechtal Alps West",
+      "id": "AT-07-07",
+      "label": [
+        10.2658,
+        47.1892
+      ],
+      "points": 56,
+      "polygons": 1
+    },
+    {
+      "en": "Lechtal Alps Central",
+      "id": "AT-07-08",
+      "label": [
+        10.5354,
+        47.2321
+      ],
+      "points": 74,
+      "polygons": 1
+    },
+    {
+      "en": "Grieskogel Mountains",
+      "id": "AT-07-09",
+      "label": [
+        11.1102,
+        47.2528
+      ],
+      "points": 58,
+      "polygons": 1
+    },
+    {
+      "en": "Verwall Mountains Central",
+      "id": "AT-07-10",
+      "label": [
+        10.2198,
+        47.0456
+      ],
+      "points": 46,
+      "polygons": 1
+    },
+    {
+      "en": "Verwall Mountains East",
+      "id": "AT-07-11",
+      "label": [
+        10.383,
+        47.1076
+      ],
+      "points": 29,
+      "polygons": 1
+    },
+    {
+      "en": "Silvretta East",
+      "id": "AT-07-12",
+      "label": [
+        10.1741,
+        46.9142
+      ],
+      "points": 41,
+      "polygons": 1
+    },
+    {
+      "en": "Samnaun Mountains",
+      "id": "AT-07-13",
+      "label": [
+        10.547,
+        47.0616
+      ],
+      "points": 74,
+      "polygons": 1
+    },
+    {
+      "en": "Kauner Ridge",
+      "id": "AT-07-14-01",
+      "label": [
+        10.7502,
+        47.0295
+      ],
+      "points": 89,
+      "polygons": 1
+    },
+    {
+      "en": "Kühtai - Geigen Ridge",
+      "id": "AT-07-14-02",
+      "label": [
+        10.9046,
+        47.1326
+      ],
+      "points": 93,
+      "polygons": 1
+    },
+    {
+      "en": "Sellrain - Alpein Mountains",
+      "id": "AT-07-14-03",
+      "label": [
+        11.117,
+        47.1455
+      ],
+      "points": 110,
+      "polygons": 1
+    },
+    {
+      "en": "Kalkkögel",
+      "id": "AT-07-14-04",
+      "label": [
+        11.3066,
+        47.1971
+      ],
+      "points": 74,
+      "polygons": 1
+    },
+    {
+      "en": "Serles Ridge",
+      "id": "AT-07-14-05",
+      "label": [
+        11.4033,
+        47.1311
+      ],
+      "points": 48,
+      "polygons": 1
+    },
+    {
+      "en": "Tuxer Alps West",
+      "id": "AT-07-15",
+      "label": [
+        11.5429,
+        47.1827
+      ],
+      "points": 79,
+      "polygons": 1
+    },
+    {
+      "en": "Tuxer Alps East",
+      "id": "AT-07-16",
+      "label": [
+        11.784,
+        47.2824
+      ],
+      "points": 58,
+      "polygons": 1
+    },
+    {
+      "en": "Kitzbühel Alps Wildschönau",
+      "id": "AT-07-17-01",
+      "label": [
+        11.9873,
+        47.3535
+      ],
+      "points": 77,
+      "polygons": 1
+    },
+    {
+      "en": "Kitzbühel Alps Brixental",
+      "id": "AT-07-17-02",
+      "label": [
+        12.2576,
+        47.4229
+      ],
+      "points": 88,
+      "polygons": 1
+    },
+    {
+      "en": "Kitzbühel Alps Wildseeloder",
+      "id": "AT-07-18",
+      "label": [
+        12.4743,
+        47.4419
+      ],
+      "points": 66,
+      "polygons": 1
+    },
+    {
+      "en": "Glockturm Group",
+      "id": "AT-07-19",
+      "label": [
+        10.5396,
+        46.9038
+      ],
+      "points": 57,
+      "polygons": 1
+    },
+    {
+      "en": "Weißkugel Group",
+      "id": "AT-07-20",
+      "label": [
+        10.8182,
+        46.8846
+      ],
+      "points": 58,
+      "polygons": 1
+    },
+    {
+      "en": "Gurgler Group",
+      "id": "AT-07-21",
+      "label": [
+        10.9834,
+        46.8332
+      ],
+      "points": 53,
+      "polygons": 1
+    },
+    {
+      "en": "Stubai Alps Central",
+      "id": "AT-07-22",
+      "label": [
+        11.4079,
+        47.0245
+      ],
+      "points": 102,
+      "polygons": 1
+    },
+    {
+      "en": "Zillertal Alps Northeast",
+      "id": "AT-07-23-01",
+      "label": [
+        11.9463,
+        47.1276
+      ],
+      "points": 66,
+      "polygons": 1
+    },
+    {
+      "en": "Zillertal Alps Northwest",
+      "id": "AT-07-23-02",
+      "label": [
+        11.761,
+        47.0715
+      ],
+      "points": 84,
+      "polygons": 1
+    },
+    {
+      "en": "Venediger Group South",
+      "id": "AT-07-24",
+      "label": [
+        12.4494,
+        47.0735
+      ],
+      "points": 83,
+      "polygons": 1
+    },
+    {
+      "en": "Lasörling Group",
+      "id": "AT-07-25",
+      "label": [
+        12.3979,
+        46.9618
+      ],
+      "points": 80,
+      "polygons": 1
+    },
+    {
+      "en": "Glockner Group South",
+      "id": "AT-07-26-01",
+      "label": [
+        12.6024,
+        47.0763
+      ],
+      "points": 45,
+      "polygons": 1
+    },
+    {
+      "en": "Goldried",
+      "id": "AT-07-26-02",
+      "label": [
+        12.589,
+        46.9784
+      ],
+      "points": 34,
+      "polygons": 1
+    },
+    {
+      "en": "Deferegger Alps East",
+      "id": "AT-07-27",
+      "label": [
+        12.4571,
+        46.8355
+      ],
+      "points": 71,
+      "polygons": 1
+    },
+    {
+      "en": "Schober Group West",
+      "id": "AT-07-28",
+      "label": [
+        12.6859,
+        46.9417
+      ],
+      "points": 50,
+      "polygons": 1
+    },
+    {
+      "en": "Carnic Alps East Tirol",
+      "id": "AT-07-29-01",
+      "label": [
+        12.5666,
+        46.6853
+      ],
+      "points": 44,
+      "polygons": 1
+    },
+    {
+      "en": "Lienz Dolomites",
+      "id": "AT-07-29-02",
+      "label": [
+        12.6729,
+        46.7436
+      ],
+      "points": 50,
+      "polygons": 1
+    },
+    {
+      "en": "Kreuzeck Group East Tirol",
+      "id": "AT-07-29-03",
+      "label": [
+        12.8704,
+        46.8207
+      ],
+      "points": 21,
+      "polygons": 1
+    },
+    {
+      "en": "Bregenzerwald Mountains",
+      "id": "AT-08-01",
+      "label": [
+        9.7384,
+        47.2677
+      ],
+      "points": 98,
+      "polygons": 1
+    },
+    {
+      "en": "Allgäu Alps West",
+      "id": "AT-08-02",
+      "label": [
+        10.1332,
+        47.3186
+      ],
+      "points": 62,
+      "polygons": 1
+    },
+    {
+      "en": "Lechtal Alps Vorarlberg",
+      "id": "AT-08-03-01",
+      "label": [
+        10.1737,
+        47.2033
+      ],
+      "points": 31,
+      "polygons": 1
+    },
+    {
+      "en": "Lechquellen Mountains",
+      "id": "AT-08-03-02",
+      "label": [
+        10.0012,
+        47.21
+      ],
+      "points": 56,
+      "polygons": 1
+    },
+    {
+      "en": "Verwall Mountains West",
+      "id": "AT-08-04",
+      "label": [
+        10.0569,
+        47.0557
+      ],
+      "points": 53,
+      "polygons": 1
+    },
+    {
+      "en": "Rätikon East",
+      "id": "AT-08-05-01",
+      "label": [
+        9.8135,
+        47.0848
+      ],
+      "points": 50,
+      "polygons": 1
+    },
+    {
+      "en": "Rätikon West",
+      "id": "AT-08-05-02",
+      "label": [
+        9.6913,
+        47.1369
+      ],
+      "points": 58,
+      "polygons": 1
+    },
+    {
+      "en": "Silvretta West",
+      "id": "AT-08-06",
+      "label": [
+        9.9774,
+        46.9634
+      ],
+      "points": 51,
+      "polygons": 1
+    },
+    {
+      "en": "Pre Alps",
+      "id": "AT-08-07",
+      "label": [
+        9.7418,
+        47.431
+      ],
+      "points": 138,
+      "polygons": 1
+    },
+    {
+      "en": "Waadtländer Voralpen",
+      "id": "CH-1111",
+      "label": [
+        6.9142,
+        46.4639
+      ],
+      "points": 14,
+      "polygons": 1
+    },
+    {
+      "en": "Pays d'Enhaut",
+      "id": "CH-1112",
+      "label": [
+        7.1627,
+        46.4491
+      ],
+      "points": 33,
+      "polygons": 1
+    },
+    {
+      "en": "Aigle-Leysin",
+      "id": "CH-1113",
+      "label": [
+        6.9807,
+        46.3437
+      ],
+      "points": 18,
+      "polygons": 1
+    },
+    {
+      "en": "Bex-Villars",
+      "id": "CH-1114",
+      "label": [
+        7.1209,
+        46.2986
+      ],
+      "points": 25,
+      "polygons": 1
+    },
+    {
+      "en": "Jaun",
+      "id": "CH-1121",
+      "label": [
+        7.227,
+        46.6298
+      ],
+      "points": 49,
+      "polygons": 1
+    },
+    {
+      "en": "Gruyère",
+      "id": "CH-1122",
+      "label": [
+        7.0751,
+        46.639
+      ],
+      "points": 38,
+      "polygons": 1
+    },
+    {
+      "en": "westliche Berner Voralpen",
+      "id": "CH-1211",
+      "label": [
+        7.4882,
+        46.8222
+      ],
+      "points": 34,
+      "polygons": 1
+    },
+    {
+      "en": "östliche Berner Voralpen",
+      "id": "CH-1212",
+      "label": [
+        7.7055,
+        46.8374
+      ],
+      "points": 37,
+      "polygons": 1
+    },
+    {
+      "en": "Hohgant",
+      "id": "CH-1213",
+      "label": [
+        7.7923,
+        46.7143
+      ],
+      "points": 23,
+      "polygons": 1
+    },
+    {
+      "en": "Niedersimmental",
+      "id": "CH-1221",
+      "label": [
+        7.4363,
+        46.6733
+      ],
+      "points": 33,
+      "polygons": 1
+    },
+    {
+      "en": "Gstaad",
+      "id": "CH-1222",
+      "label": [
+        7.3184,
+        46.4523
+      ],
+      "points": 23,
+      "polygons": 1
+    },
+    {
+      "en": "Wildhorn",
+      "id": "CH-1223",
+      "label": [
+        7.2981,
+        46.3612
+      ],
+      "points": 14,
+      "polygons": 1
+    },
+    {
+      "en": "Lenk",
+      "id": "CH-1224",
+      "label": [
+        7.4334,
+        46.4896
+      ],
+      "points": 15,
+      "polygons": 1
+    },
+    {
+      "en": "Iffigen",
+      "id": "CH-1225",
+      "label": [
+        7.4877,
+        46.4089
+      ],
+      "points": 16,
+      "polygons": 1
+    },
+    {
+      "en": "Adelboden",
+      "id": "CH-1226",
+      "label": [
+        7.6011,
+        46.5285
+      ],
+      "points": 24,
+      "polygons": 1
+    },
+    {
+      "en": "Engstligen",
+      "id": "CH-1227",
+      "label": [
+        7.5667,
+        46.4415
+      ],
+      "points": 5,
+      "polygons": 1
+    },
+    {
+      "en": "Obersimmental",
+      "id": "CH-1228",
+      "label": [
+        7.5087,
+        46.5774
+      ],
+      "points": 17,
+      "polygons": 1
+    },
+    {
+      "en": "Kandersteg",
+      "id": "CH-1231",
+      "label": [
+        7.6935,
+        46.5742
+      ],
+      "points": 27,
+      "polygons": 1
+    },
+    {
+      "en": "Blüemlisalp",
+      "id": "CH-1232",
+      "label": [
+        7.7599,
+        46.4933
+      ],
+      "points": 27,
+      "polygons": 1
+    },
+    {
+      "en": "Lauterbrunnen",
+      "id": "CH-1233",
+      "label": [
+        7.9115,
+        46.5839
+      ],
+      "points": 24,
+      "polygons": 1
+    },
+    {
+      "en": "Jungfrau - Schilthorn",
+      "id": "CH-1234",
+      "label": [
+        7.8522,
+        46.5159
+      ],
+      "points": 30,
+      "polygons": 1
+    },
+    {
+      "en": "Brienz-Interlaken",
+      "id": "CH-1241",
+      "label": [
+        8.0381,
+        46.7319
+      ],
+      "points": 24,
+      "polygons": 1
+    },
+    {
+      "en": "Grindelwald",
+      "id": "CH-1242",
+      "label": [
+        7.9675,
+        46.6314
+      ],
+      "points": 15,
+      "polygons": 1
+    },
+    {
+      "en": "Schreckhorn",
+      "id": "CH-1243",
+      "label": [
+        8.0926,
+        46.5976
+      ],
+      "points": 13,
+      "polygons": 1
+    },
+    {
+      "en": "Hasliberg - Rosenlaui",
+      "id": "CH-1244",
+      "label": [
+        8.1979,
+        46.7353
+      ],
+      "points": 17,
+      "polygons": 1
+    },
+    {
+      "en": "Guttannen",
+      "id": "CH-1245",
+      "label": [
+        8.2187,
+        46.6444
+      ],
+      "points": 14,
+      "polygons": 1
+    },
+    {
+      "en": "Gadmertal",
+      "id": "CH-1246",
+      "label": [
+        8.3536,
+        46.7271
+      ],
+      "points": 26,
+      "polygons": 1
+    },
+    {
+      "en": "Grimselpass",
+      "id": "CH-1247",
+      "label": [
+        8.3089,
+        46.5874
+      ],
+      "points": 15,
+      "polygons": 1
+    },
+    {
+      "en": "Vouvry",
+      "id": "CH-1311",
+      "label": [
+        6.8536,
+        46.3434
+      ],
+      "points": 25,
+      "polygons": 1
+    },
+    {
+      "en": "Monthey-Val d'Illiez",
+      "id": "CH-1312",
+      "label": [
+        6.9001,
+        46.1894
+      ],
+      "points": 31,
+      "polygons": 1
+    },
+    {
+      "en": "Pilatus",
+      "id": "CH-2111",
+      "label": [
+        8.177,
+        46.9489
+      ],
+      "points": 18,
+      "polygons": 1
+    },
+    {
+      "en": "Schwarzenberg",
+      "id": "CH-2112",
+      "label": [
+        8.0386,
+        46.9977
+      ],
+      "points": 43,
+      "polygons": 1
+    },
+    {
+      "en": "Glaubenberg",
+      "id": "CH-2121",
+      "label": [
+        8.0588,
+        46.8432
+      ],
+      "points": 27,
+      "polygons": 1
+    },
+    {
+      "en": "Engelberg",
+      "id": "CH-2122",
+      "label": [
+        8.409,
+        46.8384
+      ],
+      "points": 16,
+      "polygons": 1
+    },
+    {
+      "en": "Melchtal",
+      "id": "CH-2123",
+      "label": [
+        8.2702,
+        46.8102
+      ],
+      "points": 25,
+      "polygons": 1
+    },
+    {
+      "en": "Gersau",
+      "id": "CH-2124",
+      "label": [
+        8.5196,
+        46.9644
+      ],
+      "points": 20,
+      "polygons": 1
+    },
+    {
+      "en": "Rothenthurm",
+      "id": "CH-2131",
+      "label": [
+        8.5865,
+        47.0803
+      ],
+      "points": 21,
+      "polygons": 1
+    },
+    {
+      "en": "Ybrig",
+      "id": "CH-2132",
+      "label": [
+        8.897,
+        47.0985
+      ],
+      "points": 21,
+      "polygons": 1
+    },
+    {
+      "en": "Stoos",
+      "id": "CH-2133",
+      "label": [
+        8.6759,
+        46.9946
+      ],
+      "points": 12,
+      "polygons": 1
+    },
+    {
+      "en": "Bisistal",
+      "id": "CH-2134",
+      "label": [
+        8.8353,
+        46.94
+      ],
+      "points": 22,
+      "polygons": 1
+    },
+    {
+      "en": "Schächental",
+      "id": "CH-2211",
+      "label": [
+        8.7021,
+        46.8514
+      ],
+      "points": 24,
+      "polygons": 1
+    },
+    {
+      "en": "Uri Rot Stock",
+      "id": "CH-2212",
+      "label": [
+        8.5688,
+        46.8805
+      ],
+      "points": 26,
+      "polygons": 1
+    },
+    {
+      "en": "Meiental",
+      "id": "CH-2221",
+      "label": [
+        8.4937,
+        46.7296
+      ],
+      "points": 23,
+      "polygons": 1
+    },
+    {
+      "en": "Maderanertal",
+      "id": "CH-2222",
+      "label": [
+        8.7601,
+        46.7647
+      ],
+      "points": 12,
+      "polygons": 1
+    },
+    {
+      "en": "nördliches Urseren",
+      "id": "CH-2223",
+      "label": [
+        8.4703,
+        46.6323
+      ],
+      "points": 18,
+      "polygons": 1
+    },
+    {
+      "en": "südliches Urseren",
+      "id": "CH-2224",
+      "label": [
+        8.6261,
+        46.6076
+      ],
+      "points": 19,
+      "polygons": 1
+    },
+    {
+      "en": "Glarus Nord",
+      "id": "CH-3111",
+      "label": [
+        9.0096,
+        47.1105
+      ],
+      "points": 18,
+      "polygons": 1
+    },
+    {
+      "en": "Glarus Süd-Grosstal",
+      "id": "CH-3112",
+      "label": [
+        8.998,
+        46.9071
+      ],
+      "points": 28,
+      "polygons": 1
+    },
+    {
+      "en": "Glarus Süd-Sernftal",
+      "id": "CH-3113",
+      "label": [
+        9.1544,
+        46.9486
+      ],
+      "points": 27,
+      "polygons": 1
+    },
+    {
+      "en": "Glarus Mitte",
+      "id": "CH-3114",
+      "label": [
+        8.9375,
+        47.0055
+      ],
+      "points": 27,
+      "polygons": 1
+    },
+    {
+      "en": "Appenzeller Alpen",
+      "id": "CH-3211",
+      "label": [
+        9.5329,
+        47.3561
+      ],
+      "points": 34,
+      "polygons": 1
+    },
+    {
+      "en": "Toggenburg",
+      "id": "CH-3221",
+      "label": [
+        9.1677,
+        47.2365
+      ],
+      "points": 46,
+      "polygons": 1
+    },
+    {
+      "en": "Alpstein - Alvier",
+      "id": "CH-3222",
+      "label": [
+        9.3891,
+        47.193
+      ],
+      "points": 38,
+      "polygons": 1
+    },
+    {
+      "en": "Flumserberg",
+      "id": "CH-3223",
+      "label": [
+        9.2728,
+        47.0729
+      ],
+      "points": 26,
+      "polygons": 1
+    },
+    {
+      "en": "Sarganserland",
+      "id": "CH-3224",
+      "label": [
+        9.4176,
+        46.9655
+      ],
+      "points": 21,
+      "polygons": 1
+    },
+    {
+      "en": "Liechtenstein",
+      "id": "CH-3311",
+      "label": [
+        9.5702,
+        47.1107
+      ],
+      "points": 42,
+      "polygons": 1
+    },
+    {
+      "en": "Emosson",
+      "id": "CH-4111",
+      "label": [
+        6.9855,
+        46.0781
+      ],
+      "points": 34,
+      "polygons": 1
+    },
+    {
+      "en": "Génépi",
+      "id": "CH-4112",
+      "label": [
+        7.0667,
+        46.0407
+      ],
+      "points": 24,
+      "polygons": 1
+    },
+    {
+      "en": "Val d'Entremont-Val Ferret",
+      "id": "CH-4113",
+      "label": [
+        7.158,
+        45.9603
+      ],
+      "points": 45,
+      "polygons": 1
+    },
+    {
+      "en": "Conthey-Fully",
+      "id": "CH-4114",
+      "label": [
+        7.2478,
+        46.2573
+      ],
+      "points": 30,
+      "polygons": 1
+    },
+    {
+      "en": "Martigny-Verbier",
+      "id": "CH-4115",
+      "label": [
+        7.2852,
+        46.122
+      ],
+      "points": 28,
+      "polygons": 1
+    },
+    {
+      "en": "Haut Val de Bagnes",
+      "id": "CH-4116",
+      "label": [
+        7.3194,
+        46.001
+      ],
+      "points": 33,
+      "polygons": 1
+    },
+    {
+      "en": "Montana",
+      "id": "CH-4121",
+      "label": [
+        7.4332,
+        46.3203
+      ],
+      "points": 20,
+      "polygons": 1
+    },
+    {
+      "en": "Val d'Hérens",
+      "id": "CH-4122",
+      "label": [
+        7.4437,
+        46.1481
+      ],
+      "points": 19,
+      "polygons": 1
+    },
+    {
+      "en": "Arolla",
+      "id": "CH-4123",
+      "label": [
+        7.5083,
+        46.0234
+      ],
+      "points": 25,
+      "polygons": 1
+    },
+    {
+      "en": "Val d'Anniviers",
+      "id": "CH-4124",
+      "label": [
+        7.5906,
+        46.174
+      ],
+      "points": 19,
+      "polygons": 1
+    },
+    {
+      "en": "Mountet",
+      "id": "CH-4125",
+      "label": [
+        7.6335,
+        46.0668
+      ],
+      "points": 7,
+      "polygons": 1
+    },
+    {
+      "en": "Leukerbad - Lötschental",
+      "id": "CH-4211",
+      "label": [
+        7.8555,
+        46.4425
+      ],
+      "points": 23,
+      "polygons": 1
+    },
+    {
+      "en": "Turtmanntal",
+      "id": "CH-4212",
+      "label": [
+        7.7031,
+        46.2588
+      ],
+      "points": 15,
+      "polygons": 1
+    },
+    {
+      "en": "Konkordia Gebiet",
+      "id": "CH-4213",
+      "label": [
+        8.027,
+        46.496
+      ],
+      "points": 24,
+      "polygons": 1
+    },
+    {
+      "en": "Riederalp",
+      "id": "CH-4214",
+      "label": [
+        7.9212,
+        46.3395
+      ],
+      "points": 24,
+      "polygons": 1
+    },
+    {
+      "en": "Leuk",
+      "id": "CH-4215",
+      "label": [
+        7.622,
+        46.3431
+      ],
+      "points": 13,
+      "polygons": 1
+    },
+    {
+      "en": "untere Vispertäler",
+      "id": "CH-4221",
+      "label": [
+        7.8319,
+        46.2175
+      ],
+      "points": 20,
+      "polygons": 1
+    },
+    {
+      "en": "Zermatt",
+      "id": "CH-4222",
+      "label": [
+        7.7609,
+        46.0452
+      ],
+      "points": 21,
+      "polygons": 1
+    },
+    {
+      "en": "Saas Fee",
+      "id": "CH-4223",
+      "label": [
+        7.9236,
+        46.1049
+      ],
+      "points": 12,
+      "polygons": 1
+    },
+    {
+      "en": "Monte Rosa",
+      "id": "CH-4224",
+      "label": [
+        7.8384,
+        45.9624
+      ],
+      "points": 32,
+      "polygons": 1
+    },
+    {
+      "en": "Mattmark",
+      "id": "CH-4225",
+      "label": [
+        7.9768,
+        46.0355
+      ],
+      "points": 21,
+      "polygons": 1
+    },
+    {
+      "en": "nördliches Simplon Gebiet",
+      "id": "CH-4231",
+      "label": [
+        8.0434,
+        46.294
+      ],
+      "points": 25,
+      "polygons": 1
+    },
+    {
+      "en": "südliches Simplon Gebiet",
+      "id": "CH-4232",
+      "label": [
+        8.0704,
+        46.1738
+      ],
+      "points": 26,
+      "polygons": 1
+    },
+    {
+      "en": "Reckingen",
+      "id": "CH-4241",
+      "label": [
+        8.1888,
+        46.4672
+      ],
+      "points": 11,
+      "polygons": 1
+    },
+    {
+      "en": "Binntal",
+      "id": "CH-4242",
+      "label": [
+        8.1779,
+        46.362
+      ],
+      "points": 33,
+      "polygons": 1
+    },
+    {
+      "en": "nördliches Obergoms",
+      "id": "CH-4243",
+      "label": [
+        8.391,
+        46.6039
+      ],
+      "points": 20,
+      "polygons": 1
+    },
+    {
+      "en": "südliches Obergoms",
+      "id": "CH-4244",
+      "label": [
+        8.3488,
+        46.488
+      ],
+      "points": 27,
+      "polygons": 1
+    },
+    {
+      "en": "nördliches Prättigau",
+      "id": "CH-5111",
+      "label": [
+        9.7687,
+        46.9789
+      ],
+      "points": 65,
+      "polygons": 1
+    },
+    {
+      "en": "südliches Prättigau",
+      "id": "CH-5112",
+      "label": [
+        9.6444,
+        46.9248
+      ],
+      "points": 42,
+      "polygons": 1
+    },
+    {
+      "en": "westliche Silvretta",
+      "id": "CH-5113",
+      "label": [
+        9.9945,
+        46.836
+      ],
+      "points": 19,
+      "polygons": 1
+    },
+    {
+      "en": "Calanda",
+      "id": "CH-5121",
+      "label": [
+        9.5179,
+        46.9169
+      ],
+      "points": 22,
+      "polygons": 1
+    },
+    {
+      "en": "Schanfigg",
+      "id": "CH-5122",
+      "label": [
+        9.651,
+        46.799
+      ],
+      "points": 33,
+      "polygons": 1
+    },
+    {
+      "en": "Davos",
+      "id": "CH-5123",
+      "label": [
+        9.8802,
+        46.7559
+      ],
+      "points": 24,
+      "polygons": 1
+    },
+    {
+      "en": "Flims",
+      "id": "CH-5124",
+      "label": [
+        9.255,
+        46.8477
+      ],
+      "points": 36,
+      "polygons": 1
+    },
+    {
+      "en": "nördliches Tujetsch",
+      "id": "CH-5211",
+      "label": [
+        8.8659,
+        46.7357
+      ],
+      "points": 18,
+      "polygons": 1
+    },
+    {
+      "en": "südliches Tujetsch",
+      "id": "CH-5212",
+      "label": [
+        8.7696,
+        46.6155
+      ],
+      "points": 24,
+      "polygons": 1
+    },
+    {
+      "en": "Obersaxen - Safiental",
+      "id": "CH-5214",
+      "label": [
+        9.2541,
+        46.6963
+      ],
+      "points": 31,
+      "polygons": 1
+    },
+    {
+      "en": "Val Sumvitg",
+      "id": "CH-5215",
+      "label": [
+        8.9613,
+        46.6644
+      ],
+      "points": 7,
+      "polygons": 1
+    },
+    {
+      "en": "Zervreila",
+      "id": "CH-5216",
+      "label": [
+        9.0941,
+        46.5725
+      ],
+      "points": 18,
+      "polygons": 1
+    },
+    {
+      "en": "Domleschg - Lenzerheide",
+      "id": "CH-5221",
+      "label": [
+        9.5309,
+        46.7034
+      ],
+      "points": 23,
+      "polygons": 1
+    },
+    {
+      "en": "Schams",
+      "id": "CH-5222",
+      "label": [
+        9.4376,
+        46.6406
+      ],
+      "points": 22,
+      "polygons": 1
+    },
+    {
+      "en": "Rheinwald",
+      "id": "CH-5223",
+      "label": [
+        9.406,
+        46.5359
+      ],
+      "points": 40,
+      "polygons": 1
+    },
+    {
+      "en": "Albulatal",
+      "id": "CH-5231",
+      "label": [
+        9.75,
+        46.6695
+      ],
+      "points": 23,
+      "polygons": 1
+    },
+    {
+      "en": "Savognin",
+      "id": "CH-5232",
+      "label": [
+        9.5465,
+        46.593
+      ],
+      "points": 28,
+      "polygons": 1
+    },
+    {
+      "en": "Avers",
+      "id": "CH-5233",
+      "label": [
+        9.5204,
+        46.4319
+      ],
+      "points": 24,
+      "polygons": 1
+    },
+    {
+      "en": "Bivio",
+      "id": "CH-5234",
+      "label": [
+        9.6423,
+        46.4991
+      ],
+      "points": 35,
+      "polygons": 1
+    },
+    {
+      "en": "Bedrettotal",
+      "id": "CH-6111",
+      "label": [
+        8.5121,
+        46.4843
+      ],
+      "points": 27,
+      "polygons": 1
+    },
+    {
+      "en": "obere Leventina",
+      "id": "CH-6112",
+      "label": [
+        8.66,
+        46.5297
+      ],
+      "points": 13,
+      "polygons": 1
+    },
+    {
+      "en": "Bleniotal",
+      "id": "CH-6113",
+      "label": [
+        8.9443,
+        46.4968
+      ],
+      "points": 36,
+      "polygons": 1
+    },
+    {
+      "en": "obere Maggiatäler",
+      "id": "CH-6114",
+      "label": [
+        8.5967,
+        46.3766
+      ],
+      "points": 35,
+      "polygons": 1
+    },
+    {
+      "en": "untere Leventina",
+      "id": "CH-6115",
+      "label": [
+        8.8034,
+        46.456
+      ],
+      "points": 34,
+      "polygons": 1
+    },
+    {
+      "en": "untere Maggiatäler",
+      "id": "CH-6121",
+      "label": [
+        8.7657,
+        46.2462
+      ],
+      "points": 62,
+      "polygons": 1
+    },
+    {
+      "en": "Riviera",
+      "id": "CH-6122",
+      "label": [
+        8.9819,
+        46.2858
+      ],
+      "points": 40,
+      "polygons": 1
+    },
+    {
+      "en": "Luganese",
+      "id": "CH-6131",
+      "label": [
+        8.9391,
+        46.0814
+      ],
+      "points": 70,
+      "polygons": 1
+    },
+    {
+      "en": "Mendrisiotto",
+      "id": "CH-6132",
+      "label": [
+        8.9906,
+        45.888
+      ],
+      "points": 65,
+      "polygons": 1
+    },
+    {
+      "en": "alto Moesano",
+      "id": "CH-6211",
+      "label": [
+        9.1805,
+        46.4527
+      ],
+      "points": 21,
+      "polygons": 1
+    },
+    {
+      "en": "basso Moesano",
+      "id": "CH-6212",
+      "label": [
+        9.1614,
+        46.304
+      ],
+      "points": 48,
+      "polygons": 1
+    },
+    {
+      "en": "Corvatsch",
+      "id": "CH-7111",
+      "label": [
+        9.7904,
+        46.4022
+      ],
+      "points": 31,
+      "polygons": 1
+    },
+    {
+      "en": "Bernina",
+      "id": "CH-7112",
+      "label": [
+        9.9498,
+        46.4301
+      ],
+      "points": 22,
+      "polygons": 1
+    },
+    {
+      "en": "Zuoz",
+      "id": "CH-7113",
+      "label": [
+        9.9282,
+        46.6332
+      ],
+      "points": 17,
+      "polygons": 1
+    },
+    {
+      "en": "St. Moritz",
+      "id": "CH-7114",
+      "label": [
+        9.8341,
+        46.5179
+      ],
+      "points": 23,
+      "polygons": 1
+    },
+    {
+      "en": "Val Chamuera",
+      "id": "CH-7115",
+      "label": [
+        10.0056,
+        46.5206
+      ],
+      "points": 26,
+      "polygons": 1
+    },
+    {
+      "en": "Samnaun",
+      "id": "CH-7121",
+      "label": [
+        10.3774,
+        46.9467
+      ],
+      "points": 39,
+      "polygons": 1
+    },
+    {
+      "en": "östliche Silvretta",
+      "id": "CH-7122",
+      "label": [
+        10.2004,
+        46.8455
+      ],
+      "points": 13,
+      "polygons": 1
+    },
+    {
+      "en": "Sur Tasna",
+      "id": "CH-7123",
+      "label": [
+        10.026,
+        46.7189
+      ],
+      "points": 22,
+      "polygons": 1
+    },
+    {
+      "en": "Val Suot",
+      "id": "CH-7124",
+      "label": [
+        10.4077,
+        46.8452
+      ],
+      "points": 22,
+      "polygons": 1
+    },
+    {
+      "en": "Val dal Spöl",
+      "id": "CH-7125",
+      "label": [
+        10.2041,
+        46.6803
+      ],
+      "points": 27,
+      "polygons": 1
+    },
+    {
+      "en": "Val S-charl",
+      "id": "CH-7126",
+      "label": [
+        10.3423,
+        46.722
+      ],
+      "points": 26,
+      "polygons": 1
+    },
+    {
+      "en": "Bergell",
+      "id": "CH-7211",
+      "label": [
+        9.6339,
+        46.3504
+      ],
+      "points": 35,
+      "polygons": 1
+    },
+    {
+      "en": "oberes Puschlav",
+      "id": "CH-7221",
+      "label": [
+        10.0537,
+        46.3668
+      ],
+      "points": 48,
+      "polygons": 1
+    },
+    {
+      "en": "unteres Puschlav",
+      "id": "CH-7222",
+      "label": [
+        10.1198,
+        46.266
+      ],
+      "points": 24,
+      "polygons": 1
+    },
+    {
+      "en": "Münstertal",
+      "id": "CH-7231",
+      "label": [
+        10.3316,
+        46.603
+      ],
+      "points": 44,
+      "polygons": 1
+    },
+    {
+      "en": "Saint-Cergue",
+      "id": "CH-8111",
+      "label": [
+        6.1562,
+        46.4436
+      ],
+      "points": 24,
+      "polygons": 1
+    },
+    {
+      "en": "Vallée de Joux",
+      "id": "CH-8112",
+      "label": [
+        6.3292,
+        46.6398
+      ],
+      "points": 53,
+      "polygons": 1
+    },
+    {
+      "en": "Yverdon - Bevaix",
+      "id": "CH-8113",
+      "label": [
+        6.5629,
+        46.8012
+      ],
+      "points": 32,
+      "polygons": 1
+    },
+    {
+      "en": "Val de Travers",
+      "id": "CH-8114",
+      "label": [
+        6.5202,
+        46.9091
+      ],
+      "points": 39,
+      "polygons": 1
+    },
+    {
+      "en": "Val de Ruz - Colombier",
+      "id": "CH-8211",
+      "label": [
+        6.8487,
+        47.0182
+      ],
+      "points": 24,
+      "polygons": 1
+    },
+    {
+      "en": "Biel- Neuenburg",
+      "id": "CH-8212",
+      "label": [
+        7.0639,
+        47.0919
+      ],
+      "points": 17,
+      "polygons": 1
+    },
+    {
+      "en": "Vallon de Saint-Imier",
+      "id": "CH-8213",
+      "label": [
+        7.1762,
+        47.1722
+      ],
+      "points": 34,
+      "polygons": 1
+    },
+    {
+      "en": "Moutier - Tavannes",
+      "id": "CH-8214",
+      "label": [
+        7.4206,
+        47.311
+      ],
+      "points": 32,
+      "polygons": 1
+    },
+    {
+      "en": "Thal",
+      "id": "CH-8215",
+      "label": [
+        7.6333,
+        47.3037
+      ],
+      "points": 20,
+      "polygons": 1
+    },
+    {
+      "en": "Olten-Gösgen",
+      "id": "CH-8216",
+      "label": [
+        7.9843,
+        47.3793
+      ],
+      "points": 17,
+      "polygons": 1
+    },
+    {
+      "en": "La Chaux-de-Fonds - Le Locle",
+      "id": "CH-8221",
+      "label": [
+        6.7761,
+        47.0835
+      ],
+      "points": 27,
+      "polygons": 1
+    },
+    {
+      "en": "Franches-Montagnes",
+      "id": "CH-8222",
+      "label": [
+        7.0063,
+        47.2424
+      ],
+      "points": 57,
+      "polygons": 1
+    },
+    {
+      "en": "Ajoie",
+      "id": "CH-8223",
+      "label": [
+        7.104,
+        47.4332
+      ],
+      "points": 49,
+      "polygons": 1
+    },
+    {
+      "en": "Delsberg– Bellelay",
+      "id": "CH-8224",
+      "label": [
+        7.25,
+        47.3218
+      ],
+      "points": 24,
+      "polygons": 1
+    },
+    {
+      "en": "Laufental",
+      "id": "CH-8225",
+      "label": [
+        7.5914,
+        47.3982
+      ],
+      "points": 31,
+      "polygons": 1
+    },
+    {
+      "en": "Basel",
+      "id": "CH-8226",
+      "label": [
+        7.5899,
+        47.5164
+      ],
+      "points": 71,
+      "polygons": 1
+    },
+    {
+      "en": "Oberes Baselbiet",
+      "id": "CH-8227",
+      "label": [
+        7.7692,
+        47.4221
+      ],
+      "points": 17,
+      "polygons": 1
+    },
+    {
+      "en": "Rheinfelden",
+      "id": "CH-8228",
+      "label": [
+        7.8636,
+        47.5412
+      ],
+      "points": 44,
+      "polygons": 1
+    },
+    {
+      "en": "westliches Mittelland",
+      "id": "CH-9111",
+      "label": [
+        6.7259,
+        46.6203
+      ],
+      "points": 159,
+      "polygons": 1
+    },
+    {
+      "en": "zentrales Mittelland",
+      "id": "CH-9211",
+      "label": [
+        8.2649,
+        47.3053
+      ],
+      "points": 139,
+      "polygons": 1
+    },
+    {
+      "en": "östliches Mittelland",
+      "id": "CH-9311",
+      "label": [
+        8.7988,
+        47.4505
+      ],
+      "points": 195,
+      "polygons": 1
+    },
+    {
+      "en": "Allgäu Prealps",
+      "id": "DE-BY-11",
+      "label": [
+        10.1712,
+        47.4888
+      ],
+      "points": 123,
+      "polygons": 1
+    },
+    {
+      "en": "Allgäu Alps Central",
+      "id": "DE-BY-12",
+      "label": [
+        10.3551,
+        47.4332
+      ],
+      "points": 96,
+      "polygons": 1
+    },
+    {
+      "en": "Ammergau Alps North",
+      "id": "DE-BY-20",
+      "label": [
+        11.0033,
+        47.5658
+      ],
+      "points": 88,
+      "polygons": 1
+    },
+    {
+      "en": "Werdenfels Alps",
+      "id": "DE-BY-30",
+      "label": [
+        11.0916,
+        47.4434
+      ],
+      "points": 107,
+      "polygons": 1
+    },
+    {
+      "en": "Bavarian Prealps West",
+      "id": "DE-BY-41",
+      "label": [
+        11.4853,
+        47.6507
+      ],
+      "points": 91,
+      "polygons": 1
+    },
+    {
+      "en": "Bavarian Prealps Central",
+      "id": "DE-BY-42",
+      "label": [
+        11.6758,
+        47.6745
+      ],
+      "points": 82,
+      "polygons": 1
+    },
+    {
+      "en": "Bavarian Prealps East",
+      "id": "DE-BY-43",
+      "label": [
+        12.0801,
+        47.6816
+      ],
+      "points": 60,
+      "polygons": 1
+    },
+    {
+      "en": "Chiemgau Alps West",
+      "id": "DE-BY-51",
+      "label": [
+        12.3767,
+        47.7455
+      ],
+      "points": 93,
+      "polygons": 1
+    },
+    {
+      "en": "Chiemgau Alps East",
+      "id": "DE-BY-52",
+      "label": [
+        12.7577,
+        47.7501
+      ],
+      "points": 73,
+      "polygons": 1
+    },
+    {
+      "en": "Berchtesgaden Alps",
+      "id": "DE-BY-60",
+      "label": [
+        12.9424,
+        47.6051
+      ],
+      "points": 72,
+      "polygons": 1
+    },
+    {
+      "en": "Chablais",
+      "id": "FR-01",
+      "label": [
+        6.6357,
+        46.2161
+      ],
+      "points": 75,
+      "polygons": 1
+    },
+    {
+      "en": "Aravis",
+      "id": "FR-02",
+      "label": [
+        6.337,
+        45.8744
+      ],
+      "points": 16,
+      "polygons": 1
+    },
+    {
+      "en": "Mont-Blanc",
+      "id": "FR-03",
+      "label": [
+        6.9192,
+        45.9446
+      ],
+      "points": 62,
+      "polygons": 1
+    },
+    {
+      "en": "Bauges",
+      "id": "FR-04",
+      "label": [
+        6.1253,
+        45.6752
+      ],
+      "points": 12,
+      "polygons": 1
+    },
+    {
+      "en": "Beaufortain",
+      "id": "FR-05",
+      "label": [
+        6.5711,
+        45.6682
+      ],
+      "points": 14,
+      "polygons": 1
+    },
+    {
+      "en": "Haute-Tarentaise",
+      "id": "FR-06",
+      "label": [
+        6.8872,
+        45.5602
+      ],
+      "points": 47,
+      "polygons": 1
+    },
+    {
+      "en": "Chartreuse",
+      "id": "FR-07",
+      "label": [
+        5.7779,
+        45.3316
+      ],
+      "points": 12,
+      "polygons": 1
+    },
+    {
+      "en": "Belledonne",
+      "id": "FR-08",
+      "label": [
+        6.0871,
+        45.3452
+      ],
+      "points": 18,
+      "polygons": 1
+    },
+    {
+      "en": "Maurienne",
+      "id": "FR-09",
+      "label": [
+        6.3183,
+        45.2756
+      ],
+      "points": 18,
+      "polygons": 1
+    },
+    {
+      "en": "Vanoise",
+      "id": "FR-10",
+      "label": [
+        6.6783,
+        45.3957
+      ],
+      "points": 17,
+      "polygons": 1
+    },
+    {
+      "en": "Haute-Maurienne",
+      "id": "FR-11",
+      "label": [
+        6.8371,
+        45.2213
+      ],
+      "points": 116,
+      "polygons": 1
+    },
+    {
+      "en": "Grandes-Rousses",
+      "id": "FR-12",
+      "label": [
+        6.1628,
+        45.1318
+      ],
+      "points": 15,
+      "polygons": 1
+    },
+    {
+      "en": "Thabor",
+      "id": "FR-13",
+      "label": [
+        6.545,
+        45.0584
+      ],
+      "points": 42,
+      "polygons": 1
+    },
+    {
+      "en": "Vercors",
+      "id": "FR-14",
+      "label": [
+        5.463,
+        44.9845
+      ],
+      "points": 20,
+      "polygons": 1
+    },
+    {
+      "en": "Oisans",
+      "id": "FR-15",
+      "label": [
+        6.0635,
+        44.9067
+      ],
+      "points": 18,
+      "polygons": 1
+    },
+    {
+      "en": "Pelvoux",
+      "id": "FR-16",
+      "label": [
+        6.4536,
+        44.8644
+      ],
+      "points": 8,
+      "polygons": 1
+    },
+    {
+      "en": "Queyras",
+      "id": "FR-17",
+      "label": [
+        6.7215,
+        44.7872
+      ],
+      "points": 66,
+      "polygons": 1
+    },
+    {
+      "en": "Devoluy",
+      "id": "FR-18",
+      "label": [
+        5.8214,
+        44.6958
+      ],
+      "points": 14,
+      "polygons": 1
+    },
+    {
+      "en": "Champsaur",
+      "id": "FR-19",
+      "label": [
+        6.243,
+        44.6991
+      ],
+      "points": 11,
+      "polygons": 1
+    },
+    {
+      "en": "Embrunals-Parpaillon",
+      "id": "FR-20",
+      "label": [
+        6.5161,
+        44.5544
+      ],
+      "points": 12,
+      "polygons": 1
+    },
+    {
+      "en": "Ubaye",
+      "id": "FR-21",
+      "label": [
+        6.7324,
+        44.4572
+      ],
+      "points": 68,
+      "polygons": 1
+    },
+    {
+      "en": "Haut-Var/Haut-Verdon",
+      "id": "FR-22",
+      "label": [
+        6.7512,
+        44.1409
+      ],
+      "points": 15,
+      "polygons": 1
+    },
+    {
+      "en": "Mercantour",
+      "id": "FR-23",
+      "label": [
+        7.5997,
+        44.0683
+      ],
+      "points": 127,
+      "polygons": 1
+    },
+    {
+      "en": "Monregalese Valleys",
+      "id": "IT-21-CN-01",
+      "label": [
+        7.8895,
+        44.2098
+      ],
+      "points": 393,
+      "polygons": 1
+    },
+    {
+      "en": "Gesso and Vermenagna Valleys",
+      "id": "IT-21-CN-02",
+      "label": [
+        7.45,
+        44.2213
+      ],
+      "points": 153,
+      "polygons": 1
+    },
+    {
+      "en": "Stura Valley",
+      "id": "IT-21-CN-03",
+      "label": [
+        7.1457,
+        44.297
+      ],
+      "points": 206,
+      "polygons": 1
+    },
+    {
+      "en": "Maira and Grana Valleys",
+      "id": "IT-21-CN-04",
+      "label": [
+        7.0693,
+        44.4768
+      ],
+      "points": 183,
+      "polygons": 1
+    },
+    {
+      "en": "Varaita and Po Valleys",
+      "id": "IT-21-CN-05",
+      "label": [
+        7.1757,
+        44.6426
+      ],
+      "points": 235,
+      "polygons": 1
+    },
+    {
+      "en": "Germanasca and Pellice Valleys",
+      "id": "IT-21-TO-01",
+      "label": [
+        7.1271,
+        44.8819
+      ],
+      "points": 185,
+      "polygons": 1
+    },
+    {
+      "en": "Susa and Chisone Valleys",
+      "id": "IT-21-TO-02",
+      "label": [
+        7.0063,
+        45.0319
+      ],
+      "points": 293,
+      "polygons": 2
+    },
+    {
+      "en": "Upper Susa and Chisone Valleys",
+      "id": "IT-21-TO-03",
+      "label": [
+        6.8425,
+        44.9565
+      ],
+      "points": 194,
+      "polygons": 1
+    },
+    {
+      "en": "Graie Alps",
+      "id": "IT-21-TO-04",
+      "label": [
+        7.3227,
+        45.2652
+      ],
+      "points": 341,
+      "polygons": 1
+    },
+    {
+      "en": "Border Graie Alps",
+      "id": "IT-21-TO-05",
+      "label": [
+        7.1862,
+        45.3077
+      ],
+      "points": 136,
+      "polygons": 1
+    },
+    {
+      "en": "Border Pennine Alps",
+      "id": "IT-21-VB-01",
+      "label": [
+        7.9125,
+        45.8939
+      ],
+      "points": 149,
+      "polygons": 1
+    },
+    {
+      "en": "Northern Lepontine Alps",
+      "id": "IT-21-VB-02",
+      "label": [
+        8.3902,
+        46.3698
+      ],
+      "points": 141,
+      "polygons": 1
+    },
+    {
+      "en": "Southern Lepontine Alps",
+      "id": "IT-21-VB-03",
+      "label": [
+        8.4806,
+        46.1308
+      ],
+      "points": 288,
+      "polygons": 1
+    },
+    {
+      "en": "Pennine Alps",
+      "id": "IT-21-VC-01",
+      "label": [
+        8.0078,
+        45.7761
+      ],
+      "points": 615,
+      "polygons": 2
+    },
+    {
+      "en": "Saint-Pierre and Saint-Nicholas",
+      "id": "IT-23-AO-01",
+      "label": [
+        7.2502,
+        45.7649
+      ],
+      "points": 30,
+      "polygons": 1
+    },
+    {
+      "en": "Introd, Arvier and Aymavilles",
+      "id": "IT-23-AO-02",
+      "label": [
+        7.1169,
+        45.6831
+      ],
+      "points": 65,
+      "polygons": 1
+    },
+    {
+      "en": "Quart and Nus",
+      "id": "IT-23-AO-03",
+      "label": [
+        7.4367,
+        45.7857
+      ],
+      "points": 35,
+      "polygons": 2
+    },
+    {
+      "en": "Pollein and Saint-Marcel",
+      "id": "IT-23-AO-04",
+      "label": [
+        7.428,
+        45.6926
+      ],
+      "points": 39,
+      "polygons": 1
+    },
+    {
+      "en": "Lower Valtournenche - Chatillon Valley",
+      "id": "IT-23-AO-05",
+      "label": [
+        7.6247,
+        45.806
+      ],
+      "points": 53,
+      "polygons": 1
+    },
+    {
+      "en": "Gressoney and Ayas Valleys Head",
+      "id": "IT-23-AO-06",
+      "label": [
+        7.8238,
+        45.8861
+      ],
+      "points": 23,
+      "polygons": 1
+    },
+    {
+      "en": "Middle Ayas Valley - Brusson",
+      "id": "IT-23-AO-07",
+      "label": [
+        7.7336,
+        45.8034
+      ],
+      "points": 40,
+      "polygons": 1
+    },
+    {
+      "en": "Middle Lys Valley",
+      "id": "IT-23-AO-08",
+      "label": [
+        7.8247,
+        45.8081
+      ],
+      "points": 33,
+      "polygons": 1
+    },
+    {
+      "en": "Lower Gressoney and Ayas Valleys",
+      "id": "IT-23-AO-09",
+      "label": [
+        7.7891,
+        45.6742
+      ],
+      "points": 110,
+      "polygons": 2
+    },
+    {
+      "en": "Champdepraz Monte Avic",
+      "id": "IT-23-AO-10",
+      "label": [
+        7.6104,
+        45.6739
+      ],
+      "points": 45,
+      "polygons": 1
+    },
+    {
+      "en": "Champorcher Valley",
+      "id": "IT-23-AO-11",
+      "label": [
+        7.5417,
+        45.6258
+      ],
+      "points": 49,
+      "polygons": 1
+    },
+    {
+      "en": "Cogne Valley",
+      "id": "IT-23-AO-12",
+      "label": [
+        7.3683,
+        45.5919
+      ],
+      "points": 36,
+      "polygons": 1
+    },
+    {
+      "en": "Valsavaranche",
+      "id": "IT-23-AO-13",
+      "label": [
+        7.215,
+        45.5365
+      ],
+      "points": 31,
+      "polygons": 1
+    },
+    {
+      "en": "Ferret Valley",
+      "id": "IT-23-AO-14",
+      "label": [
+        7.0431,
+        45.8598
+      ],
+      "points": 35,
+      "polygons": 1
+    },
+    {
+      "en": "La Thuile Valley",
+      "id": "IT-23-AO-15",
+      "label": [
+        6.9525,
+        45.7148
+      ],
+      "points": 53,
+      "polygons": 1
+    },
+    {
+      "en": "Valgrisenche",
+      "id": "IT-23-AO-16",
+      "label": [
+        7.0413,
+        45.6003
+      ],
+      "points": 33,
+      "polygons": 1
+    },
+    {
+      "en": "La Salle Morgex",
+      "id": "IT-23-AO-17",
+      "label": [
+        7.0771,
+        45.7851
+      ],
+      "points": 39,
+      "polygons": 1
+    },
+    {
+      "en": "Gran San Bernardo Ollomont",
+      "id": "IT-23-AO-18",
+      "label": [
+        7.2814,
+        45.853
+      ],
+      "points": 56,
+      "polygons": 1
+    },
+    {
+      "en": "Lower and Middle Valpelline Valley",
+      "id": "IT-23-AO-19",
+      "label": [
+        7.4279,
+        45.8665
+      ],
+      "points": 27,
+      "polygons": 1
+    },
+    {
+      "en": "Cervinia and Upper Valpelline Valley",
+      "id": "IT-23-AO-20",
+      "label": [
+        7.5725,
+        45.9403
+      ],
+      "points": 39,
+      "polygons": 1
+    },
+    {
+      "en": "Rhemes Valley",
+      "id": "IT-23-AO-21",
+      "label": [
+        7.1163,
+        45.5493
+      ],
+      "points": 23,
+      "polygons": 1
+    },
+    {
+      "en": "Veny Valley",
+      "id": "IT-23-AO-22",
+      "label": [
+        6.8907,
+        45.8034
+      ],
+      "points": 35,
+      "polygons": 1
+    },
+    {
+      "en": "Saint-Barthelemy Valley Head",
+      "id": "IT-23-AO-23",
+      "label": [
+        7.516,
+        45.8514
+      ],
+      "points": 10,
+      "polygons": 1
+    },
+    {
+      "en": "Valtournenche",
+      "id": "IT-23-AO-24",
+      "label": [
+        7.6064,
+        45.8804
+      ],
+      "points": 17,
+      "polygons": 1
+    },
+    {
+      "en": "Ayas Valley Head - Saint Jacques",
+      "id": "IT-23-AO-25",
+      "label": [
+        7.7105,
+        45.8812
+      ],
+      "points": 9,
+      "polygons": 1
+    },
+    {
+      "en": "Pontey-Clavalité",
+      "id": "IT-23-AO-26",
+      "label": [
+        7.5461,
+        45.7031
+      ],
+      "points": 28,
+      "polygons": 1
+    },
+    {
+      "en": "Bergamasche Orobie Alps",
+      "id": "IT-25-BG-01",
+      "label": [
+        10.0247,
+        45.9849
+      ],
+      "points": 414,
+      "polygons": 1
+    },
+    {
+      "en": "Bergamasche Prealps",
+      "id": "IT-25-BG-02",
+      "label": [
+        9.7675,
+        45.8451
+      ],
+      "points": 808,
+      "polygons": 6
+    },
+    {
+      "en": "Adamello",
+      "id": "IT-25-BS-01",
+      "label": [
+        10.4431,
+        46.2183
+      ],
+      "points": 344,
+      "polygons": 2
+    },
+    {
+      "en": "Bresciane Prealps",
+      "id": "IT-25-BS-02",
+      "label": [
+        10.541,
+        45.7272
+      ],
+      "points": 1204,
+      "polygons": 8
+    },
+    {
+      "en": "Como Prealps",
+      "id": "IT-25-CO-01",
+      "label": [
+        9.1447,
+        46.1244
+      ],
+      "points": 613,
+      "polygons": 8
+    },
+    {
+      "en": "Lariane Prealps",
+      "id": "IT-25-LC-01",
+      "label": [
+        9.4025,
+        45.9324
+      ],
+      "points": 329,
+      "polygons": 4
+    },
+    {
+      "en": "Pavese Apennines",
+      "id": "IT-25-PV-01",
+      "label": [
+        9.261,
+        44.728
+      ],
+      "points": 101,
+      "polygons": 1
+    },
+    {
+      "en": "Western Retiche Alps",
+      "id": "IT-25-SO-01",
+      "label": [
+        9.4052,
+        46.4054
+      ],
+      "points": 387,
+      "polygons": 2
+    },
+    {
+      "en": "Central Retiche Alps",
+      "id": "IT-25-SO-02",
+      "label": [
+        9.909,
+        46.2881
+      ],
+      "points": 280,
+      "polygons": 2
+    },
+    {
+      "en": "Eastern Retiche Alps",
+      "id": "IT-25-SO-03",
+      "label": [
+        10.3164,
+        46.4183
+      ],
+      "points": 264,
+      "polygons": 3
+    },
+    {
+      "en": "Valtellina Orobie Alps",
+      "id": "IT-25-SO-04",
+      "label": [
+        10.2263,
+        46.1401
+      ],
+      "points": 345,
+      "polygons": 2
+    },
+    {
+      "en": "Varesine Prealps",
+      "id": "IT-25-VA-01",
+      "label": [
+        8.6718,
+        45.9224
+      ],
+      "points": 262,
+      "polygons": 10
+    },
+    {
+      "en": "Sesvenna Group North",
+      "id": "IT-32-BZ-01-01",
+      "label": [
+        10.4889,
+        46.788
+      ],
+      "points": 32,
+      "polygons": 1
+    },
+    {
+      "en": "Sesvenna Group South",
+      "id": "IT-32-BZ-01-02",
+      "label": [
+        10.4587,
+        46.6924
+      ],
+      "points": 37,
+      "polygons": 1
+    },
+    {
+      "en": "Langtaufers",
+      "id": "IT-32-BZ-02-01",
+      "label": [
+        10.5976,
+        46.8077
+      ],
+      "points": 59,
+      "polygons": 1
+    },
+    {
+      "en": "Planeil Mountains",
+      "id": "IT-32-BZ-02-02",
+      "label": [
+        10.5746,
+        46.7122
+      ],
+      "points": 48,
+      "polygons": 1
+    },
+    {
+      "en": "Schnals Ridge",
+      "id": "IT-32-BZ-03",
+      "label": [
+        10.7743,
+        46.76
+      ],
+      "points": 58,
+      "polygons": 1
+    },
+    {
+      "en": "Stubai Alps South",
+      "id": "IT-32-BZ-04-01",
+      "label": [
+        11.2027,
+        46.9207
+      ],
+      "points": 87,
+      "polygons": 1
+    },
+    {
+      "en": "Ratschings",
+      "id": "IT-32-BZ-04-02",
+      "label": [
+        11.2814,
+        46.8716
+      ],
+      "points": 51,
+      "polygons": 1
+    },
+    {
+      "en": "Pfitsch",
+      "id": "IT-32-BZ-05-01",
+      "label": [
+        11.6066,
+        46.9677
+      ],
+      "points": 63,
+      "polygons": 1
+    },
+    {
+      "en": "Zillertal Alps South",
+      "id": "IT-32-BZ-05-02",
+      "label": [
+        11.8929,
+        46.9846
+      ],
+      "points": 67,
+      "polygons": 1
+    },
+    {
+      "en": "Upper Ahr Valley",
+      "id": "IT-32-BZ-05-03",
+      "label": [
+        12.1844,
+        47.0571
+      ],
+      "points": 29,
+      "polygons": 1
+    },
+    {
+      "en": "Saldurn-Mastaun Ridge",
+      "id": "IT-32-BZ-06",
+      "label": [
+        10.7223,
+        46.6717
+      ],
+      "points": 57,
+      "polygons": 1
+    },
+    {
+      "en": "Upper Passeier Valley",
+      "id": "IT-32-BZ-07-01",
+      "label": [
+        11.1156,
+        46.8461
+      ],
+      "points": 69,
+      "polygons": 1
+    },
+    {
+      "en": "Texel Mountains",
+      "id": "IT-32-BZ-07-02",
+      "label": [
+        11.1432,
+        46.7191
+      ],
+      "points": 68,
+      "polygons": 1
+    },
+    {
+      "en": "Hirzer Range",
+      "id": "IT-32-BZ-08-01",
+      "label": [
+        11.2882,
+        46.7612
+      ],
+      "points": 73,
+      "polygons": 1
+    },
+    {
+      "en": "Mount Saint Jakob Range",
+      "id": "IT-32-BZ-08-02",
+      "label": [
+        11.5046,
+        46.7407
+      ],
+      "points": 87,
+      "polygons": 1
+    },
+    {
+      "en": "Sarntal Alps South",
+      "id": "IT-32-BZ-08-03",
+      "label": [
+        11.288,
+        46.595
+      ],
+      "points": 99,
+      "polygons": 1
+    },
+    {
+      "en": "Pfunderer Mountains West",
+      "id": "IT-32-BZ-09",
+      "label": [
+        11.6265,
+        46.8611
+      ],
+      "points": 65,
+      "polygons": 1
+    },
+    {
+      "en": "Pfunderer Mountains East",
+      "id": "IT-32-BZ-10",
+      "label": [
+        11.8747,
+        46.8697
+      ],
+      "points": 70,
+      "polygons": 1
+    },
+    {
+      "en": "Durreck Range",
+      "id": "IT-32-BZ-11",
+      "label": [
+        12.0003,
+        46.96
+      ],
+      "points": 37,
+      "polygons": 1
+    },
+    {
+      "en": "Rieserferner Mountains",
+      "id": "IT-32-BZ-12",
+      "label": [
+        12.0211,
+        46.8542
+      ],
+      "points": 68,
+      "polygons": 1
+    },
+    {
+      "en": "Deferegger Alps West",
+      "id": "IT-32-BZ-13",
+      "label": [
+        12.175,
+        46.8125
+      ],
+      "points": 53,
+      "polygons": 1
+    },
+    {
+      "en": "Ortler Range",
+      "id": "IT-32-BZ-14",
+      "label": [
+        10.5631,
+        46.5687
+      ],
+      "points": 61,
+      "polygons": 1
+    },
+    {
+      "en": "Ulten Valley",
+      "id": "IT-32-BZ-15",
+      "label": [
+        10.8906,
+        46.5384
+      ],
+      "points": 91,
+      "polygons": 1
+    },
+    {
+      "en": "Nonsberger Alps East",
+      "id": "IT-32-BZ-16",
+      "label": [
+        11.2638,
+        46.4299
+      ],
+      "points": 76,
+      "polygons": 1
+    },
+    {
+      "en": "Dolomites of Fiemme North",
+      "id": "IT-32-BZ-17",
+      "label": [
+        11.3962,
+        46.4112
+      ],
+      "points": 74,
+      "polygons": 1
+    },
+    {
+      "en": "Lüsner Mountains",
+      "id": "IT-32-BZ-18-01",
+      "label": [
+        11.7334,
+        46.736
+      ],
+      "points": 68,
+      "polygons": 1
+    },
+    {
+      "en": "Gröden Dolomites",
+      "id": "IT-32-BZ-18-02",
+      "label": [
+        11.6021,
+        46.5702
+      ],
+      "points": 124,
+      "polygons": 1
+    },
+    {
+      "en": "Prags Dolomites",
+      "id": "IT-32-BZ-19",
+      "label": [
+        11.988,
+        46.6943
+      ],
+      "points": 89,
+      "polygons": 1
+    },
+    {
+      "en": "Sexten Dolomites",
+      "id": "IT-32-BZ-20",
+      "label": [
+        12.2882,
+        46.6767
+      ],
+      "points": 49,
+      "polygons": 1
+    },
+    {
+      "en": "Adamello - Presanella",
+      "id": "IT-32-TN-01",
+      "label": [
+        10.6874,
+        46.1576
+      ],
+      "points": 52,
+      "polygons": 1
+    },
+    {
+      "en": "Southern Adamello",
+      "id": "IT-32-TN-02",
+      "label": [
+        10.5883,
+        45.9939
+      ],
+      "points": 88,
+      "polygons": 1
+    },
+    {
+      "en": "Bondone and Stivo",
+      "id": "IT-32-TN-03",
+      "label": [
+        11.0347,
+        46.0006
+      ],
+      "points": 80,
+      "polygons": 1
+    },
+    {
+      "en": "Northern Brenta - Peller",
+      "id": "IT-32-TN-04",
+      "label": [
+        10.9873,
+        46.3027
+      ],
+      "points": 81,
+      "polygons": 1
+    },
+    {
+      "en": "Southern Brenta",
+      "id": "IT-32-TN-05",
+      "label": [
+        10.8053,
+        46.1054
+      ],
+      "points": 74,
+      "polygons": 1
+    },
+    {
+      "en": "Folgaria - Lavarone",
+      "id": "IT-32-TN-06",
+      "label": [
+        11.153,
+        45.9255
+      ],
+      "points": 89,
+      "polygons": 1
+    },
+    {
+      "en": "Northern Lagorai",
+      "id": "IT-32-TN-07",
+      "label": [
+        11.5801,
+        46.2293
+      ],
+      "points": 66,
+      "polygons": 1
+    },
+    {
+      "en": "Southern Lagorai",
+      "id": "IT-32-TN-08",
+      "label": [
+        11.5893,
+        46.0966
+      ],
+      "points": 92,
+      "polygons": 1
+    },
+    {
+      "en": "Latemar",
+      "id": "IT-32-TN-09",
+      "label": [
+        11.497,
+        46.323
+      ],
+      "points": 46,
+      "polygons": 1
+    },
+    {
+      "en": "Marzola - Valsugana",
+      "id": "IT-32-TN-10",
+      "label": [
+        11.2255,
+        46.0112
+      ],
+      "points": 95,
+      "polygons": 1
+    },
+    {
+      "en": "Paganella",
+      "id": "IT-32-TN-11",
+      "label": [
+        11.0334,
+        46.137
+      ],
+      "points": 47,
+      "polygons": 1
+    },
+    {
+      "en": "Prealps",
+      "id": "IT-32-TN-12",
+      "label": [
+        10.9454,
+        45.7935
+      ],
+      "points": 54,
+      "polygons": 1
+    },
+    {
+      "en": "Primiero - Pale di S. Martino",
+      "id": "IT-32-TN-13",
+      "label": [
+        11.7785,
+        46.198
+      ],
+      "points": 91,
+      "polygons": 1
+    },
+    {
+      "en": "Vallarsa",
+      "id": "IT-32-TN-14",
+      "label": [
+        11.0979,
+        45.8141
+      ],
+      "points": 62,
+      "polygons": 1
+    },
+    {
+      "en": "Cembra Valley",
+      "id": "IT-32-TN-15",
+      "label": [
+        11.3235,
+        46.2041
+      ],
+      "points": 82,
+      "polygons": 1
+    },
+    {
+      "en": "Fassa Valley",
+      "id": "IT-32-TN-16",
+      "label": [
+        11.7246,
+        46.4289
+      ],
+      "points": 69,
+      "polygons": 1
+    },
+    {
+      "en": "Western Nonsberg Alps",
+      "id": "IT-32-TN-17",
+      "label": [
+        11.1223,
+        46.3849
+      ],
+      "points": 65,
+      "polygons": 1
+    },
+    {
+      "en": "Ledro Valley",
+      "id": "IT-32-TN-18",
+      "label": [
+        10.826,
+        45.9716
+      ],
+      "points": 97,
+      "polygons": 1
+    },
+    {
+      "en": "Sole, Pejo and Rabbi",
+      "id": "IT-32-TN-19",
+      "label": [
+        10.7367,
+        46.3568
+      ],
+      "points": 83,
+      "polygons": 1
+    },
+    {
+      "en": "Maddalene",
+      "id": "IT-32-TN-20",
+      "label": [
+        10.9839,
+        46.4336
+      ],
+      "points": 39,
+      "polygons": 1
+    },
+    {
+      "en": "Pine' - Mocheni Valley",
+      "id": "IT-32-TN-21",
+      "label": [
+        11.3128,
+        46.0945
+      ],
+      "points": 55,
+      "polygons": 1
+    },
+    {
+      "en": "Agordo and Zoldano Dolomites",
+      "id": "IT-34-BL-01",
+      "label": [
+        11.9909,
+        46.3633
+      ],
+      "points": 160,
+      "polygons": 1
+    },
+    {
+      "en": "Ampezzo Dolomites",
+      "id": "IT-34-BL-02",
+      "label": [
+        12.1208,
+        46.5446
+      ],
+      "points": 88,
+      "polygons": 1
+    },
+    {
+      "en": "Comelico Dolomites",
+      "id": "IT-34-BL-03",
+      "label": [
+        12.4862,
+        46.6042
+      ],
+      "points": 100,
+      "polygons": 1
+    },
+    {
+      "en": "Cadore",
+      "id": "IT-34-BL-04",
+      "label": [
+        12.3443,
+        46.4146
+      ],
+      "points": 166,
+      "polygons": 1
+    },
+    {
+      "en": "Alpago - Cansiglio",
+      "id": "IT-34-BL-05",
+      "label": [
+        12.3927,
+        46.1651
+      ],
+      "points": 72,
+      "polygons": 1
+    },
+    {
+      "en": "Bellunesi Prealps",
+      "id": "IT-34-BL-06",
+      "label": [
+        12.167,
+        46.0978
+      ],
+      "points": 298,
+      "polygons": 1
+    },
+    {
+      "en": "Vicentine Prealps",
+      "id": "IT-34-VI-01",
+      "label": [
+        11.5177,
+        45.9185
+      ],
+      "points": 223,
+      "polygons": 1
+    },
+    {
+      "en": "Veronesi Prealps",
+      "id": "IT-34-VR-01",
+      "label": [
+        10.8117,
+        45.6682
+      ],
+      "points": 220,
+      "polygons": 1
+    },
+    {
+      "en": "Western Carniche Prealps",
+      "id": "IT-36-PN-01",
+      "label": [
+        12.5872,
+        46.2357
+      ],
+      "points": 246,
+      "polygons": 1
+    },
+    {
+      "en": "Eastern Carnic Prealps",
+      "id": "IT-36-PN-02",
+      "label": [
+        12.8828,
+        46.318
+      ],
+      "points": 172,
+      "polygons": 1
+    },
+    {
+      "en": "Western Carniche Alps",
+      "id": "IT-36-UD-01",
+      "label": [
+        12.7595,
+        46.473
+      ],
+      "points": 207,
+      "polygons": 1
+    },
+    {
+      "en": "Eastern Carniche Alps",
+      "id": "IT-36-UD-02",
+      "label": [
+        12.9649,
+        46.5078
+      ],
+      "points": 148,
+      "polygons": 1
+    },
+    {
+      "en": "Julian Alps without Canin",
+      "id": "IT-36-UD-03",
+      "label": [
+        13.2969,
+        46.4651
+      ],
+      "points": 150,
+      "polygons": 1
+    },
+    {
+      "en": "Canin",
+      "id": "IT-36-UD-04",
+      "label": [
+        13.4189,
+        46.389
+      ],
+      "points": 65,
+      "polygons": 1
+    },
+    {
+      "en": "Julian Prealps",
+      "id": "IT-36-UD-05",
+      "label": [
+        13.2767,
+        46.298
+      ],
+      "points": 455,
+      "polygons": 1
+    },
+    {
+      "en": "Western Karawanks",
+      "id": "SI-1",
+      "label": [
+        14.0809,
+        46.4571
+      ],
+      "points": 48,
+      "polygons": 1
+    },
+    {
+      "en": "Southern Julian Alps",
+      "id": "SI-10",
+      "label": [
+        13.6653,
+        46.2827
+      ],
+      "points": 37,
+      "polygons": 1
+    },
+    {
+      "en": "Eastern Julian Prealps",
+      "id": "SI-11",
+      "label": [
+        14.1848,
+        46.078
+      ],
+      "points": 60,
+      "polygons": 1
+    },
+    {
+      "en": "Sava Hills and Lower Carniola",
+      "id": "SI-12",
+      "label": [
+        15.2157,
+        45.9863
+      ],
+      "points": 79,
+      "polygons": 1
+    },
+    {
+      "en": "Trnovo Forest Plateau and Idrija Hills",
+      "id": "SI-13",
+      "label": [
+        13.9289,
+        46.0198
+      ],
+      "points": 43,
+      "polygons": 1
+    },
+    {
+      "en": "Inner Carniola and Kočevje Region",
+      "id": "SI-14",
+      "label": [
+        14.8363,
+        45.6747
+      ],
+      "points": 93,
+      "polygons": 1
+    },
+    {
+      "en": "Southern Littoral",
+      "id": "SI-15",
+      "label": [
+        14.0372,
+        45.7166
+      ],
+      "points": 55,
+      "polygons": 1
+    },
+    {
+      "en": "Javornik Hills and Snežnik Plateau",
+      "id": "SI-16",
+      "label": [
+        14.2977,
+        45.6603
+      ],
+      "points": 28,
+      "polygons": 1
+    },
+    {
+      "en": "Central Karawanks",
+      "id": "SI-2",
+      "label": [
+        14.2741,
+        46.396
+      ],
+      "points": 32,
+      "polygons": 1
+    },
+    {
+      "en": "Kamnik Alps",
+      "id": "SI-3",
+      "label": [
+        14.4957,
+        46.3337
+      ],
+      "points": 44,
+      "polygons": 1
+    },
+    {
+      "en": "Savinja Alps and Carinthia",
+      "id": "SI-4",
+      "label": [
+        14.897,
+        46.3733
+      ],
+      "points": 91,
+      "polygons": 1
+    },
+    {
+      "en": "Styrian Hills",
+      "id": "SI-5",
+      "label": [
+        15.35,
+        46.4388
+      ],
+      "points": 82,
+      "polygons": 1
+    },
+    {
+      "en": "Western Julian Alps",
+      "id": "SI-6",
+      "label": [
+        13.6283,
+        46.389
+      ],
+      "points": 45,
+      "polygons": 1
+    },
+    {
+      "en": "Central Julian Alps",
+      "id": "SI-7",
+      "label": [
+        13.7953,
+        46.4002
+      ],
+      "points": 37,
+      "polygons": 1
+    },
+    {
+      "en": "Eastern Julian Alps",
+      "id": "SI-8",
+      "label": [
+        14.0415,
+        46.3266
+      ],
+      "points": 37,
+      "polygons": 1
+    },
+    {
+      "en": "Southern Julian Prealps",
+      "id": "SI-9",
+      "label": [
+        13.7339,
+        46.1559
+      ],
+      "points": 101,
+      "polygons": 1
+    }
+  ],
+  "version": "eaws-regions 439ec676 2026-11-24"
+}

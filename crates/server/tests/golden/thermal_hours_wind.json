@@ -11,6 +11,9 @@
     3000,
     4000
   ],
+  "heights_above_ground_m": [
+    250
+  ],
   "model": "icon-d2",
   "run": "2026-11-21T06:00:00Z",
   "whole": true,

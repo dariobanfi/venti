@@ -520,6 +520,19 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
         Answer(200),
     ),
     (
+        "thermal_hours_wind_above_ground.json",
+        "get",
+        "/v1/thermals/hours",
+        Answer(200),
+    ),
+    ("regions.json", "get", "/v1/regions", Answer(200)),
+    (
+        "region_forecast.json",
+        "get",
+        "/v1/regions/forecast",
+        Answer(200),
+    ),
+    (
         "route_weather.json",
         "get",
         "/v1/route/weather",

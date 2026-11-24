@@ -285,6 +285,7 @@ fn map_of(
         },
         ground_m: vec![Some(1000); 4],
         heights_m: Vec::new(),
+        heights_above_ground_m: Vec::new(),
         days: days
             .iter()
             .map(|(date, verdict, kind)| ThermalMapDay {

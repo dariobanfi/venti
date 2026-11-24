@@ -1,0 +1,134 @@
+{
+  "source": "open-meteo",
+  "date": "2026-11-22",
+  "dates": [
+    "2026-11-21",
+    "2026-11-22",
+    "2026-11-23",
+    "2026-11-24"
+  ],
+  "model": "icon-d2",
+  "run": "2026-11-21T06:00:00Z",
+  "whole": true,
+  "computed_at": "2026-11-21T09:30:00Z",
+  "regions_version": "eaws-regions 439ec676 2026-11-24",
+  "day": [
+    {
+      "id": "AT-07-05",
+      "level": "glides_only"
+    },
+    {
+      "id": "DE-BY-42",
+      "level": "glides_only"
+    }
+  ],
+  "hours": [
+    {
+      "time": "2026-11-22T08:00:00Z",
+      "regions": [
+        {
+          "id": "AT-07-05",
+          "level": "glides_only"
+        },
+        {
+          "id": "DE-BY-42",
+          "level": "glides_only"
+        }
+      ]
+    },
+    {
+      "time": "2026-11-22T09:00:00Z",
+      "regions": [
+        {
+          "id": "AT-07-05",
+          "level": "glides_only"
+        },
+        {
+          "id": "DE-BY-42",
+          "level": "glides_only"
+        }
+      ]
+    },
+    {
+      "time": "2026-11-22T10:00:00Z",
+      "regions": [
+        {
+          "id": "AT-07-05",
+          "level": "glides_only"
+        },
+        {
+          "id": "DE-BY-42",
+          "level": "glides_only"
+        }
+      ]
+    },
+    {
+      "time": "2026-11-22T11:00:00Z",
+      "regions": [
+        {
+          "id": "AT-07-05",
+          "level": "glides_only"
+        },
+        {
+          "id": "DE-BY-42",
+          "level": "glides_only"
+        }
+      ]
+    },
+    {
+      "time": "2026-11-22T12:00:00Z",
+      "regions": [
+        {
+          "id": "AT-07-05",
+          "level": "glides_only"
+        },
+        {
+          "id": "DE-BY-42",
+          "level": "glides_only"
+        }
+      ]
+    },
+    {
+      "time": "2026-11-22T13:00:00Z",
+      "regions": [
+        {
+          "id": "AT-07-05",
+          "level": "glides_only"
+        },
+        {
+          "id": "DE-BY-42",
+          "level": "glides_only"
+        }
+      ]
+    },
+    {
+      "time": "2026-11-22T14:00:00Z",
+      "regions": [
+        {
+          "id": "AT-07-05",
+          "level": "glides_only"
+        },
+        {
+          "id": "DE-BY-42",
+          "level": "glides_only"
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "open-meteo",
+      "provider": "Open-Meteo, with models of Deutscher Wetterdienst",
+      "licence": "CC BY 4.0",
+      "text": "Weather data by Open-Meteo.com. Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    {
+      "source": "eaws-regions",
+      "provider": "EAWS, the European Avalanche Warning Services (regions.avalanches.org, gitlab.com/eaws/eaws-regions)",
+      "licence": "CC0 1.0",
+      "text": "Regions: EAWS (CC0)",
+      "url": "https://gitlab.com/eaws/eaws-regions/-/blob/master/LICENSE"
+    }
+  ]
+}

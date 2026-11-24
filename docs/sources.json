@@ -144,6 +144,46 @@
       "provider": "Deutscher Wetterdienst"
     },
     {
+      "assets": [
+        {
+          "licence": {
+            "commercial": true,
+            "credit": "Regions: EAWS (CC0)",
+            "link": "https://gitlab.com/eaws/eaws-regions/-/blob/master/LICENSE",
+            "name": "CC0 1.0",
+            "redistribution": true,
+            "share_alike": false,
+            "verified_on": "2026-11-24"
+          },
+          "name": "The Alpine avalanche warning micro-regions",
+          "provider": "EAWS"
+        }
+      ],
+      "countries": [
+        "AT",
+        "CH",
+        "DE",
+        "FR",
+        "IT",
+        "SI"
+      ],
+      "id": "eaws-regions",
+      "kinds": [
+        "boundaries"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Regions: EAWS (CC0)",
+        "link": "https://gitlab.com/eaws/eaws-regions/-/blob/master/LICENSE",
+        "name": "CC0 1.0",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-24"
+      },
+      "manifest": "crates/sources-eawsregions/manifest.toml",
+      "provider": "EAWS, the European Avalanche Warning Services (regions.avalanches.org, gitlab.com/eaws/eaws-regions)"
+    },
+    {
       "countries": [
         "FR"
       ],

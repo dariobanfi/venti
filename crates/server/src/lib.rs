@@ -62,5 +62,6 @@ pub mod pilot_sites;
 pub mod plan;
 pub mod push;
 pub mod radar;
+pub mod region_forecast;
 pub mod serve;
 pub mod thermals;

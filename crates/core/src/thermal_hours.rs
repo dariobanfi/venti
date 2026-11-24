@@ -174,13 +174,19 @@ pub struct ThermalMapLayerChoice {
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct ThermalMapLevel {
     /// The height above mean sea level, metres. None for the wind 10 m
-    /// above the model's ground.
+    /// above the model's ground, and for a height above the ground.
     pub height_m: Option<i32>,
-    /// What to call it in a row of choices: "Ground", "2000 m".
+    /// What to call it in a row of choices: "Ground", "250 m AGL",
+    /// "2000 m".
     pub name: String,
-    /// The same in full: "10 m above the model's ground", "2000 m above
-    /// the sea".
+    /// The same in full: "10 m above the model's ground", "250 m above
+    /// the ground", "2000 m above the sea".
     pub words: String,
+    /// The height above the model's ground, metres, for a level that is
+    /// one: 250. None for the others. Asked for with
+    /// [`thermal_hours_path`]'s `above_ground_m`.
+    #[uniffi(default = None)]
+    pub above_ground_m: Option<i32>,
 }
 
 /// The layers, in the order a shell offers them.
@@ -296,21 +302,34 @@ pub(crate) fn layers() -> Vec<ThermalMapLayerChoice> {
     ]
 }
 
-/// The levels the wind is asked for at: the ground, then the heights the
-/// server keeps.
-pub(crate) fn levels(heights_m: &[i32]) -> Vec<ThermalMapLevel> {
+/// The levels the wind is asked for at: the ground, the heights above it
+/// the server keeps, then the heights above the sea it keeps.
+pub(crate) fn levels(heights_m: &[i32], above_ground_m: &[i32]) -> Vec<ThermalMapLevel> {
     [ThermalMapLevel {
         height_m: None,
         name: "Ground".to_owned(),
         words: "10 m above the model's ground".to_owned(),
+        above_ground_m: None,
     }]
     .into_iter()
+    .chain(above_ground_m.iter().map(|height| ThermalMapLevel {
+        height_m: None,
+        name: format!("{height} m AGL"),
+        words: above_the_ground(*height),
+        above_ground_m: Some(*height),
+    }))
     .chain(heights_m.iter().map(|height| ThermalMapLevel {
         height_m: Some(*height),
         name: format!("{height} m"),
         words: format!("{height} m above the sea"),
+        above_ground_m: None,
     }))
     .collect()
+}
+
+/// A height above the ground in words: "250 m above the ground".
+fn above_the_ground(height_m: i32) -> String {
+    format!("{height_m} m above the ground")
 }
 
 /// The step of the wind scale a band is drawn in.
@@ -331,20 +350,26 @@ fn wind_step(band: WindBand) -> u8 {
 /// ([`ThermalMapLevel::height_m`]): none for the wind at the ground. It is
 /// of no account to the other layers, and the gusts are the ground's: the
 /// wind at the ground and the gusts are one answer, asked for by the same
-/// path.
-#[uniffi::export]
+/// path. `above_ground_m` is a level above the ground in its place
+/// ([`ThermalMapLevel::above_ground_m`]), and is of no account where
+/// `height_m` is given.
+#[uniffi::export(default(above_ground_m = None))]
 pub fn thermal_hours_path(
     date: String,
     layer: ThermalHoursLayer,
     height_m: Option<i32>,
+    above_ground_m: Option<i32>,
 ) -> Result<String, CoreError> {
     let date = v1::parse_day(&date).map_err(|_| CoreError::Server {
         message: "The app could not ask the server for this day.".to_owned(),
     })?;
+    let height_m = height_m.filter(|_| layer == ThermalHoursLayer::Wind);
     Ok(v1::ThermalHoursRequest {
         date,
         layer: on_the_wire(layer),
-        height_m: height_m.filter(|_| layer == ThermalHoursLayer::Wind),
+        height_m,
+        above_ground_m: above_ground_m
+            .filter(|_| layer == ThermalHoursLayer::Wind && height_m.is_none()),
     }
     .path_and_query())
 }
@@ -386,7 +411,8 @@ pub struct ThermalMapHoursView {
     /// ground and for the other layers.
     pub height_m: Option<i32>,
     /// What is shown, in words: "Thermals", "Wind at 2000 m", "Wind at
-    /// the ground", "Gusts at the ground", "Cloud", "Rain".
+    /// the ground", "Wind 250 m above the ground", "Gusts at the ground",
+    /// "Cloud", "Rain".
     pub title: String,
     /// The day's daylight hours, the earliest first: the stops of the
     /// line of hours. The number of an hour is its place in this list,
@@ -408,6 +434,10 @@ pub struct ThermalMapHoursView {
     pub note: String,
     /// The credits to show wherever the layer is.
     pub credits: Vec<Credit>,
+    /// The height above the model's ground the wind is at, metres. None
+    /// at the ground, at a height above the sea and for the other layers.
+    #[uniffi(default = None)]
+    pub above_ground_m: Option<i32>,
 }
 
 /// What a map draws of one hour: two GeoJSON texts, each a
@@ -537,7 +567,8 @@ impl ThermalMapHours {
                 && (hour.gust_kmh.is_empty() || hour.gust_kmh.len() == cells)
         };
         if response.layer != on_the_wire(layer)
-            || (layer == ThermalHoursLayer::Gusts && response.height_m.is_some())
+            || (layer == ThermalHoursLayer::Gusts
+                && (response.height_m.is_some() || response.above_ground_m.is_some()))
             || !grid_is_sound(&response.grid)
             || response.ground_m.len() != cells
             || !response.hours.iter().all(fits)
@@ -558,9 +589,10 @@ impl ThermalMapHours {
     /// hour to show first, the model and its run.
     pub fn view(&self) -> ThermalMapHoursView {
         let response = &self.response;
-        let level = match response.height_m {
-            Some(height) => format!("at {height} m"),
-            None => "at the ground".to_owned(),
+        let level = match (response.height_m, response.above_ground_m) {
+            (Some(height), _) => format!("at {height} m"),
+            (None, Some(height)) => above_the_ground(height),
+            (None, None) => "at the ground".to_owned(),
         };
         let note = if response.whole {
             String::new()
@@ -581,14 +613,7 @@ impl ThermalMapHours {
             hours: response
                 .hours
                 .iter()
-                .map(|hour| {
-                    let clock = hour.time + Duration::seconds(i64::from(self.utc_offset_s));
-                    ThermalMapHourMark {
-                        time_unix_s: hour.time.timestamp(),
-                        clock_hour: u8::try_from(clock.hour()).unwrap_or(0),
-                        label: clock.format("%H:%M").to_string(),
-                    }
-                })
+                .map(|hour| hour_mark(hour.time, self.utc_offset_s))
                 .collect(),
             first_hour: self.first_hour,
             model: model_name(response.model.as_str()),
@@ -596,6 +621,7 @@ impl ThermalMapHours {
             whole: response.whole,
             note,
             credits: response.attributions.iter().map(credit).collect(),
+            above_ground_m: response.above_ground_m,
         }
     }
 
@@ -759,9 +785,18 @@ impl ThermalMapHours {
                     step: Some(wind_step(band)),
                     band: Some(band),
                     title: wind_in_words(kmh, from, gust),
-                    detail: match response.height_m {
-                        Some(height) => format!("At {height} m above the sea"),
-                        None => at_the_ground(),
+                    detail: match (response.height_m, response.above_ground_m) {
+                        (Some(height), _) => format!("At {height} m above the sea"),
+                        (None, Some(height)) => {
+                            match self.response.ground_m.get(cell).copied().flatten() {
+                                Some(ground) => format!(
+                                    "{}, over the model's ground at {ground} m",
+                                    above_the_ground(height)
+                                ),
+                                None => above_the_ground(height),
+                            }
+                        }
+                        (None, None) => at_the_ground(),
                     },
                     thermals: None,
                     wind: Some(mark(kmh, from, band, speeds(kmh, gust))),
@@ -826,6 +861,11 @@ impl ThermalMapHours {
     /// the model's ground lies above, that; else that there is nothing.
     fn nothing(&self, ground: Option<i32>) -> (String, String) {
         match (self.layer, self.response.height_m) {
+            (ThermalHoursLayer::Wind, None) if self.response.above_ground_m.is_some() => (
+                "No wind here".to_owned(),
+                "The model gives no height of its ground here, so its levels cannot be placed."
+                    .to_owned(),
+            ),
             (ThermalHoursLayer::Wind, Some(height)) => (
                 format!("No wind at {height} m here"),
                 match ground {
@@ -851,26 +891,43 @@ impl ThermalMapHours {
 /// Against an unknown clock no day is today, so it is the hour nearest one
 /// o'clock in the afternoon.
 fn first_hour(response: &v1::ThermalHoursResponse, utc_offset_s: i32, now_unix_s: i64) -> u32 {
+    let times: Vec<DateTime<chrono::Utc>> = response.hours.iter().map(|hour| hour.time).collect();
+    first_of(response.date, &times, utc_offset_s, now_unix_s)
+}
+
+/// The hour of a day's `times` to show first, by the rule of
+/// [`first_hour`].
+pub(crate) fn first_of(
+    date: chrono::NaiveDate,
+    times: &[DateTime<chrono::Utc>],
+    utc_offset_s: i32,
+    now_unix_s: i64,
+) -> u32 {
     let offset = Duration::seconds(i64::from(utc_offset_s));
     let now = DateTime::from_timestamp(now_unix_s, 0).unwrap_or_default();
-    let chosen = if thermal_map::today(utc_offset_s, now_unix_s) == response.date {
-        response
-            .hours
-            .iter()
-            .rposition(|hour| hour.time <= now)
-            .unwrap_or(0)
+    let chosen = if thermal_map::today(utc_offset_s, now_unix_s) == date {
+        times.iter().rposition(|time| *time <= now).unwrap_or(0)
     } else {
-        response
-            .hours
+        times
             .iter()
             .enumerate()
-            .min_by_key(|(_, hour)| {
-                let clock = hour.time + offset;
+            .min_by_key(|(_, time)| {
+                let clock = **time + offset;
                 (i64::from(clock.hour()) * 60 + i64::from(clock.minute()) - 13 * 60).abs()
             })
             .map_or(0, |(at, _)| at)
     };
     u32::try_from(chosen).unwrap_or(0)
+}
+
+/// An hour as a stop of the line of hours, by the pilot's clock.
+pub(crate) fn hour_mark(time: DateTime<chrono::Utc>, utc_offset_s: i32) -> ThermalMapHourMark {
+    let clock = time + Duration::seconds(i64::from(utc_offset_s));
+    ThermalMapHourMark {
+        time_unix_s: time.timestamp(),
+        clock_hour: u8::try_from(clock.hour()).unwrap_or(0),
+        label: clock.format("%H:%M").to_string(),
+    }
 }
 
 /// A wind in words: "12 km/h from W, gusts 25", "34 km/h from NW",
@@ -924,7 +981,7 @@ fn band_name(band: WindBand) -> &'static str {
 }
 
 /// Words with their first letter small, to go on after others.
-fn lower_first(words: &str) -> String {
+pub(crate) fn lower_first(words: &str) -> String {
     let mut letters = words.chars();
     match letters.next() {
         Some(first) => first.to_lowercase().chain(letters).collect(),
@@ -1035,7 +1092,7 @@ mod tests {
 
     #[test]
     fn a_days_hours_are_asked_for_by_date_layer_and_height() {
-        let path = |layer, height| thermal_hours_path("2026-07-12".to_owned(), layer, height);
+        let path = |layer, height| thermal_hours_path("2026-07-12".to_owned(), layer, height, None);
         assert_eq!(
             path(ThermalHoursLayer::Thermals, None).unwrap(),
             "/v1/thermals/hours?date=2026-07-12&layer=thermals"
@@ -1057,9 +1114,23 @@ mod tests {
             path(ThermalHoursLayer::Rain, None).unwrap(),
             "/v1/thermals/hours?date=2026-07-12&layer=rain"
         );
+        // 250 m above the ground, of the wind alone, and in place of no
+        // height above the sea.
+        let low = |layer, height| {
+            thermal_hours_path("2026-07-12".to_owned(), layer, height, Some(250)).unwrap()
+        };
+        assert_eq!(
+            low(ThermalHoursLayer::Wind, None),
+            "/v1/thermals/hours?date=2026-07-12&layer=wind&above_ground=250"
+        );
+        assert_eq!(low(ThermalHoursLayer::Gusts, None), ground);
+        assert_eq!(
+            low(ThermalHoursLayer::Wind, Some(2000)),
+            "/v1/thermals/hours?date=2026-07-12&layer=wind&height=2000"
+        );
         // Anything that is no day of the map is not asked for.
         assert!(matches!(
-            thermal_hours_path("Today".to_owned(), ThermalHoursLayer::Rain, None),
+            thermal_hours_path("Today".to_owned(), ThermalHoursLayer::Rain, None, None),
             Err(CoreError::Server { .. })
         ));
     }
@@ -1400,6 +1471,40 @@ mod tests {
     }
 
     #[test]
+    fn the_wind_250_m_above_the_ground_says_so() {
+        let mut answer: Value = serde_json::from_slice(&answer_of(
+            "wind",
+            None,
+            json!([{"time": "2026-07-12T11:00:00Z",
+                    "wind_kmh": [18, 9, null], "wind_from_deg": [270, 180, null]}]),
+        ))
+        .unwrap();
+        answer["above_ground_m"] = 250.into();
+        answer["heights_above_ground_m"] = json!([250]);
+        let body = serde_json::to_vec(&answer).unwrap();
+        let hours = read(ThermalHoursLayer::Wind, body.clone());
+        let view = hours.view();
+        assert_eq!(
+            (view.title.as_str(), view.height_m, view.above_ground_m),
+            ("Wind 250 m above the ground", None, Some(250))
+        );
+        let square = hours.square(0, 0).unwrap();
+        assert_eq!(square.title, "18 km/h from W");
+        assert_eq!(
+            square.detail,
+            "250 m above the ground, over the model's ground at 612 m"
+        );
+        // Over the lake there is no ground to stand the height on.
+        let lake = hours.square(2, 0).unwrap();
+        assert_eq!(lake.title, "No wind here");
+        // It has no gusts: it is not that layer.
+        assert!(matches!(
+            ThermalMapHours::read(200, body, ThermalHoursLayer::Gusts, 0, NOON),
+            Err(CoreError::Server { .. })
+        ));
+    }
+
+    #[test]
     fn cloud_and_rain_are_squares_in_their_stand_in_steps() {
         let cloud = read(
             ThermalHoursLayer::Cloud,
@@ -1562,17 +1667,25 @@ mod tests {
             assert_eq!(steps.len(), choice.legend.len());
         }
 
-        let levels = levels(&[1000, 2000]);
-        let named: Vec<(Option<i32>, &str, &str)> = levels
+        let levels = levels(&[1000, 2000], &[250]);
+        let named: Vec<(Option<i32>, Option<i32>, &str, &str)> = levels
             .iter()
-            .map(|level| (level.height_m, level.name.as_str(), level.words.as_str()))
+            .map(|level| {
+                (
+                    level.height_m,
+                    level.above_ground_m,
+                    level.name.as_str(),
+                    level.words.as_str(),
+                )
+            })
             .collect();
         assert_eq!(
             named,
             [
-                (None, "Ground", "10 m above the model's ground"),
-                (Some(1000), "1000 m", "1000 m above the sea"),
-                (Some(2000), "2000 m", "2000 m above the sea"),
+                (None, None, "Ground", "10 m above the model's ground"),
+                (None, Some(250), "250 m AGL", "250 m above the ground"),
+                (Some(1000), None, "1000 m", "1000 m above the sea"),
+                (Some(2000), None, "2000 m", "2000 m above the sea"),
             ]
         );
 
@@ -1592,6 +1705,17 @@ mod tests {
         assert_eq!(newer.layers, layers);
         assert_eq!(newer.levels.len(), 7);
         assert_eq!(newer.levels[3].height_m, Some(2000));
+        // A server that keeps the wind 250 m above the ground names it.
+        let newest = days(
+            r#""heights_m": [1000, 1500, 2000, 2500, 3000, 4000],
+               "heights_above_ground_m": [250],"#,
+        );
+        assert_eq!(newest.levels.len(), 8);
+        assert_eq!(
+            (newest.levels[1].above_ground_m, newest.levels[1].height_m),
+            (Some(250), None)
+        );
+        assert_eq!(newest.levels[4].height_m, Some(2000));
         let older = days("");
         assert!(older.layers.is_empty() && older.levels.is_empty());
         assert_eq!(thermal_map_path(), "/v1/thermals");
@@ -1695,13 +1819,18 @@ mod tests {
         let mut read = 0;
         for day in &map.days {
             for choice in &map.layers {
-                let levels: Vec<Option<i32>> = if choice.has_levels {
-                    map.levels.iter().map(|level| level.height_m).collect()
+                let levels: Vec<(Option<i32>, Option<i32>)> = if choice.has_levels {
+                    map.levels
+                        .iter()
+                        .map(|level| (level.height_m, level.above_ground_m))
+                        .collect()
                 } else {
-                    vec![None]
+                    vec![(None, None)]
                 };
-                for height in levels {
-                    let path = thermal_hours_path(day.date.clone(), choice.layer, height).unwrap();
+                for (height, above_ground) in levels {
+                    let path =
+                        thermal_hours_path(day.date.clone(), choice.layer, height, above_ground)
+                            .unwrap();
                     // The file is named after what the path asks for.
                     let query = path.split_once('?').unwrap().1;
                     let name: Vec<&str> = query

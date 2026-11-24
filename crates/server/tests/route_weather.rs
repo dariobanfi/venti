@@ -64,6 +64,7 @@ async fn a_route_has_the_hours_of_the_map_at_each_of_its_points() {
             date,
             layer,
             height_m,
+            above_ground_m: None,
         }
         .path_and_query();
         async move {

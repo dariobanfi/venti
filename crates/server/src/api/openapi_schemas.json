@@ -3088,6 +3088,257 @@
       "fcm"
     ]
   },
+  "RegionFeature": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "enum": [
+          "Feature"
+        ]
+      },
+      "properties": {
+        "$ref": "#/components/schemas/RegionProperties"
+      },
+      "geometry": {
+        "$ref": "#/components/schemas/RegionGeometry"
+      }
+    },
+    "required": [
+      "type",
+      "properties",
+      "geometry"
+    ]
+  },
+  "RegionForecastResponse": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "date": {
+        "type": "string",
+        "format": "date"
+      },
+      "dates": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "model": {
+        "type": "string"
+      },
+      "run": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "whole": {
+        "type": "boolean"
+      },
+      "computed_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "regions_version": {
+        "type": "string"
+      },
+      "day": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RegionReading"
+        }
+      },
+      "hours": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RegionHour"
+        }
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "source",
+      "date",
+      "dates",
+      "model",
+      "run",
+      "whole",
+      "computed_at",
+      "regions_version",
+      "day",
+      "hours",
+      "attributions"
+    ]
+  },
+  "RegionGeometry": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "enum": [
+          "MultiPolygon"
+        ]
+      },
+      "coordinates": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "required": [
+      "type",
+      "coordinates"
+    ]
+  },
+  "RegionHour": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "regions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RegionReading"
+        }
+      }
+    },
+    "required": [
+      "time",
+      "regions"
+    ]
+  },
+  "RegionLevel": {
+    "type": "string",
+    "enum": [
+      "not_flyable",
+      "glides_only",
+      "weak",
+      "good",
+      "very_good"
+    ]
+  },
+  "RegionNames": {
+    "type": "object",
+    "properties": {
+      "de": {
+        "type": "string"
+      },
+      "it": {
+        "type": "string"
+      },
+      "en": {
+        "type": "string"
+      },
+      "fr": {
+        "type": "string"
+      },
+      "sl": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "de",
+      "it",
+      "en",
+      "fr",
+      "sl"
+    ]
+  },
+  "RegionProperties": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "names": {
+        "$ref": "#/components/schemas/RegionNames"
+      },
+      "label": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "description": "[longitude, latitude]"
+      }
+    },
+    "required": [
+      "id",
+      "names",
+      "label"
+    ]
+  },
+  "RegionReading": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "level": {
+        "$ref": "#/components/schemas/RegionLevel"
+      },
+      "why": {
+        "$ref": "#/components/schemas/ThermalReason"
+      },
+      "takeoffs": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "id",
+      "level"
+    ]
+  },
+  "RegionsResponse": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "enum": [
+          "FeatureCollection"
+        ]
+      },
+      "version": {
+        "type": "string"
+      },
+      "features": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RegionFeature"
+        }
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "type",
+      "version",
+      "features",
+      "attributions"
+    ]
+  },
   "SiteAir": {
     "description": "A flying site and the pilots in the air around it: two numbers and the site's identifier, as `GET /v1/sites` names it.",
     "type": "object",
@@ -5611,7 +5862,16 @@
       "height_m": {
         "type": "integer"
       },
+      "above_ground_m": {
+        "type": "integer"
+      },
       "heights_m": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        }
+      },
+      "heights_above_ground_m": {
         "type": "array",
         "items": {
           "type": "integer"
@@ -6029,6 +6289,12 @@
         "description": "One entry per cell of the grid; null for a cell that has no value."
       },
       "heights_m": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        }
+      },
+      "heights_above_ground_m": {
         "type": "array",
         "items": {
           "type": "integer"

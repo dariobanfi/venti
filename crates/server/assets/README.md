@@ -2,6 +2,7 @@
 
 | File | What it is | Licence |
 |---|---|---|
+| `sample-pilots/*.png` | The pictures of the seven made-up sample pilots (`src/dev/sample_pilots.rs`, seeded by `tools/sample-community/`, not by the development mode): a paraglider over a ridge on a coloured sky, no face. Drawn by `sample-pilots/make.py` (`python3 crates/server/assets/sample-pilots/make.py` writes them again, the same bytes every time) | The project's own, under Venti's licence |
 | `Nunito-wght.ttf` | The Nunito typeface as one variable font (weights 200 to 1000). The numbers on a flight's preview picture are set in it; see `src/flights/picture.rs`. | SIL Open Font License 1.1, in `Nunito-OFL.txt` |
 
 ## Nunito

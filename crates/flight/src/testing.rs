@@ -43,6 +43,8 @@ pub enum Leg {
 /// The glider's state: metres east and north of the take-off, altitude, and
 /// seconds since the start.
 struct Glider {
+    /// Where it took off: latitude, longitude.
+    origin: (f64, f64),
     start: Timestamp,
     east: f64,
     north: f64,
@@ -53,7 +55,7 @@ struct Glider {
 
 impl Glider {
     fn record(&mut self) {
-        let (lat0, lon0, _) = TAKE_OFF;
+        let (lat0, lon0) = self.origin;
         let lat = lat0 + self.north / M_PER_DEG_LAT;
         let lon = lon0 + self.east / (M_PER_DEG_LAT * lat0.to_radians().cos());
         self.fixes.push(Fix {
@@ -149,11 +151,22 @@ pub fn synthetic_flight() -> IgcFile {
 /// on the same day and with the same headers. One fix a second.
 pub fn made_up_flight(legs: &[Leg]) -> IgcFile {
     let date = NaiveDate::from_ymd_opt(2026, 7, 4).expect("valid date");
+    let start = date.and_hms_opt(10, 30, 0).expect("valid time").and_utc();
+    made_up_flight_from(TAKE_OFF, start, legs)
+}
+
+/// A made-up flight of the legs given, from another take-off (latitude,
+/// longitude, altitude in metres) and starting at `start`, with the made-up
+/// flight's headers. One fix a second.
+pub fn made_up_flight_from(take_off: (f64, f64, f64), start: Timestamp, legs: &[Leg]) -> IgcFile {
+    let (lat, lon, altitude) = take_off;
+    let date = start.date_naive();
     let mut glider = Glider {
-        start: date.and_hms_opt(10, 30, 0).expect("valid time").and_utc(),
+        origin: (lat, lon),
+        start,
         east: 0.0,
         north: 0.0,
-        altitude: TAKE_OFF.2,
+        altitude,
         second: 0,
         fixes: Vec::new(),
     };

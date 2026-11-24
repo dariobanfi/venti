@@ -51,6 +51,8 @@
 //! What a client changes (an account it creates, a flight it uploads) lasts
 //! until the program stops.
 
+pub mod sample_pilots;
+
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -410,20 +412,24 @@ async fn add_demo_groups(
 
 /// One public group of the development mode, as [`add_demo_communities`]
 /// stores it. Names, places and words are made up; no group is a real
-/// club or school.
-struct DemoCommunity {
-    id: &'static str,
-    name: &'static str,
-    description: &'static str,
+/// club or school. `tools/sample-community/` makes the same groups on a
+/// running server, from [`sample_pilots`].
+pub struct DemoCommunity {
+    /// Its identifier, one of [`DEMO_PUBLIC_GROUPS`].
+    pub id: &'static str,
+    /// Its name.
+    pub name: &'static str,
+    /// What it says of itself.
+    pub description: &'static str,
     /// The middle of the home area, its radius in kilometres and its place.
-    home: (f64, f64, f64, &'static str),
+    pub home: (f64, f64, f64, &'static str),
     /// Its members by handle, the owner first, and how many days ago each
     /// came in.
-    members: &'static [(&'static str, i64)],
+    pub members: &'static [(&'static str, i64)],
     /// The members who are admins.
-    admins: &'static [&'static str],
+    pub admins: &'static [&'static str],
     /// Its messages, the oldest first: author, minutes ago, text.
-    messages: &'static [(&'static str, i64, &'static str)],
+    pub messages: &'static [(&'static str, i64, &'static str)],
 }
 
 /// The identifiers of the public groups the development mode starts with,
@@ -440,7 +446,7 @@ pub const DEMO_PUBLIC_GROUPS: [&str; 6] = [
 /// The public groups of the development mode, around Munich and the
 /// mountains south of it. The first message of the Rosenheimer Eagles
 /// carries a public flight of `mara`'s, shown as a card.
-const DEMO_COMMUNITIES: [DemoCommunity; 6] = [
+pub const DEMO_COMMUNITIES: [DemoCommunity; 6] = [
     DemoCommunity {
         id: DEMO_PUBLIC_GROUPS[0],
         name: "Munich International Paragliders",

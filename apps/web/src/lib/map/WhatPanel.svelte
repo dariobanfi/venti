@@ -3,8 +3,10 @@
 	"we don't need all of this text, just a legend"): one line that says
 	what is shown and when ("Rain, 21:25, measured"; "Wind at the ground,
 	15:00, forecast, ICON-D2"), the one line of time from what was measured
-	to what is forecast, and the key as a short strip. The wind's height and
-	its gusts are two small controls of the wind's forecast. Whatever
+	to what is forecast, and the key as a short strip, or with the thermals
+	by region the five levels with their names. The wind's gusts are a small
+	control of the wind's forecast; its height is a pill at the map's side
+	(`HeightChoice.svelte`). Whatever
 	explains (the whole key, what the radar does not see, the model's run,
 	the notes of a day) stands behind the "i", folded until the pilot asks;
 	the credits are the map's, behind its own "i".
@@ -19,7 +21,13 @@
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import ChipTick from '#lib/design/ChipTick.svelte';
 	import Icon from '#lib/design/Icon.svelte';
-	import { keyColor, NOT_FLYABLE_ON_MAP, THERMAL_ON_MAP } from '#lib/design/palette.ts';
+	import {
+		keyColor,
+		LEVEL_ON_MAP,
+		NOT_FLYABLE_ON_MAP,
+		THERMAL_ON_MAP
+	} from '#lib/design/palette.ts';
+	import type { RegionLevelKey } from '#lib/core/index.ts';
 	import { fitColour } from '#lib/sites/fans.ts';
 	import { wedges } from '#lib/sites/rose.ts';
 	import { format } from '#lib/design/format.ts';
@@ -46,6 +54,8 @@
 		measured: boolean;
 		radar?: RadarModel;
 		thermals?: ThermalMapModel;
+		/** The key of the forecast by region, the best first, while its regions are drawn. */
+		regionLevels?: readonly RegionLevelKey[];
 		/** The wind's gusts in place of its mean, at the ground. */
 		gusts: boolean;
 		ongusts: (on: boolean) => void;
@@ -64,6 +74,7 @@
 		measured,
 		radar,
 		thermals,
+		regionLevels,
 		gusts,
 		ongusts,
 		inView,
@@ -159,7 +170,18 @@
 		}
 		return { steps: [] };
 	});
+	/** The regions' five levels, the worst first as the key's steps are: shown whole, each with its name. */
+	const levels = $derived(
+		!measured && what === 'thermals'
+			? (regionLevels ?? []).toReversed().map((one) => ({
+					colour: LEVEL_ON_MAP[one.level].color,
+					name: one.name,
+					words: `${one.name}: ${one.words}`
+				}))
+			: []
+	);
 	const keyLines = $derived([
+		...levels,
 		...key.steps,
 		...(key.veil ? [key.veil] : []),
 		...fanKey.map((one) => ({ colour: fitColour(one.fit), words: one.words }))
@@ -182,10 +204,6 @@
 		return [];
 	});
 
-	/** The heights the wind can be shown at: with the mean wind of the forecast. */
-	const heights = $derived(
-		what === 'wind' && !measured && !gusts && choice?.hasLevels ? (map?.levels ?? []) : []
-	);
 	/** The core's name of the gusts' layer, where the map has it. */
 	const gustsName = $derived(map?.layers.find((one) => one.layer === 'gusts')?.name);
 
@@ -237,22 +255,6 @@
 
 	{#if what === 'wind' && !measured && gustsName}
 		<div class="controls">
-			{#if heights.length > 0}
-				<label class="level">
-					<span class="visually-hidden">Height</span>
-					<select
-						value={String(thermals?.heightM ?? '')}
-						onchange={(event) => {
-							const picked = event.currentTarget.value;
-							thermals?.chooseHeight(picked === '' ? undefined : Number(picked));
-						}}
-					>
-						{#each heights as level (level.name)}
-							<option value={String(level.heightM ?? '')}>{level.name}</option>
-						{/each}
-					</select>
-				</label>
-			{/if}
 			<button
 				class="toggle-chip"
 				type="button"
@@ -265,7 +267,14 @@
 		</div>
 	{/if}
 
-	{#if key.steps.length > 0}
+	{#if levels.length > 0}
+		<!-- The regions' levels, worst to best: each colour with its name. -->
+		<div class="levels" aria-hidden="true">
+			{#each levels as one (one.name)}
+				<span><i style:background={one.colour}></i>{one.name}</span>
+			{/each}
+		</div>
+	{:else if key.steps.length > 0}
 		<div class="key" aria-hidden="true">
 			<span class="scale">
 				<span class="bars">
@@ -419,17 +428,6 @@
 		gap: var(--space-2);
 	}
 
-	.level select {
-		min-height: var(--space-6);
-		padding: 0 var(--space-2);
-		border: 0;
-		border-radius: var(--radius-control);
-		background: var(--fill);
-		color: var(--text);
-		font: inherit;
-		font-size: var(--subheadline);
-	}
-
 	/* The pack's chip, small: on in the primary colour. */
 	.toggle-chip {
 		min-height: var(--space-6);
@@ -445,6 +443,27 @@
 		background: var(--accent);
 		color: var(--on-accent);
 		box-shadow: none;
+	}
+
+	/* Five columns, a bar of each level's colour over its name. */
+	.levels {
+		display: grid;
+		grid-template-columns: repeat(5, minmax(0, 1fr));
+		gap: 2px;
+		color: var(--text-secondary);
+		font-size: var(--caption);
+		line-height: 1.2;
+	}
+
+	.levels span {
+		display: grid;
+		align-content: start;
+		gap: var(--space-1);
+	}
+
+	.levels i {
+		height: var(--space-3);
+		box-shadow: inset 0 0 0 1px var(--color-border-strong);
 	}
 
 	.fans {

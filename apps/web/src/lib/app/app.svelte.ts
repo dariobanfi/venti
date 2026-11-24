@@ -48,6 +48,7 @@ import {
 } from '#lib/core/index.ts';
 import { format } from '#lib/design/format.ts';
 import { ThermalMapModel } from '#lib/forecast/thermal-map.svelte.ts';
+import { RegionForecastModel } from '#lib/forecast/regions.svelte.ts';
 import { RadarModel } from '#lib/radar/radar.svelte.ts';
 import { GroupsModel } from '#lib/groups/model.svelte.ts';
 import { CommunitiesModel } from '#lib/groups/communities.svelte.ts';
@@ -107,6 +108,8 @@ export class App {
 
 	/** The kind of day, square by square, and the forecast's hours, for what the map shows. */
 	thermals = $state.raw<ThermalMapModel>();
+	/** The thermal forecast by region, for the map's thermals. */
+	regions = $state.raw<RegionForecastModel>();
 
 	/** The rain radar, for the map's rain. */
 	radar = $state.raw<RadarModel>();
@@ -186,6 +189,7 @@ export class App {
 				const kept = new KeptSitesModel(core);
 				this.kept = kept;
 				this.thermals = new ThermalMapModel(core);
+				this.regions = new RegionForecastModel(core);
 				this.radar = new RadarModel(core);
 				const myFlights = new MyFlightsModel(core);
 				void myFlights.reload();

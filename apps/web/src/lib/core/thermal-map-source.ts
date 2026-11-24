@@ -10,12 +10,14 @@
  */
 
 import {
+	type Coordinate,
 	type ThermalHoursLayer,
 	thermalHoursPath,
 	thermalMap,
 	type ThermalMap,
 	ThermalMapHours,
 	type ThermalMapHourSquare,
+	type ThermalMapWind,
 	type ThermalMapHoursView,
 	thermalMapPath,
 	type ThermalMapShapes,
@@ -31,11 +33,15 @@ export interface HoursAsked {
 	layer: ThermalHoursLayer;
 	/** The height of the wind above the sea; nothing at the ground. */
 	heightM?: number;
+	/** The height of the wind above the model's ground, for a level that is one: 250. */
+	aboveGroundM?: number;
 }
 
 /** The name an answer of hours is kept under. */
 export function hoursKey(asked: HoursAsked): string {
-	return `${asked.date} ${asked.layer} ${asked.heightM ?? 'ground'}`;
+	const level =
+		asked.heightM ?? (asked.aboveGroundM === undefined ? 'ground' : `${asked.aboveGroundM} agl`);
+	return `${asked.date} ${asked.layer} ${level}`;
 }
 
 /** The shell's words for a server that gave no answer at all. */
@@ -95,7 +101,7 @@ export class ThermalMapSource {
 		const key = hoursKey(asked);
 		let hours = this.#hours.get(key);
 		if (!hours) {
-			const path = thermalHoursPath(asked.date, asked.layer, asked.heightM);
+			const path = thermalHoursPath(asked.date, asked.layer, asked.heightM, asked.aboveGroundM);
 			let answer = this.#answers.get(path);
 			if (!answer) {
 				answer = this.#get(path);
@@ -134,6 +140,20 @@ export class ThermalMapSource {
 	/** The number of the square a place lies in, also where none is drawn. */
 	cellAt(asked: HoursAsked, lat: number, lon: number): number | undefined {
 		return this.#held(asked).cellAt(lat, lon);
+	}
+
+	/**
+	 * The forecast wind at each place in one hour, as the core reads it of
+	 * the square the place lies in (`windAt`): for the take-offs' fans.
+	 * Nothing for a place outside the map or without a wind.
+	 */
+	windsAt(
+		asked: HoursAsked,
+		hour: number,
+		places: readonly Coordinate[]
+	): (ThermalMapWind | undefined)[] {
+		const hours = this.#held(asked);
+		return places.map((place) => hours.windAt(place.lat, place.lon, hour) ?? undefined);
 	}
 
 	/** Every day of the map at one square, side by side; none before the map was read. */

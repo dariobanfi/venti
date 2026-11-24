@@ -61,6 +61,8 @@
 		thermalLayer
 	} from '#lib/forecast/thermal-layer.ts';
 	import { squareAt, squareFeatures } from '#lib/forecast/thermal-map.ts';
+	import { REGIONS_SOURCE, regionsEdgeLayer, regionsLayer } from '#lib/forecast/regions.ts';
+	import type { RegionLevel } from '#lib/core/index.ts';
 	import {
 		isRadar,
 		radarBefore,
@@ -114,7 +116,7 @@
 		fanPicture,
 		FANS_SOURCE,
 		fansLayer,
-		groundWinds
+		type GroundWind
 	} from '#lib/sites/fans.ts';
 	import { stationFeatures } from '#lib/wind/mark.ts';
 	import { windPictures } from '#lib/wind/symbols.ts';
@@ -135,11 +137,12 @@
 		 */
 		sitesApart?: readonly SiteView[];
 		/**
-		 * The forecast's wind at the ground in the hour the map shows, as the
-		 * core's arrows of that hour, while it shows one: each take-off's fan
-		 * is then coloured by whether it fits. Otherwise the fans are neutral.
+		 * The forecast's wind at the ground at each take-off in the hour the
+		 * map shows, by the site's identifier, while it shows one: each
+		 * take-off's fan is then coloured by whether it fits. Otherwise the
+		 * fans are neutral.
 		 */
-		groundWind?: GeoJSON.FeatureCollection;
+		fanWinds?: ReadonlyMap<string, GroundWind>;
 		/**
 		 * The places where pilots take off and no site stands, while their
 		 * layer is on: drawn as small rings under the sites' signs.
@@ -245,6 +248,19 @@
 		 */
 		radar?: readonly OnMap[];
 		/**
+		 * The thermal forecast by region, while the map shows the thermals:
+		 * the regions' outlines, each region's level shown, and the squares
+		 * of the grid that lie under a region with a level, which are not
+		 * drawn.
+		 */
+		regions?: {
+			shapes: GeoJSON.FeatureCollection;
+			levels: Readonly<Record<string, RegionLevel>>;
+			under: readonly number[];
+		};
+		/** Called with a region's identifier when the pilot chooses a region that has a level. */
+		onforecastregion?: (id: string) => void;
+		/**
 		 * How steep the ground is, while the "Slopes" layer is on and the map
 		 * close enough: one picture of the part of the map asked about.
 		 */
@@ -302,7 +318,7 @@
 		stations,
 		sites,
 		sitesApart = [],
-		groundWind,
+		fanWinds,
 		candidates = [],
 		oncandidate,
 		gliders,
@@ -338,6 +354,8 @@
 		slopes,
 		onhourat,
 		onsquare,
+		regions,
+		onforecastregion,
 		onplaceat,
 		reach,
 		placing = false,
@@ -420,6 +438,12 @@
 		// everything else this map draws.
 		map.addSource(THERMAL_SOURCE, { type: 'geojson', data: NOTHING });
 		map.addLayer(thermalLayer(), layerAbove(map.getStyle().layers ?? []));
+		// The forecast by region over the grid's squares, as a weather layer
+		// under what the squares lie under: each region known by its `id`,
+		// its level kept as the feature's state.
+		map.addSource(REGIONS_SOURCE, { type: 'geojson', data: NOTHING, promoteId: 'id' });
+		map.addLayer(regionsLayer(), layerAbove(map.getStyle().layers ?? []));
+		map.addLayer(regionsEdgeLayer(), layerAbove(map.getStyle().layers ?? []));
 
 		airspaceOnMap = drawAirspace(
 			module,
@@ -539,7 +563,8 @@
 			CABLES_UNMAPPED,
 			CLIMBS_SOURCE,
 			FLOWN_SOURCE,
-			THERMAL_SOURCE
+			THERMAL_SOURCE,
+			REGIONS_SOURCE
 		]) {
 			map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
 			map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
@@ -782,8 +807,19 @@
 			oncable?.(cable);
 			return;
 		}
-		// Nothing else under the pointer: the square of the thermal map there.
+		// Nothing else under the pointer: a region of the forecast with a
+		// level, else the square of the thermal map there.
 		const at = map.unproject([point.x, point.y]);
+		if (regions && onforecastregion) {
+			const region = map
+				.queryRenderedFeatures([point.x, point.y], { layers: [REGIONS_SOURCE] })
+				.map((feature) => feature.properties.id)
+				.find((id): id is string => typeof id === 'string' && id in regions.levels);
+			if (region) {
+				onforecastregion(region);
+				return;
+			}
+		}
 		if (thermalHour && onhourat) {
 			onhourat({ lat: at.lat, lon: at.lng });
 			return;
@@ -934,6 +970,36 @@
 		airspaceOnMap?.look();
 	});
 
+	// Draws the regions' outlines while the forecast by region is shown.
+	let regionShapes: GeoJSON.FeatureCollection | undefined;
+	$effect(() => {
+		if (!map || !setup) return;
+		const shapes = regions?.shapes;
+		if (shapes === regionShapes) return;
+		regionShapes = shapes;
+		setup.shapes(map, REGIONS_SOURCE)?.setData(shapes ?? NOTHING);
+	});
+	// Each region's level, as its feature's state; the grid's squares
+	// under a region with a level are left out.
+	$effect(() => {
+		if (!map || !setup) return;
+		const levels = regions?.levels ?? {};
+		map.removeFeatureState({ source: REGIONS_SOURCE });
+		for (const [id, level] of Object.entries(levels)) {
+			map.setFeatureState({ source: REGIONS_SOURCE, id }, { level });
+		}
+		const under = regions?.under ?? [];
+		map.setFilter(
+			THERMAL_SOURCE,
+			under.length > 0 ? ['!', ['in', ['get', 'cell'], ['literal', [...under]]]] : null
+		);
+		// A map says nothing of what it draws; the browser tests read it here.
+		(globalThis as { ventiRegions?: unknown }).ventiRegions = {
+			levels: { ...levels },
+			under: under.length
+		};
+	});
+
 	// Draws the squares of the day looked at, or of the hour, and none while
 	// the layer is off.
 	$effect(() => {
@@ -1032,8 +1098,7 @@
 	// the forecast's wind at the ground does: coloured by it while there is one.
 	$effect(() => {
 		if (!map || !setup) return;
-		const windAt = groundWind ? groundWinds(groundWind) : undefined;
-		const fans = fanFeatures(sites, windAt);
+		const fans = fanFeatures(sites, fanWinds);
 		setup.shapes(map, FANS_SOURCE)?.setData(fans);
 		// A map says nothing of what it draws; the browser tests read it here.
 		(globalThis as { ventiFans?: unknown }).ventiFans = {

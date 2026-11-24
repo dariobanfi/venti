@@ -317,6 +317,7 @@ test('the thermals read the development server’s November map, and say when th
 	context,
 	page,
 	mapDrawn,
+	keep,
 	wide
 }) => {
 	await context.grantPermissions(['geolocation']);
@@ -348,15 +349,34 @@ test('the thermals read the development server’s November map, and say when th
 	await page.keyboard.press('Home');
 	await line(page).blur();
 
-	// A square of the first day, around the pilot: not flyable, for rain.
+	// The forecast by region over the grid: the server's two regions over
+	// its four squares, not flyable for rain, which stand in place of the
+	// squares; the key is the five levels.
 	await switchLayers(page, ['Sites', 'Pilots'], false);
 	await showTheValley(page, mapDrawn, 1);
+	await expect
+		.poll(() => page.evaluate(() => (globalThis as { ventiRegions?: unknown }).ventiRegions))
+		.toEqual({ levels: { 'AT-07-05': 'notFlyable', 'DE-BY-42': 'notFlyable' }, under: 4 });
+	for (const level of ['Not flyable', 'Glides only', 'Weak', 'Good', 'Very good']) {
+		await expect(
+			card(page)
+				.getByRole('listitem')
+				.filter({ hasText: new RegExp(`^${level}: `) })
+		).toHaveCount(1);
+	}
+	await mapDrawn();
+	await keep('132-map-forecast-regions');
+	// A region around the pilot: its name, its level in words and what it is judged from.
 	await clickTheMiddle(page, wide);
-	const square = squareOf(page, wide);
-	await expect(square).toContainText('Not flyable');
-	await expect(square).toContainText('Rain');
-	await expect(square).toContainText(/Judged at the model’s ground, \d+ m/);
+	const region = squareOf(page, wide);
+	await expect(region).toContainText('Not flyable: rain');
+	await expect(region).toContainText("From the model's ground");
+	await mapDrawn();
+	await keep('133-map-forecast-region');
 	if (!wide) await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
+	// Its credit beside the forecast's, behind the map's "i".
+	await openCredits(page);
+	await expect(page.locator('.credits')).toContainText('Regions: EAWS (CC0)');
 	await switchLayers(page, ['Sites', 'Pilots'], true);
 
 	// Kept as the pilot left it.
@@ -406,14 +426,39 @@ test('the wind, the cloud and the rain hour by hour, and what a square says in a
 	await expect(card(page)).toContainText('Wind, now, measured');
 	await expect(line(page)).toHaveAttribute('aria-valuetext', 'Now');
 	await along(page, '13:00');
-	const height = card(page).getByRole('combobox', { name: 'Height' });
-	await expect(height).toHaveValue('');
+	// The height is one pill at the map's side that names it.
+	const pill = heightPill(page);
+	await expect(pill).toHaveText('Ground');
+	await expect(pill).toHaveAccessibleName('Height, Ground');
+	const heights = page.getByRole('radiogroup', { name: 'Height' });
+	await expect(heights).toBeHidden();
 	await expect(card(page)).toContainText(/Wind at the ground, (\w+ )?13:00, forecast, ICON-D2/);
 	await mapDrawn();
 	await keep('121-map-forecast-wind');
 
-	// The wind at 2000 m.
-	await height.selectOption({ label: '2000 m' });
+	// Pressed, it opens the list of heights under it, the one shown chosen.
+	// The stand-in's map lists no height above the ground but the ground's
+	// own; the development server's lists 250 m.
+	await pill.click();
+	await expect(heights.getByRole('radio')).toHaveText([
+		'Ground',
+		'1000 m',
+		'1500 m',
+		'2000 m',
+		'2500 m',
+		'3000 m',
+		'4000 m'
+	]);
+	await expect(heights.getByRole('radio', { name: 'Ground', exact: true })).toHaveAttribute(
+		'aria-checked',
+		'true'
+	);
+	await keep('121a-map-forecast-wind-heights');
+
+	// The wind at 2000 m: choosing it closes the list, and the pill names it.
+	await heights.getByRole('radio', { name: '2000 m', exact: true }).click();
+	await expect(heights).toBeHidden();
+	await expect(pill).toHaveText('2000 m');
 	await expect(card(page)).toContainText(/Wind at 2000 m, (\w+ )?13:00, forecast/);
 	await mapDrawn();
 	await keep('122-map-forecast-wind-2000');
@@ -422,7 +467,7 @@ test('the wind, the cloud and the rain hour by hour, and what a square says in a
 	const gusts = card(page).getByRole('button', { name: 'Gusts', exact: true });
 	await gusts.click();
 	await expect(gusts).toHaveAttribute('aria-pressed', 'true');
-	await expect(height).toBeHidden();
+	await expect(pill).toBeHidden();
 	await along(page, '13:00');
 	await expect(card(page)).toContainText(/Gusts at the ground, (\w+ )?13:00, forecast/);
 	await mapDrawn();
@@ -456,7 +501,7 @@ test('the wind, the cloud and the rain hour by hour, and what a square says in a
 	// the core's words.
 	await what(page, 'Wind').click();
 	await along(page, '13:00');
-	await height.selectOption({ label: 'Ground' });
+	await chooseHeight(page, 'Ground');
 	if (!wide) await pan(page, mapDrawn, 'ArrowUp', 2);
 	await zoom(page, mapDrawn, -out);
 	await clickTheMiddle(page, wide);
@@ -500,7 +545,7 @@ test('the wind under the model’s ground is none, and says so', async ({
 	await forecastAt(context, page, mapDrawn, await squareWhereGround(true, 1000));
 	await what(page, 'Wind').click();
 	await along(page, '13:00');
-	await card(page).getByRole('combobox', { name: 'Height' }).selectOption({ label: '1000 m' });
+	await chooseHeight(page, '1000 m');
 	await mapDrawn();
 	await clickTheMiddle(page, wide);
 	const square = squareOf(page, wide);
@@ -538,6 +583,19 @@ test('while the hours are asked for the panel says so, and when they cannot be h
 	await mapDrawn();
 	await keep('129-map-forecast-hours-refused');
 });
+
+/** The pill of the forecast wind's height, named for the height shown. */
+const heightPill = (page: Page) => page.getByRole('button', { name: /^Height, / });
+
+/** Shows the forecast's wind at a height: the pill opens the list, and a height is pressed. */
+async function chooseHeight(page: Page, name: string): Promise<void> {
+	await heightPill(page).click();
+	await page
+		.getByRole('radiogroup', { name: 'Height' })
+		.getByRole('radio', { name, exact: true })
+		.click();
+	await expect(heightPill(page)).toHaveText(name);
+}
 
 /** The fans the map tab last drew, with the name of each one's picture: what it says and its spans. */
 const fans = (page: Page) =>
@@ -590,7 +648,7 @@ test('the take-offs are fans over their wind directions, coloured by the forecas
 	await page.emulateMedia({ colorScheme: test.info().project.use.colorScheme ?? 'light' });
 
 	// At a height the wind is not the ground's: the fans are neutral again.
-	await card(page).getByRole('combobox', { name: 'Height' }).selectOption({ label: '2000 m' });
+	await chooseHeight(page, '2000 m');
 	await expect(card(page)).toContainText(/Wind at 2000 m/);
 	await expect
 		.poll(async () =>

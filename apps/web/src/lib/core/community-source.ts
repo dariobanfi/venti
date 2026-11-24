@@ -347,7 +347,9 @@ export class CommunitySource {
 	 * offers at `nowUnixS`; any other text, or none, means the newest.
 	 * With `near`, only flights that took off near that place count. With
 	 * `month`, as the ranking's periods write one ("2026-05"), the ranking
-	 * is of that month, and the season the year it lies in.
+	 * is of that month, and the season the year it lies in. With
+	 * `pilotCountry`, two letters, only the pilots of that country are
+	 * ranked (a national ranking).
 	 * Nothing if this site has no server.
 	 */
 	async ranking(
@@ -355,7 +357,8 @@ export class CommunitySource {
 		near?: Coordinate,
 		nowUnixS?: number,
 		month?: string,
-		search?: FlightSearch
+		search?: FlightSearch,
+		pilotCountry?: string
 	): Promise<SeasonRanking | undefined> {
 		if (!(await this.#present())) return undefined;
 		const { seasons } = rankingSeasons(nowUnixS ?? (await this.#now()));
@@ -363,13 +366,15 @@ export class CommunitySource {
 		const area = near ? flownFromHere(near.lat, near.lon) : undefined;
 		const searching = search !== undefined && isSearching(search);
 		// The core has no path for a month and a search at once: the month
-		// is then asked as its span, which is a calendar month by UTC.
+		// is then asked as its span, which is a calendar month by UTC. The
+		// pilots' country is a question of the search's path alone.
 		const span = month ? monthSpan(month) : undefined;
 		let path: string;
-		if (searching && search) {
+		if (searching || pilotCountry) {
+			const narrowed = searching && search ? search : {};
 			path = span
-				? rankingSearchPath(area, span.fromUnixS, span.toUnixS, search)
-				: rankingSearchPath(area, asked.fromUnixS, asked.toUnixS, search);
+				? rankingSearchPath(area, span.fromUnixS, span.toUnixS, narrowed, pilotCountry)
+				: rankingSearchPath(area, asked.fromUnixS, asked.toUnixS, narrowed, pilotCountry);
 		} else {
 			path = month
 				? rankingMonthPath(area, month)

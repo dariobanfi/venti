@@ -180,11 +180,15 @@ describe('pilots among each other', () => {
 		expect(server.asked[0]).toMatchObject({ method: 'GET', path: '/v1/account/unread' });
 		expect(server.asked[0].token).toBeDefined();
 
-		await social.unreadSeen('9', '0');
+		// A cursor moves a list's mark, "" up to the newest, and a list left out keeps its own.
+		await social.unreadSeen('9', undefined);
 		expect(server.asked[1]).toMatchObject({ method: 'PUT', path: '/v1/account/unread' });
-		expect(JSON.parse(server.asked[1].body)).toEqual({
-			notifications_cursor: '9',
-			alarms_cursor: '0'
-		});
+		const sent = JSON.parse(server.asked[1].body);
+		expect(sent.notifications_cursor).toBe('9');
+		expect(sent.alarms_cursor ?? undefined).toBeUndefined();
+		await social.unreadSeen(undefined, '');
+		const newest = JSON.parse(server.asked[2].body);
+		expect(newest.notifications_cursor ?? undefined).toBeUndefined();
+		expect(newest).toHaveProperty('alarms_cursor');
 	});
 });

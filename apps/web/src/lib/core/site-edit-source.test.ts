@@ -454,7 +454,7 @@ describe('“I took off here and it was good”', () => {
 		expect(form.days.slice(0, 3)).toEqual([
 			{ day: '2026-11-18', words: 'Today' },
 			{ day: '2026-11-17', words: 'Yesterday' },
-			{ day: '2026-11-16', words: 'Mon 16 Nov' }
+			{ day: '2026-11-16', words: '16 Nov 2026' }
 		]);
 		expect(form.noteAtMost).toBe(200);
 		expect(form.send).toBe('Confirm');
@@ -473,7 +473,7 @@ describe('“I took off here and it was good”', () => {
 		});
 		expect(JSON.parse(request.body)).toEqual({ day: '2026-11-17', note: 'Smooth.' });
 		expect(confirmed.site.id).toBe(KOGEL);
-		expect(confirmed.words).toBe('You confirmed this site for Tue 17 Nov.');
+		expect(confirmed.words).toBe('You confirmed this site for 17 Nov 2026.');
 		expect(written.times).toBe(1);
 		// The logbook is empty: no flight of that day began here.
 		expect(await edits.confirmFlights(confirmed.site, '2026-11-17', 3600)).toEqual([]);
@@ -493,7 +493,7 @@ describe('“I took off here and it was good”', () => {
 		expect(list.pilots).toBe(2);
 		expect(list.words).toBe('2 pilots took off here, last on 16 November 2026');
 		expect(list.lines[0].words).toBe(
-			'Mara Muster (@mara) on Mon 16 Nov 2026: “North-west at noon, smooth.”'
+			'Mara Muster (@mara) on 16 Nov 2026: “North-west at noon, smooth.”'
 		);
 		// The demo pilot is not among them: nothing to take back is offered.
 		const offers = await edits.offers(site, true, list);

@@ -9,7 +9,6 @@
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { LEFT_AS_IT_IS } from '#lib/social/unread.svelte.ts';
 	import { accountHref, pilotHref, publicFlightHref } from '#lib/app/routes.ts';
 	import type { Notifications } from '#lib/core/index.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -36,7 +35,7 @@
 				if (!current) return;
 				told = answer;
 				// Shown: the marker of what is new moves past it, the alarms' as it is.
-				if (answer) void app.unread?.seen({ notifications: answer.cursor, alarms: LEFT_AS_IT_IS });
+				if (answer) void app.unread?.seen({ notifications: answer.cursor });
 			},
 			(error) => {
 				// The core's line that the list could not be loaded, then why.

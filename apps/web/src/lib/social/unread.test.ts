@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CoreClient, Unread } from '#lib/core/index.ts';
-import { LEFT_AS_IT_IS, UnreadModel } from './unread.svelte';
+import { UnreadModel } from './unread.svelte';
 
 const FIVE: Unread = {
 	notifications: 4,
@@ -74,8 +74,8 @@ describe('the marker of what is new', () => {
 		const { core, seen } = fakeCore([FIVE, NONE]);
 		const model = new UnreadModel(core);
 		await model.read();
-		await model.seen({ notifications: '9', alarms: LEFT_AS_IT_IS });
-		expect(seen).toEqual([{ notifications: '9', alarms: '0' }]);
+		await model.seen({ notifications: '9' });
+		expect(seen).toEqual([{ notifications: '9' }]);
 		expect(model.badge).toBeUndefined();
 		expect(model.notifications).toBe(0);
 	});

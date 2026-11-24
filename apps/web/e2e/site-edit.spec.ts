@@ -512,9 +512,9 @@ test('a pilot says “I took off here and it was good” of a place from pilots,
 
 	// The core's sentence in the button's place, with changing the day and taking it back.
 	await expect(site.getByRole('status').first()).toHaveText(
-		'You confirmed this site for Tue 17 Nov.'
+		'You confirmed this site for 17 Nov 2026.'
 	);
-	await expect(confirmed).toContainText('You confirmed this site for Tue 17 Nov 2026.');
+	await expect(confirmed).toContainText('You confirmed this site for 17 Nov 2026.');
 	await expect(confirmed).toContainText(/pilots took off here, last on 17 November 2026/);
 	await expect(
 		confirmed.getByRole('button', { name: 'I took off here and it was good' })
@@ -529,7 +529,7 @@ test('a pilot says “I took off here and it was good” of a place from pilots,
 	await confirmed.getByRole('button', { name: /took off here, last on/ }).click();
 	const who = page.getByRole('dialog', { name: 'Pilots who took off here' });
 	await expect(who.getByRole('listitem').filter({ hasText: `(@${handle})` })).toHaveText(
-		`Test Pilot (@${handle}) on Tue 17 Nov 2026: “${line}”`
+		`Test Pilot (@${handle}) on 17 Nov 2026: “${line}”`
 	);
 	await keep('167h-site-confirmations');
 	await who.getByRole('button', { name: 'Done' }).click();

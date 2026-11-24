@@ -8,12 +8,13 @@
  * a calm hour or a place the forecast has nothing for, one neutral ink.
  *
  * Which directions a site works in is the source's word, read by the core
- * (`SiteView.wind`); the forecast's wind is the core's arrows of the hour
- * (`thermalHourShapes`). This draws them and compares the two.
+ * (`SiteView.wind`); the forecast's wind at a take-off is the core's for
+ * the square it lies in (`ThermalMapHours.windAt`, through the worker's
+ * `thermalWindsAt`). This draws them and compares the two.
  */
 
 import type { LayerSpecification } from 'maplibre-gl';
-import type { SiteView, WindSpan } from '#lib/core/index.ts';
+import type { SiteView, ThermalMapWind, WindSpan } from '#lib/core/index.ts';
 import { CAUTION_ON_MAP, GOOD_ON_MAP, INK_ON_MAP, PAPER_ON_MAP } from '#lib/design/palette.ts';
 import { wedges } from './rose';
 import { SITES_SOURCE } from './mark';
@@ -68,46 +69,20 @@ export function windFits(spans: readonly WindSpan[], fromDeg: number): boolean {
 /** The forecast's wind at a place: where it comes from, calm, or nothing known. */
 export type GroundWind = { fromDeg: number } | 'calm' | undefined;
 
-/** One of the core's arrows of an hour: a point in the middle of its square. */
-interface Arrow {
-	lat: number;
-	lon: number;
-	wind: GroundWind;
-}
-
 /**
- * The forecast's wind of an hour by place, from the core's arrows: at a
- * place, the arrow of the square it lies in, the nearest middle; nothing
- * further than `withinDeg` (more than a square) from any.
+ * Below this mean speed, in km/h, a wind has no direction worth an arrow
+ * and the map draws it as calm: the core's `CALM_BELOW_KMH`
+ * (`crates/core/src/thermal_hours.rs`), which it does not hand out.
  */
-export function groundWinds(
-	arrows: GeoJSON.FeatureCollection | undefined,
-	withinDeg = 0.1
-): (lat: number, lon: number) => GroundWind {
-	const points: Arrow[] = (arrows?.features ?? []).flatMap((feature): Arrow[] => {
-		if (feature.geometry.type !== 'Point') return [];
-		const [lon, lat] = feature.geometry.coordinates;
-		const properties = feature.properties ?? {};
-		if (properties.symbol === 'calm') return [{ lat, lon, wind: 'calm' }];
-		const heading = Number(properties.heading);
-		if (!Number.isFinite(heading)) return [];
-		// The arrow points where the wind blows: it comes from the other way.
-		return [{ lat, lon, wind: { fromDeg: (heading + 180) % 360 } }];
-	});
-	return (lat, lon) => {
-		const across = Math.cos((lat * Math.PI) / 180);
-		let nearest: Arrow | undefined;
-		let best = withinDeg * withinDeg;
-		for (const point of points) {
-			const [dy, dx] = [point.lat - lat, (point.lon - lon) * across];
-			const distance = dy * dy + dx * dx;
-			if (distance <= best) {
-				best = distance;
-				nearest = point;
-			}
-		}
-		return nearest?.wind;
-	};
+const CALM_BELOW_KMH = 2;
+
+/** The core's wind at a take-off as a fan reads it: where it comes from, calm, or nothing known. */
+export function groundWindOf(wind: ThermalMapWind | undefined): GroundWind {
+	if (!wind) return undefined;
+	if (wind.fromDeg === undefined || wind.fromDeg === null || wind.kmh < CALM_BELOW_KMH) {
+		return 'calm';
+	}
+	return { fromDeg: wind.fromDeg };
 }
 
 /** What a fan says of a wind: nothing to say without one, or in a calm. */
@@ -150,7 +125,7 @@ export function fanOf(name: string): { fit: Fit; spans: WindSpan[] } | undefined
  */
 export function fanFeatures(
 	sites: readonly SiteView[],
-	windAt?: (lat: number, lon: number) => GroundWind
+	winds?: ReadonlyMap<string, GroundWind>
 ): GeoJSON.FeatureCollection {
 	return {
 		type: 'FeatureCollection',
@@ -161,10 +136,7 @@ export function fanFeatures(
 				geometry: { type: 'Point' as const, coordinates: [site.position.lon, site.position.lat] },
 				properties: {
 					id: site.id,
-					picture: fanName(
-						site.wind,
-						windAt ? fitOf(site.wind, windAt(site.position.lat, site.position.lon)) : 'neutral'
-					)
+					picture: fanName(site.wind, winds ? fitOf(site.wind, winds.get(site.id)) : 'neutral')
 				}
 			}))
 	};

@@ -118,6 +118,8 @@ export class AlertsModel {
 	alerts = $state.raw<AlertView[]>([]);
 	/** What they fired, the newest first. */
 	fired = $state.raw<FiredLine[]>([]);
+	/** The cursor of what fired as last fetched, for the marker of what is new; none before a fetch. */
+	firedCursor = $state<string>();
 	/** Whether what the browser holds was read once. */
 	read = $state(false);
 	/** Why the last fetch stopped, in words. */
@@ -174,6 +176,7 @@ export class AlertsModel {
 			const held = await this.#core.alertsHeld(Math.floor(now / 1000), utcOffsetS(now));
 			this.alerts = held.alerts;
 			this.fired = held.fired;
+			this.firedCursor = held.firedCursor;
 		} catch {
 			// The screens keep what they have.
 		}

@@ -18,12 +18,6 @@ import type { CoreClient, Unread } from '#lib/core/index.ts';
 /** How often the count is read while a page of the site is in front, in milliseconds. */
 export const UNREAD_EVERY_MS = 3 * 60_000;
 
-/**
- * The cursor that leaves a list's mark where it is: the mark only moves
- * forward, and every cursor is after it.
- */
-export const LEFT_AS_IT_IS = '0';
-
 export class UnreadModel {
 	/** What the bubble says, "3" or "99+"; nothing when nothing is new or signed out. */
 	badge = $state<string>();
@@ -61,8 +55,9 @@ export class UnreadModel {
 	/**
 	 * The pilot was shown the lists up to these cursors: `notifications`
 	 * the cursor of the notifications' answer, `alarms` that of the alarms'
-	 * fetch, each left out for up to the newest and `LEFT_AS_IT_IS` for
-	 * not seen. The answer is the count after it.
+	 * fetch (`AlertsModel.firedCursor`), an empty text for up to the
+	 * newest, each left out for a list not seen, whose mark stays where it
+	 * is. The answer is the count after it.
 	 */
 	async seen(lists: { notifications?: string; alarms?: string }): Promise<void> {
 		await this.#reading;

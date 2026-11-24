@@ -12,6 +12,7 @@
 	import type { RankedPilot } from '#lib/core/index.ts';
 	import { flightFormat, format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
+	import Flag from './Flag.svelte';
 	import PilotFace from './PilotFace.svelte';
 	import SortHeading from '#lib/design/SortHeading.svelte';
 	import { type Sort, sortBy, sorted } from '#lib/design/sort.ts';
@@ -64,6 +65,7 @@
 				<td class="number place" class:podium={pilot.place <= 3}>{pilot.place}</td>
 				<td class="name">
 					<PilotFace picture={pilot.picturePath} name={pilot.name} />
+					<Flag code={pilot.country} />
 					<a href={pilotHref(pilot.handle)}>{pilot.name}</a>
 				</td>
 				<td class="number">{text.points(pilot.points)}</td>
@@ -145,6 +147,10 @@
 		height: 1.5rem;
 		margin-right: var(--space-2);
 		vertical-align: middle;
+	}
+
+	.name :global(.flag) {
+		margin-right: var(--space-1);
 	}
 
 	.lesser {

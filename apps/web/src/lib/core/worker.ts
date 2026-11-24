@@ -33,6 +33,7 @@ import { AirSource } from './air-source';
 import { type FileStore, MemoryStore } from './store';
 import { TerrainSource } from './terrain-source';
 import { ThermalMapSource } from './thermal-map-source';
+import { RegionsSource } from './regions-source';
 import { TodaySource } from './today-source';
 import { TokensSource } from './tokens-source';
 import { canRunWebAssembly, noWebAssembly } from './webassembly';
@@ -95,6 +96,10 @@ const starting: Promise<Answering> = (async () => {
 			() => wind.serverNow()
 		),
 		thermals: new ThermalMapSource(
+			() => wind.present(),
+			() => wind.serverNow()
+		),
+		regions: new RegionsSource(
 			() => wind.present(),
 			() => wind.serverNow()
 		),

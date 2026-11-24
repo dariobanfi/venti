@@ -222,9 +222,9 @@ export class SocialSource {
 
 	/**
 	 * Tells the server that the pilot saw the lists, up to the cursors of
-	 * the answers shown, each left out for up to the newest; "0" leaves a
-	 * list's mark where it is, which only moves forward. Answers what is
-	 * new after it. Nothing when signed out.
+	 * the answers shown, "" for up to the newest; a list left out keeps its
+	 * mark where it is. Answers what is new after it. Nothing when signed
+	 * out.
 	 */
 	async unreadSeen(
 		notificationsCursor: string | undefined,

@@ -15,7 +15,6 @@
 	import { type PushState, pushOff, pushOn, pushState, thisBrowser } from '#lib/alerts/push.ts';
 	import AlertForm from '#lib/alerts/AlertForm.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { LEFT_AS_IT_IS } from '#lib/social/unread.svelte.ts';
 	import { accountHref } from '#lib/app/routes.ts';
 	import type { AlertDraft, AlertView } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
@@ -37,7 +36,12 @@
 			void model
 				.reread()
 				.then(() => model.sync())
-				.then(() => app.unread?.seen({ notifications: LEFT_AS_IT_IS }));
+				.then(() => {
+					// Before a first fetch there is no cursor, and the mark stays.
+					if (model.firedCursor !== undefined) {
+						void app.unread?.seen({ alarms: model.firedCursor });
+					}
+				});
 		});
 	});
 

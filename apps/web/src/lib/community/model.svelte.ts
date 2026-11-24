@@ -102,6 +102,8 @@ export interface RankingState {
 	absent: boolean;
 	/** What else the flights ranked are searched by. */
 	search?: FlightSearch;
+	/** The country whose pilots alone are ranked, two letters; empty or none for all. */
+	pilotCountry?: string;
 }
 
 export const NOT_RANKED: RankingState = {
@@ -428,25 +430,41 @@ export class CommunityModel {
 	/**
 	 * Shows the ranking of a season, named as the core names it; an empty
 	 * name is the newest. With a month, as the ranking's periods write one
-	 * ("2026-05"), the ranking of that month. A ranking that is there for
-	 * the same question, or on its way, is left as it is.
+	 * ("2026-05"), the ranking of that month. With `pilotCountry`, two
+	 * letters, of that country's pilots alone; empty for all. A ranking
+	 * that is there for the same question, or on its way, is left as it is.
 	 */
-	showRanking(season: string, month = '', search: FlightSearch = NO_SEARCH): void {
+	showRanking(
+		season: string,
+		month = '',
+		search: FlightSearch = NO_SEARCH,
+		pilotCountry = ''
+	): void {
 		untrack(() => {
 			const there = this.ranking.known || this.ranking.loading;
-			const question = `${season}|${month}|${searchParams(search)}`;
+			const question = `${season}|${month}|${searchParams(search)}|${pilotCountry}`;
 			if (this.#ranked === question && there) return;
-			void this.#rank(season, month, search);
+			void this.#rank(season, month, search, pilotCountry);
 		});
 	}
 
 	/** Asks again: for a ranking that could not be fetched. */
 	rankAgain(): void {
-		void this.#rank(this.ranking.asked, this.ranking.askedMonth, this.ranking.search);
+		void this.#rank(
+			this.ranking.asked,
+			this.ranking.askedMonth,
+			this.ranking.search,
+			this.ranking.pilotCountry
+		);
 	}
 
-	async #rank(season: string, month: string, search: FlightSearch = NO_SEARCH): Promise<void> {
-		const question = `${season}|${month}|${searchParams(search)}`;
+	async #rank(
+		season: string,
+		month: string,
+		search: FlightSearch = NO_SEARCH,
+		pilotCountry = ''
+	): Promise<void> {
+		const question = `${season}|${month}|${searchParams(search)}|${pilotCountry}`;
 		this.#ranked = question;
 		// The seasons and the months stay to choose from while another one is fetched.
 		const { seasons, months } = this.ranking;
@@ -459,7 +477,8 @@ export class CommunityModel {
 			season: before,
 			months: month ? months : [],
 			loading: true,
-			search
+			search,
+			pilotCountry
 		};
 		const searching = isSearching(search);
 		const ranking = await rankingOf(
@@ -468,14 +487,15 @@ export class CommunityModel {
 					season || undefined,
 					undefined,
 					month || undefined,
-					searching ? search : undefined
+					searching ? search : undefined,
+					pilotCountry || undefined
 				),
 			season,
 			seasons,
 			month
 		);
 		// Something else has been asked for since.
-		if (this.#ranked === question) this.ranking = { ...ranking, search };
+		if (this.#ranked === question) this.ranking = { ...ranking, search, pilotCountry };
 	}
 
 	/**

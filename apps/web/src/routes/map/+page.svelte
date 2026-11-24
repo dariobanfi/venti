@@ -47,6 +47,11 @@
 		sameAsked
 	} from '#lib/forecast/thermal-map.ts';
 	import ThermalSquare from '#lib/forecast/ThermalSquare.svelte';
+	import HeightChoice from '#lib/map/HeightChoice.svelte';
+	import { cellsUnder, levelsShown } from '#lib/forecast/regions.ts';
+	import { LEVEL_ON_MAP } from '#lib/design/palette.ts';
+	import type { RegionLevel } from '#lib/core/index.ts';
+	import { groundWindOf, type GroundWind } from '#lib/sites/fans.ts';
 	import ThermalHourSquare from '#lib/forecast/ThermalHourSquare.svelte';
 	import GliderView from '#lib/live/GliderView.svelte';
 	import LiveList from '#lib/live/LiveList.svelte';
@@ -181,6 +186,7 @@
 		along = undefined;
 		chosenSquare = undefined;
 		chosenHourSquare = undefined;
+		chosenRegion = undefined;
 		radar?.stop();
 		// Another "what" opens where its line begins: today, at the hour the core names.
 		if (thermals) {
@@ -211,7 +217,7 @@
 	});
 	$effect(() => {
 		if (!forecastWanted || !thermals) return;
-		void [thermals.map, thermals.layer, thermals.heightM];
+		void [thermals.map, thermals.layer, thermals.heightM, thermals.aboveGroundM];
 		void thermals.loadLine();
 	});
 
@@ -301,9 +307,19 @@
 	]);
 	/** Whether the map draws the forecast: a "what" on the forecast's part of the line. */
 	const showForecast = $derived(forecastWanted && !measured);
+	/** The heights the forecast's mean wind can be shown at, while it is shown. */
+	const windLevels = $derived(
+		what === 'wind' &&
+			showForecast &&
+			!gusts &&
+			thermals?.map?.layers.some((one) => one.layer === 'wind' && one.hasLevels)
+			? thermals.map.levels
+			: []
+	);
 	$effect(() => {
 		if (showForecast) void thermals?.loadShapes();
 	});
+	const NO_SHAPES: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 	/** One hour of the layer chosen, drawn in place of the day. */
 	const thermalHour = $derived.by(() => {
 		const view = showForecast ? thermals?.view : undefined;
@@ -311,8 +327,71 @@
 		if (!view || thermals?.hour === undefined || !shapes) return undefined;
 		if (!sameAsked(shapes.asked, thermals.hours?.asked)) return undefined;
 		const choice = thermals.map?.layers.find((one) => one.layer === view.layer);
-		return { squares: shapes.squares, arrows: shapes.arrows, legend: choice?.legend ?? [] };
+		return {
+			// On the wind's layers the arrows stand in place of the squares.
+			squares: choice?.hasArrows ? NO_SHAPES : shapes.squares,
+			arrows: shapes.arrows,
+			legend: choice?.legend ?? []
+		};
 	});
+
+	// --- The thermal forecast by region, over the grid's squares ---
+
+	const regionModel = $derived(app.regions);
+	// A day's regions are asked for while the thermals of that day are shown.
+	$effect(() => {
+		const date = thermals?.day?.date;
+		if (showForecast && what === 'thermals' && date) void regionModel?.load(date);
+	});
+	/** The day of the forecast by region shown with the thermals. */
+	const regionDay = $derived(
+		showForecast && what === 'thermals' && thermals?.day
+			? regionModel?.days.get(thermals.day.date)
+			: undefined
+	);
+	/** The moment of the hour of the thermals shown; nothing for the day as a whole. */
+	const regionHourAt = $derived(
+		thermals?.view?.layer === 'thermals' && thermals.hour !== undefined
+			? thermals.view.hours[thermals.hour]?.timeUnixS
+			: undefined
+	);
+	/** Each region's reading shown, by its identifier. */
+	const regionReadings = $derived(
+		new Map(levelsShown(regionDay, regionHourAt).map((reading) => [reading.id, reading]))
+	);
+	/** What the map draws of the regions: their levels, and the squares of the grid they stand in place of. */
+	const regionsOnMap = $derived.by(() => {
+		const shapes = regionModel?.regions?.shapes;
+		if (!regionDay || !shapes || regionReadings.size === 0) return undefined;
+		const levels: Record<string, RegionLevel> = {};
+		for (const [id, reading] of regionReadings) levels[id] = reading.level;
+		const ids = new Set(regionReadings.keys());
+		return { shapes, levels, under: cellsUnder(thermals?.day?.cells ?? [], shapes, ids) };
+	});
+	/** The region the pilot chose, by its identifier. */
+	let chosenRegion = $state<string>();
+	const regionChosen = $derived.by(() => {
+		const reading = chosenRegion ? regionReadings.get(chosenRegion) : undefined;
+		if (!reading || !regionDay) return undefined;
+		const ofDay = regionDay.day.find((one) => one.id === reading.id);
+		const name =
+			regionModel?.regions?.shapes.features.find((one) => one.properties?.id === reading.id)
+				?.properties?.name ?? reading.id;
+		return {
+			name: String(name),
+			level: reading.level,
+			words: reading.words,
+			detail: ofDay?.detail ?? ''
+		};
+	});
+	/** The regions' credits beside the forecast's own. */
+	const regionCredits = $derived(
+		regionsOnMap
+			? (regionDay?.view.credits ?? []).filter(
+					(credit) => !thermals?.map?.credits.some((one) => one.source === credit.source)
+				)
+			: []
+	);
 	/**
 	 * The forecast's wind at the ground in the hour drawn, while the hour is
 	 * the wind's or the gusts' at the ground: the take-offs' fans are
@@ -320,8 +399,42 @@
 	 */
 	const groundWind = $derived.by(() => {
 		const asked = thermals?.shapes?.asked;
-		if (!thermalHour || !asked || asked.heightM !== undefined) return undefined;
+		if (!thermalHour || !asked || asked.heightM !== undefined || asked.aboveGroundM !== undefined) {
+			return undefined;
+		}
 		return asked.layer === 'wind' || asked.layer === 'gusts' ? thermalHour.arrows : undefined;
+	});
+	/**
+	 * The forecast's wind at each take-off with directions in that hour, by
+	 * the site's identifier: the core's for the square it lies in
+	 * (`ThermalMapHours.windAt`), not the nearest arrow drawn.
+	 */
+	let fanWinds = $state.raw<ReadonlyMap<string, GroundWind>>();
+	$effect(() => {
+		const model = thermals;
+		const takeoffs = sitesFitting.filter(
+			(site) => site.uses.includes('takeoff') && site.wind.length > 0
+		);
+		if (!groundWind || !model || takeoffs.length === 0) {
+			fanWinds = undefined;
+			return;
+		}
+		let current = true;
+		model
+			.windsAt(takeoffs.map((site) => ({ lat: site.position.lat, lon: site.position.lon })))
+			.then(
+				(winds) => {
+					if (!current) return;
+					fanWinds = winds
+						? new Map(takeoffs.map((site, i) => [site.id, groundWindOf(winds[i])]))
+						: undefined;
+				},
+				() => {
+					// Hours let go meanwhile: the fans stay neutral until the next hour is drawn.
+					if (current) fanWinds = undefined;
+				}
+			);
+		return () => (current = false);
 	});
 	/**
 	 * The day of the thermal map on the map, while the layer is on: not while
@@ -1405,7 +1518,13 @@
 		hotspots={thermalMap}
 		{thermalDay}
 		{thermalHour}
-		{groundWind}
+		regions={regionsOnMap}
+		onforecastregion={(id) => {
+			chosenSquare = undefined;
+			chosenHourSquare = undefined;
+			chosenRegion = id;
+		}}
+		{fanWinds}
 		radar={radarWanted && measured ? radar?.onMap : undefined}
 		slopes={slopesChosen ? slopes.shown : undefined}
 		onsquare={openSquare}
@@ -1437,6 +1556,16 @@
 					{one.name}
 				</button>
 			{/each}
+		</div>
+	{/if}
+	<!-- The height of the forecast's wind, a pill at the map's side that opens their list. -->
+	{#if windLevels.length > 0 && thermals}
+		<div class="heights-at">
+			<HeightChoice
+				levels={windLevels}
+				chosen={{ heightM: thermals.heightM, aboveGroundM: thermals.aboveGroundM }}
+				onchoose={(level) => thermals.chooseHeight(level)}
+			/>
 		</div>
 	{/if}
 	<!-- A map says nothing to a screen reader: this much it can be told. -->
@@ -1589,6 +1718,23 @@
 				{/if}
 			</MapPanel>
 		{/if}
+		<!-- A region of the forecast by region: its name, its level in words
+		     and what the level is judged from. -->
+		<MapPanel
+			shown={regionChosen ? chosenRegion : undefined}
+			title={regionChosen?.name ?? 'Region'}
+			wide={wide.current}
+			half
+			onclose={() => (chosenRegion = undefined)}
+		>
+			{#if regionChosen}
+				<p class="region-words">
+					<span class="level-mark" style:background={LEVEL_ON_MAP[regionChosen.level].color}
+					></span>{regionChosen.words}
+				</p>
+				{#if regionChosen.detail}<p class="region-detail">{regionChosen.detail}</p>{/if}
+			{/if}
+		</MapPanel>
 		{#if thermals && chosenHourSquare}
 			<!-- A square of an hour of the forecast map. -->
 			<MapPanel
@@ -1844,6 +1990,7 @@
 					{measured}
 					{radar}
 					{thermals}
+					regionLevels={regionsOnMap ? regionModel?.regions?.levels : undefined}
 					{gusts}
 					ongusts={(on) => thermals?.chooseLayer(on ? 'gusts' : 'wind')}
 					fans={Boolean(groundWind) && !hiddenLayers.includes('sites')}
@@ -1856,7 +2003,7 @@
 		{/if}
 		<!-- Closed from the start: the map's "i" unfolds them with its own,
 		     every one complete. -->
-		{#if creditsOpen && (credits || airspaceCredit || sitesCredit || photosCredit || forecastCredit || radarCredits.length > 0 || othersCredits.length > 0 || cablesCredits.length > 0 || climbsCredits.length > 0)}
+		{#if creditsOpen && (credits || airspaceCredit || sitesCredit || photosCredit || forecastCredit || regionCredits.length > 0 || radarCredits.length > 0 || othersCredits.length > 0 || cablesCredits.length > 0 || climbsCredits.length > 0)}
 			<p class="credits">
 				{#if photosCredit}<span>{photosCredit}</span>{/if}
 				{#if credits}<span>Wind: {credits}</span>{/if}
@@ -1864,6 +2011,13 @@
 				{#each cablesCredits as credit (credit)}<span>Cables: {credit}</span>{/each}
 				{#if sitesCredit}<span>{sitesCredit}</span>{/if}
 				{#if forecastCredit}<span>{forecastCredit}</span>{/if}
+				{#each regionCredits as credit (credit.source)}
+					<span
+						>{#if credit.url}<a href={credit.url} target="_blank" rel="noopener noreferrer"
+								>{credit.text || credit.provider}</a
+							>{:else}{credit.text || credit.provider}{/if}</span
+					>
+				{/each}
 				{#each radarCredits as credit (credit.source)}
 					<span
 						>{#if credit.url}<a href={credit.url} target="_blank" rel="noopener noreferrer"
@@ -2117,6 +2271,14 @@
 		box-shadow: var(--shadow-float);
 	}
 
+	/* The wind's height at the map's right, under the row of chips. */
+	.heights-at {
+		position: absolute;
+		top: calc(var(--space-3) + 3rem + var(--safe-top));
+		right: calc(1rem + var(--safe-right));
+		pointer-events: none;
+	}
+
 	.navigation-height {
 		position: absolute;
 		visibility: hidden;
@@ -2242,6 +2404,29 @@
 	/* The core's line about a climb or a cell, over what can be done there. */
 	.air-line {
 		margin: 0;
+		font-size: var(--subheadline);
+	}
+
+	/* A region of the forecast: its level as a mark beside the words, then what it is judged from. */
+	.region-words {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin: 0;
+		font-size: var(--body);
+		font-weight: 600;
+	}
+
+	.level-mark {
+		flex: none;
+		width: var(--space-3);
+		height: var(--space-3);
+		box-shadow: inset 0 0 0 1px var(--color-border-strong);
+	}
+
+	.region-detail {
+		margin: var(--space-1) 0 0;
+		color: var(--text-secondary);
 		font-size: var(--subheadline);
 	}
 

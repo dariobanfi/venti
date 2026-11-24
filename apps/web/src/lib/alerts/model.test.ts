@@ -26,7 +26,7 @@ function fakeCore(synced: AlertsSynced | undefined) {
 			asked.push('sync');
 			return synced;
 		},
-		alertsHeld: async () => ({ alerts, fired: [FIRED] }),
+		alertsHeld: async () => ({ alerts, fired: [FIRED], firedCursor: '7' }),
 		addAlert: async () => {
 			asked.push('add');
 			alerts = [ALARM];

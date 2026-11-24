@@ -9,15 +9,25 @@
  */
 
 import type {
+	Coordinate,
 	CoreClient,
 	HoursAsked,
 	ThermalMap,
 	ThermalMapHoursView,
+	ThermalMapWind,
 	ThermalStripDay
 } from '#lib/core/index.ts';
 import { isInWords } from '#lib/core/index.ts';
 import { forecastChoice, keepForecastChoice } from '#lib/map/layers.ts';
-import { dayOf, hoursAsked, isDue, sameAsked, shownHour, WORDS } from './thermal-map';
+import {
+	dayOf,
+	hoursAsked,
+	isDue,
+	sameAsked,
+	shownHour,
+	type WindLevel,
+	WORDS
+} from './thermal-map';
 
 /** What the map draws of one hour: the squares and the arrows. */
 export interface HourShapes {
@@ -34,6 +44,7 @@ type Core = Pick<
 	| 'thermalHourShapes'
 	| 'thermalHourSquare'
 	| 'thermalCellAt'
+	| 'thermalWindsAt'
 	| 'thermalStrip'
 >;
 
@@ -59,11 +70,15 @@ export class ThermalMapModel {
 	/** The layer the pilot chose, by the core's name, and the height of the wind: kept. */
 	layer = $state('thermals');
 	heightM = $state<number>();
+	/** The height of the wind above the model's ground, for a level that is one. */
+	aboveGroundM = $state<number>();
 	/** The hour the pilot chose on the line of hours; "day" for the day as a whole. */
 	chosenHour = $state<number | 'day'>();
 
 	/** What the hours are asked for: nothing where the map has none. */
-	readonly asked = $derived(hoursAsked(this.map, this.day, this.layer, this.heightM));
+	readonly asked = $derived(
+		hoursAsked(this.map, this.day, this.layer, this.heightM, this.aboveGroundM)
+	);
 	/** The hours of what is asked, once read. */
 	hours = $state.raw<{ asked: HoursAsked; view: ThermalMapHoursView }>();
 	/** Whether the hours are being asked for. */
@@ -87,6 +102,7 @@ export class ThermalMapModel {
 		map: ThermalMap;
 		layer: string;
 		heightM: number | undefined;
+		aboveGroundM: number | undefined;
 		days: (ThermalMapHoursView | undefined)[];
 	}>();
 
@@ -105,6 +121,7 @@ export class ThermalMapModel {
 		const kept = forecastChoice(globalThis.localStorage);
 		this.layer = kept.layer;
 		this.heightM = kept.heightM;
+		this.aboveGroundM = kept.aboveGroundM;
 	}
 
 	/** Shows another layer; on another layer the hours start again where the core says. */
@@ -112,13 +129,22 @@ export class ThermalMapModel {
 		if (layer === this.layer) return;
 		this.layer = layer;
 		this.chosenHour = undefined;
-		keepForecastChoice(globalThis.localStorage, { layer, heightM: this.heightM });
+		keepForecastChoice(globalThis.localStorage, {
+			layer,
+			heightM: this.heightM,
+			aboveGroundM: this.aboveGroundM
+		});
 	}
 
-	/** Shows the wind at another height, or at the ground; the hour stays. */
-	chooseHeight(heightM: number | undefined): void {
-		this.heightM = heightM;
-		keepForecastChoice(globalThis.localStorage, { layer: this.layer, heightM });
+	/** Shows the wind at another level, or at the ground; the hour stays. */
+	chooseHeight(level: WindLevel): void {
+		this.heightM = level.heightM;
+		this.aboveGroundM = level.aboveGroundM;
+		keepForecastChoice(globalThis.localStorage, {
+			layer: this.layer,
+			heightM: level.heightM,
+			aboveGroundM: level.aboveGroundM
+		});
 	}
 
 	/** Shows another day; its hours start again where the core says. */
@@ -160,9 +186,17 @@ export class ThermalMapModel {
 	 */
 	async loadLine(): Promise<void> {
 		const map = this.map;
-		const { layer, heightM } = this;
+		const { layer, heightM, aboveGroundM } = this;
 		const line = this.line;
-		if (line && line.map === map && line.layer === layer && line.heightM === heightM) return;
+		if (
+			line &&
+			line.map === map &&
+			line.layer === layer &&
+			line.heightM === heightM &&
+			line.aboveGroundM === aboveGroundM
+		) {
+			return;
+		}
 		const mine = ++this.#lineAsked;
 		if (!map || map.layers.length === 0) {
 			this.line = undefined;
@@ -170,13 +204,13 @@ export class ThermalMapModel {
 		}
 		const days = await Promise.all(
 			map.days.map((day) => {
-				const asked = hoursAsked(map, day, layer, heightM);
+				const asked = hoursAsked(map, day, layer, heightM, aboveGroundM);
 				return asked
 					? this.#core.thermalHours(asked).catch(() => undefined)
 					: Promise.resolve(undefined);
 			})
 		);
-		if (mine === this.#lineAsked) this.line = { map, layer, heightM, days };
+		if (mine === this.#lineAsked) this.line = { map, layer, heightM, aboveGroundM, days };
 	}
 
 	/** Asks for what the map draws of the hour shown; nothing to draw for the day. */
@@ -206,6 +240,17 @@ export class ThermalMapModel {
 		const hours = this.view ? this.hours : undefined;
 		return hours
 			? this.#core.thermalCellAt(hours.asked, place.lat, place.lon)
+			: Promise.resolve(undefined);
+	}
+
+	/**
+	 * The forecast wind at each place in the hour drawn, as its shapes were
+	 * asked for: the take-offs' fans. Nothing while no hour is drawn.
+	 */
+	windsAt(places: Coordinate[]): Promise<(ThermalMapWind | undefined)[] | undefined> {
+		const shapes = this.shapes;
+		return shapes && places.length > 0
+			? this.#core.thermalWindsAt(shapes.asked, shapes.hour, places)
 			: Promise.resolve(undefined);
 	}
 

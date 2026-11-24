@@ -220,8 +220,9 @@ describe('the hours of a day, layer by layer', () => {
 	const withHours = {
 		layers: [choice('thermals'), choice('wind', true), choice('gusts'), choice('cloud')],
 		levels: [
-			{ heightM: undefined, name: 'Ground', words: '' },
-			{ heightM: 2000, name: '2000 m', words: '' }
+			{ heightM: undefined, name: 'Ground', words: '', aboveGroundM: undefined },
+			{ heightM: undefined, name: '250 m AGL', words: '', aboveGroundM: 250 },
+			{ heightM: 2000, name: '2000 m', words: '', aboveGroundM: undefined }
 		]
 	};
 	const day = { date: '2026-07-12' };

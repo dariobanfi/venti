@@ -232,10 +232,15 @@ export type {
 	ThermalMapHoursView,
 	ThermalMapKey,
 	ThermalMapLayerChoice,
+	ThermalMapWind,
 	ThermalMapLevel,
 	ThermalMapScale,
 	ThermalMapShapes,
 	ThermalStripDay,
+	RegionForecastView,
+	RegionLevel,
+	RegionLevelKey,
+	RegionReadingView,
 	SitesFilter,
 	SitesFilterChoices,
 	SitesFiltered,
@@ -345,6 +350,7 @@ export type {
 } from './community-source';
 export type { LiveAnswer, LiveFollowAnswer, LiveOthersAnswer } from './live-source';
 export type { HoursAsked } from './thermal-map-source';
+export type { RegionDay, RegionOutlines } from './regions-source';
 export type { RadarColours } from './radar-source';
 
 /** The kinds of error the core itself raises. Their messages are fit to show as they are. */

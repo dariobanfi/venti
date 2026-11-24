@@ -10,7 +10,7 @@
  */
 
 import tokens from '../../../../../design/tokens/tokens.json';
-import type { ThermalMapKey, WindBand } from '#lib/core/index.ts';
+import type { RegionLevel, ThermalMapKey, WindBand } from '#lib/core/index.ts';
 
 /** A colour of the pack's light theme, by its group and name. */
 function light(group: Record<string, { $value: string }>, name: string): string {
@@ -210,3 +210,25 @@ export function keyColor(key: Pick<ThermalMapKey, 'scale' | 'scaleStep'>): strin
 export const SLOPE_ON_MAP: readonly string[] = [2, 3, 4, 5, 6].map((index) =>
 	light(tokens.scale.thermal.light, String(index))
 );
+
+/**
+ * The day's five levels as the forecast by region fills its areas: the
+ * pack's `level-*` colour with its own fill opacity over the land, in the
+ * light values, the map being light in both appearances (design/DESIGN.md,
+ * "Day levels").
+ */
+export const LEVEL_ON_MAP: Readonly<Record<RegionLevel, { color: string; opacity: number }>> = {
+	notFlyable: levelLook('not-flyable'),
+	glidesOnly: levelLook('glides-only'),
+	weak: levelLook('weak'),
+	good: levelLook('good'),
+	veryGood: levelLook('very-good')
+};
+
+function levelLook(name: string): { color: string; opacity: number } {
+	const group = tokens.level.light as unknown as Record<string, { $value: string | number }>;
+	return {
+		color: String(group[name].$value),
+		opacity: Number(group[`${name}-fill-opacity`].$value)
+	};
+}

@@ -16,13 +16,14 @@ import type {
 	FillLayerSpecification,
 	SymbolLayerSpecification
 } from 'maplibre-gl';
-import type { ThermalMapKey } from '#lib/core/index.ts';
+import type { ThermalMapKey, WindBand } from '#lib/core/index.ts';
 import {
 	keyColor,
 	LABEL_ON_MAP,
 	NOT_FLYABLE_ON_MAP,
 	PAPER_ON_MAP,
-	THERMAL_ON_MAP
+	THERMAL_ON_MAP,
+	WIND_BANDS
 } from '#lib/design/palette.ts';
 
 export const THERMAL_SOURCE = 'thermal-squares';
@@ -33,8 +34,12 @@ export const THERMAL_ARROWS = 'thermal-arrows';
 /** The zoom from which an arrow's numbers fit beside the next square's. */
 export const ARROW_LABELS_FROM_ZOOM = 10;
 
-/** How large a forecast arrow is beside a station's: smaller, so as not to be taken for one. */
-const ARROW_SIZE = 0.7;
+/**
+ * How large a forecast arrow is beside a station's of its band: a little
+ * smaller, so as not to be taken for one, and larger as the wind is
+ * stronger, as the stations' are.
+ */
+const ARROW_SIZE = 0.8;
 
 /**
  * The base map's layers the squares lie under, the lowest first: the cable
@@ -117,9 +122,10 @@ export function hourFill(
 }
 
 /**
- * The arrows of an hour: the wind stations' dart, smaller and without
- * their numbers until they fit, turned where the wind blows. Calm is the
- * stations' pale dot. They lie under the stations.
+ * The arrows of an hour: the wind stations' dart in its band's step of the
+ * pack's wind scale, without their numbers until they fit, turned where
+ * the wind blows. Calm is the stations' pale dot. They lie under the
+ * stations, and on the wind's layers stand in place of its squares.
  */
 export function arrowsLayer(font: string): SymbolLayerSpecification {
 	return {
@@ -135,7 +141,15 @@ export function arrowsLayer(font: string): SymbolLayerSpecification {
 			],
 			'icon-rotate': ['get', 'heading'],
 			'icon-rotation-alignment': 'map',
-			'icon-size': ARROW_SIZE,
+			'icon-size': [
+				'match',
+				['get', 'band'],
+				...(Object.keys(WIND_BANDS) as WindBand[]).flatMap((band) => [
+					band,
+					ARROW_SIZE * WIND_BANDS[band].arrowScale
+				]),
+				ARROW_SIZE
+			] as unknown as ExpressionSpecification,
 			'text-field': ['step', ['zoom'], '', ARROW_LABELS_FROM_ZOOM, ['get', 'label']],
 			'text-font': [font],
 			'text-size': 11,

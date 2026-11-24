@@ -38,6 +38,12 @@ export interface AlertsHeld {
 	alerts: AlertView[];
 	/** What fired, the newest first. */
 	fired: FiredLine[];
+	/**
+	 * The cursor of the last answer of what fired that the browser fetched,
+	 * for the marker of what is new (`unreadSeenRequest`); none signed out
+	 * and before the first fetch.
+	 */
+	firedCursor: string | undefined;
 }
 
 /** How a run of fetching the alarms ended. */
@@ -91,7 +97,8 @@ export class AlertsSource {
 	async held(nowUnixS: number, utcOffsetS: number): Promise<AlertsHeld> {
 		return {
 			alerts: await this.#session.ask((core) => core.alertsHeld()),
-			fired: await this.#session.ask((core) => core.alertsFiredHeld(nowUnixS, utcOffsetS))
+			fired: await this.#session.ask((core) => core.alertsFiredHeld(nowUnixS, utcOffsetS)),
+			firedCursor: (await this.#session.ask((core) => core.alertsFiredCursor())) ?? undefined
 		};
 	}
 

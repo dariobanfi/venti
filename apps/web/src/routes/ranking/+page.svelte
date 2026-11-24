@@ -8,7 +8,17 @@
 	as the core names them (`Ranking.periods`): a month is pressed to see
 	its ranking and pressed again for the whole year. The line over the list
 	says the period in the core's words.
+
+	Beside the filter, whose pilots: "Global", or one country's alone (a
+	national ranking, by the country the pilots set on their account), the
+	reader's own first; in the address too, `?pilots=AT`. A flag stands
+	before each ranked pilot who set a country.
 -->
+<script lang="ts" module>
+	/** The address's name for the country whose pilots alone are ranked. */
+	const PILOTS = 'pilots';
+</script>
+
 <script lang="ts">
 	import { browser } from '$app/env';
 	import { goto } from '$app/navigation';
@@ -25,6 +35,8 @@
 	import YearChips from '#lib/design/YearChips.svelte';
 	import { isSearching, NO_SEARCH, searchIn, withSearch } from '#lib/community/flight-search.ts';
 	import SearchFilter from '#lib/community/SearchFilter.svelte';
+	import Flag from '#lib/community/Flag.svelte';
+	import { countries, countryName } from '#lib/community/country.ts';
 
 	const app = getApp();
 	const everyone = $derived(app.everyone);
@@ -36,11 +48,20 @@
 	/** What the flights ranked are searched by, as the address says: a country, an area and more. */
 	const search = $derived(browser ? searchIn(page.url.searchParams) : NO_SEARCH);
 
+	/** Whose pilots are ranked, as the address says: a country's two letters, or empty for all. */
+	const pilotsFrom = $derived(
+		browser ? (page.url.searchParams.get(PILOTS) ?? '').toUpperCase().slice(0, 2) : ''
+	);
+	/** The reader's own country, first among the choices. */
+	const ownCountry = $derived(app.account?.account?.country);
+	/** Every country, by name. */
+	const everyCountry = countries();
+
 	const ranking = $derived(everyone?.ranking ?? NOT_RANKED);
 	/** The core's words around the ranking: the season's choice, the empty month's sentence. */
 	const said = $derived(everyone?.pilotsWords);
 	const nothing = $derived(
-		isSearching(search)
+		isSearching(search) || pilotsFrom
 			? ranking.problem
 				? { title: 'The ranking could not be fetched', says: ranking.problem }
 				: {
@@ -50,7 +71,23 @@
 			: nothingRanked({ ...ranking, monthEmpty: said?.monthEmpty })
 	);
 
-	$effect(() => everyone?.showRanking(asked, askedMonth, search));
+	$effect(() => everyone?.showRanking(asked, askedMonth, search, pilotsFrom));
+
+	/** An address of the ranking with the pilots' country it shows kept, or another. */
+	function withPilots(href: string, country = pilotsFrom): string {
+		if (!country) return href;
+		return `${href}${href.includes('?') ? '&' : '?'}${PILOTS}=${encodeURIComponent(country)}`;
+	}
+
+	/** Ranks the pilots of a country, or with none all of them: the season, month and search stay. */
+	function choosePilots(country: string): void {
+		const href = askedMonth ? rankingHref('', askedMonth) : rankingHref(asked);
+		void goto(withPilots(withSearch(href, search), country), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
+	}
 
 	/**
 	 * Asks for another season: the address changes in place, with the
@@ -60,7 +97,7 @@
 		// The newest season needs no name: the address of the page alone is
 		// this year's ranking next year too.
 		const named = season === ranking.seasons[0] ? '' : season;
-		void goto(withSearch(rankingHref(named), search), {
+		void goto(withPilots(withSearch(rankingHref(named), search)), {
 			replaceState: true,
 			keepFocus: true,
 			noScroll: true
@@ -71,13 +108,21 @@
 	function askMonth(month: string) {
 		const whole = ranking.season === ranking.seasons[0] ? '' : ranking.season;
 		const href = month === ranking.askedMonth ? rankingHref(whole) : rankingHref('', month);
-		void goto(withSearch(href, search), { replaceState: true, keepFocus: true, noScroll: true });
+		void goto(withPilots(withSearch(href, search)), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}
 
 	/** Ranks the flights of another search: the season and month stay. */
 	function find(next: typeof search): void {
 		const href = askedMonth ? rankingHref('', askedMonth) : rankingHref(asked);
-		void goto(withSearch(href, next), { replaceState: true, keepFocus: true, noScroll: true });
+		void goto(withPilots(withSearch(href, next)), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}
 
 	/** What the ranking is of, as the core calls it. */
@@ -115,6 +160,25 @@
 		{/if}
 
 		<div class="asked">
+			<label class="pilots" class:on={pilotsFrom !== ''}>
+				<span class="visually-hidden">Pilots from</span>
+				<Flag code={pilotsFrom || undefined} />
+				<select
+					aria-label="Pilots from"
+					value={pilotsFrom}
+					onchange={(event) => choosePilots(event.currentTarget.value)}
+				>
+					<option value="">Global</option>
+					{#if ownCountry}
+						<option value={ownCountry}>{countryName(ownCountry)}</option>
+					{/if}
+					<optgroup label="Every country">
+						{#each everyCountry as country (country.code)}
+							<option value={country.code}>{country.name}</option>
+						{/each}
+					</optgroup>
+				</select>
+			</label>
 			<SearchFilter {search} onsearch={find} />
 		</div>
 
@@ -211,6 +275,41 @@
 		align-items: center;
 		gap: var(--space-2) var(--space-4);
 		margin-bottom: var(--space-3);
+	}
+
+	/* Whose pilots: the pack's chip, in the primary colour while a country is chosen. */
+	.pilots {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
+		min-height: var(--space-6);
+		padding: 0 var(--space-3);
+		border-radius: var(--radius-pill);
+		background: var(--fill);
+		color: var(--text);
+		font-size: var(--subheadline);
+		font-weight: 500;
+	}
+
+	.pilots.on {
+		background: var(--accent);
+		color: var(--on-accent);
+	}
+
+	/* As wide as the choice shown, not the longest name of a country. */
+	.pilots select {
+		field-sizing: content;
+		max-width: 12rem;
+		border: 0;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+	}
+
+	.pilots select option,
+	.pilots select optgroup {
+		background: var(--surface);
+		color: var(--text);
 	}
 
 	.period-title {

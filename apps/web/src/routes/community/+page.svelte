@@ -31,7 +31,6 @@
 	import OpenPlanForm from '#lib/community/OpenPlanForm.svelte';
 	import OpenPlansNear from '#lib/community/OpenPlansNear.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { LEFT_AS_IT_IS } from '#lib/social/unread.svelte.ts';
 	import {
 		accountHref,
 		everyoneHref,
@@ -103,7 +102,7 @@
 				if (!current) return;
 				told = answer;
 				// Shown: the marker of what is new moves past it, the alarms' as it is.
-				if (answer) void app.unread?.seen({ notifications: answer.cursor, alarms: LEFT_AS_IT_IS });
+				if (answer) void app.unread?.seen({ notifications: answer.cursor });
 			},
 			(error) => {
 				const why = error instanceof Error ? error.message : String(error);

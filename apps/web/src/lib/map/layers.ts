@@ -26,6 +26,7 @@ const SLOPES_KEY = 'venti.map-slopes';
 const CANDIDATES_KEY = 'venti.map-candidates';
 const FORECAST_LAYER_KEY = 'venti.map-forecast-layer';
 const FORECAST_HEIGHT_KEY = 'venti.map-forecast-height';
+const FORECAST_ABOVE_GROUND_KEY = 'venti.map-forecast-above-ground';
 
 /**
  * Whether the pilot looks at the aerial view instead of the drawn ground,
@@ -256,14 +257,18 @@ export function keepLayersOff(
 export interface ForecastChoice {
 	layer: string;
 	heightM: number | undefined;
+	/** The height above the model's ground, for a level that is one: 250. */
+	aboveGroundM?: number;
 }
 
 export function forecastChoice(storage: Pick<Storage, 'getItem'> | undefined): ForecastChoice {
 	try {
 		const height = Number(storage?.getItem(FORECAST_HEIGHT_KEY) ?? undefined);
+		const aboveGround = Number(storage?.getItem(FORECAST_ABOVE_GROUND_KEY) ?? undefined);
 		return {
 			layer: storage?.getItem(FORECAST_LAYER_KEY) ?? 'thermals',
-			heightM: Number.isFinite(height) && height > 0 ? height : undefined
+			heightM: Number.isFinite(height) && height > 0 ? height : undefined,
+			...(Number.isFinite(aboveGround) && aboveGround > 0 ? { aboveGroundM: aboveGround } : {})
 		};
 	} catch {
 		return { layer: 'thermals', heightM: undefined };
@@ -279,6 +284,8 @@ export function keepForecastChoice(
 		storage?.setItem(FORECAST_LAYER_KEY, choice.layer);
 		if (choice.heightM === undefined) storage?.removeItem(FORECAST_HEIGHT_KEY);
 		else storage?.setItem(FORECAST_HEIGHT_KEY, String(choice.heightM));
+		if (choice.aboveGroundM === undefined) storage?.removeItem(FORECAST_ABOVE_GROUND_KEY);
+		else storage?.setItem(FORECAST_ABOVE_GROUND_KEY, String(choice.aboveGroundM));
 	} catch {
 		// A private window, or no storage: the choice lasts for the visit.
 	}

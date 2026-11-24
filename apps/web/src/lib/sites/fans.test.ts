@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SiteView } from '#lib/core/index.ts';
 import { CAUTION_ON_MAP, GOOD_ON_MAP, INK_ON_MAP } from '#lib/design/palette.ts';
-import { fanFeatures, fanName, fanOf, fitColour, fitOf, groundWinds, windFits } from './fans';
+import { fanFeatures, fanName, fanOf, fitColour, fitOf, groundWindOf, windFits } from './fans';
 
 const NORTH_TO_SOUTHWEST = [{ fromDeg: 0, toDeg: 225 }];
 const THROUGH_NORTH = [{ fromDeg: 315, toDeg: 45 }];
@@ -27,21 +27,6 @@ function site(id: string, uses: SiteView['uses'], wind: SiteView['wind']): SiteV
 	} as unknown as SiteView;
 }
 
-/** The core's arrows of an hour: a point per square, pointing where the wind blows. */
-function arrows(...squares: [lat: number, lon: number, heading: number | 'calm'][]) {
-	return {
-		type: 'FeatureCollection' as const,
-		features: squares.map(([lat, lon, heading]) => ({
-			type: 'Feature' as const,
-			geometry: { type: 'Point' as const, coordinates: [lon, lat] },
-			properties:
-				heading === 'calm'
-					? { cell: 0, symbol: 'calm', band: '0', heading: 0, label: '' }
-					: { cell: 0, symbol: 'arrow', band: '2', heading, label: '12' }
-		}))
-	};
-}
-
 describe('a take-off’s fan', () => {
 	it('fits a wind from within its spans, through north too, and a single direction’s sixteenth', () => {
 		expect(windFits(NORTH_TO_SOUTHWEST, 90)).toBe(true);
@@ -54,13 +39,16 @@ describe('a take-off’s fan', () => {
 		expect(windFits([{ fromDeg: 0, toDeg: 360 }], 123)).toBe(true);
 	});
 
-	it('reads the wind of the square a take-off lies in from the core’s arrows, and nothing far from any', () => {
-		// An arrow pointing south is a wind from the north.
-		const at = groundWinds(arrows([47.5, 11.5, 180], [47.6, 11.5, 'calm']));
-		expect(at(47.51, 11.49)).toEqual({ fromDeg: 0 });
-		expect(at(47.59, 11.5)).toBe('calm');
-		expect(at(48.5, 11.5)).toBeUndefined();
-		expect(groundWinds(undefined)(47.5, 11.5)).toBeUndefined();
+	it('reads the core’s wind at a take-off: where it comes from, calm, or nothing', () => {
+		expect(groundWindOf({ kmh: 12, fromDeg: 0, gustKmh: 20, band: 'moderate' })).toEqual({
+			fromDeg: 0
+		});
+		// Below 2 km/h the core draws a calm, and so does a wind without a direction.
+		expect(groundWindOf({ kmh: 1, fromDeg: 90, gustKmh: undefined, band: 'light' })).toBe('calm');
+		expect(groundWindOf({ kmh: 8, fromDeg: undefined, gustKmh: undefined, band: 'light' })).toBe(
+			'calm'
+		);
+		expect(groundWindOf(undefined)).toBeUndefined();
 	});
 
 	it('is the pack’s good colour where the wind fits, caution where not, and neutral without one', () => {
@@ -92,15 +80,30 @@ describe('a take-off’s fan', () => {
 		expect(plain.features.map((fan) => fan.properties?.id)).toEqual(['ramp', 'both']);
 		expect(plain.features[0].properties?.picture).toBe('site-fan:neutral:180-180');
 		// With the forecast’s wind from the west at the ground.
-		const coloured = fanFeatures(sites, () => ({ fromDeg: 270 }));
+		const coloured = fanFeatures(
+			sites,
+			new Map([
+				['ramp', { fromDeg: 270 }],
+				['both', { fromDeg: 270 }]
+			])
+		);
 		expect(coloured.features.map((fan) => fan.properties?.picture)).toEqual([
 			'site-fan:misfits:180-180',
 			'site-fan:misfits:0-225'
 		]);
-		const fromSouth = fanFeatures(sites, () => ({ fromDeg: 180 }));
+		const fromSouth = fanFeatures(
+			sites,
+			new Map([
+				['ramp', { fromDeg: 180 }],
+				['both', { fromDeg: 180 }]
+			])
+		);
 		expect(fromSouth.features.map((fan) => fan.properties?.picture)).toEqual([
 			'site-fan:fits:180-180',
 			'site-fan:fits:0-225'
 		]);
+		// A take-off the forecast has nothing for stays neutral.
+		const one = fanFeatures(sites, new Map([['ramp', { fromDeg: 180 }]]));
+		expect(one.features[1].properties?.picture).toBe('site-fan:neutral:0-225');
 	});
 });

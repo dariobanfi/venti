@@ -143,3 +143,57 @@ test('a server that cannot rank says so, and can be asked again', async ({ conte
 	await page.getByRole('button', { name: 'Try again' }).click();
 	await expect(pilots(page)).toHaveCount(RANKED);
 });
+
+test('the ranking is of every pilot or of one country’s, with a flag before each pilot', async ({
+	context,
+	page,
+	keep
+}) => {
+	// MADE UP: the development mode's pilots set no country. Each answer is
+	// given one for three of them, and a national ranking is answered as the
+	// server would, from the global one with the other pilots left out.
+	const COUNTRY: Record<string, string> = { lena: 'AT', mara: 'DE', jonas: 'DE' };
+	const asked: (string | null)[] = [];
+	await context.route('**/v1/ranking**', async (route) => {
+		const url = new URL(route.request().url());
+		const only = url.searchParams.get('pilot_country');
+		asked.push(only);
+		url.searchParams.delete('pilot_country');
+		const answer = await route.fetch({ url: url.toString() });
+		const body = await answer.json();
+		for (const ranked of body.pilots) ranked.pilot.country = COUNTRY[ranked.pilot.handle];
+		if (only) {
+			body.pilots = body.pilots.filter(
+				(ranked: { pilot: { country?: string } }) => ranked.pilot.country === only
+			);
+		}
+		await route.fulfill({ response: answer, json: body });
+	});
+	await page.goto('/ranking/?season=2026');
+	const from = page.getByRole('combobox', { name: 'Pilots from' });
+	await expect(from).toHaveValue('');
+	await expect(from.locator('option:checked')).toHaveText('Global');
+	await expect(pilots(page)).toHaveCount(RANKED);
+	// A flag before the pilots who set a country, none before the others.
+	await expect(pilots(page).first()).toContainText('Lena Probe');
+	await expect(pilots(page).first().getByRole('img', { name: 'Austria' })).toBeVisible();
+	await expect(pilots(page).last().getByRole('img', { name: 'Austria' })).toHaveCount(0);
+	expect(asked.at(-1)).toBeNull();
+
+	// Germany's pilots alone: the address keeps it, through another season too.
+	await from.selectOption('DE');
+	await expect(page).toHaveURL(/[?&]pilots=DE$/);
+	await expect(pilots(page)).toHaveCount(2);
+	await expect(pilots(page).first()).toContainText('Mara Muster');
+	await expect(pilots(page).first().getByRole('img', { name: 'Germany' })).toBeVisible();
+	expect(asked.at(-1)).toBe('DE');
+	await keep('84c-ranking-country');
+	await page.getByRole('radio', { name: 'All years' }).check();
+	await expect(page).toHaveURL(/\?season=All(%20|\+)years&pilots=DE$/);
+	await expect(pilots(page)).toHaveCount(2);
+
+	// Global again.
+	await from.selectOption('');
+	await expect(page).toHaveURL(/\?season=All(%20|\+)years$/);
+	await expect(pilots(page)).toHaveCount(RANKED);
+});

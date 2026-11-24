@@ -398,10 +398,17 @@ export class CoreClient {
 	 * The server's pilots ranked by their best public flights, in the
 	 * season of that name or in the newest, and with a place only of the
 	 * flights from there; with a month, as the ranking's periods write
-	 * one, of that month. Nothing if this site has no server.
+	 * one, of that month; with a country, two letters, of its pilots alone.
+	 * Nothing if this site has no server.
 	 */
-	ranking(season?: string, near?: Coordinate, month?: string, search?: FlightSearch) {
-		return this.#call('ranking', { season, near, month, search });
+	ranking(
+		season?: string,
+		near?: Coordinate,
+		month?: string,
+		search?: FlightSearch,
+		pilotCountry?: string
+	) {
+		return this.#call('ranking', { season, near, month, search, pilotCountry });
 	}
 
 	/**
@@ -540,6 +547,16 @@ export class CoreClient {
 		});
 	}
 
+	/** The regions of the forecast by region; again when a forecast names another set. */
+	regionOutlines(version?: string) {
+		return this.#call('regionOutlines', version);
+	}
+
+	/** A day of the forecast by region, by the thermal map's date of it. */
+	regionDay(date: string) {
+		return this.#call('regionDay', date);
+	}
+
 	/** The kind of day, square by square, from today on. Nothing if this site has no server. */
 	thermalMap() {
 		return this.#call('thermalMap', undefined);
@@ -563,6 +580,11 @@ export class CoreClient {
 	/** The square a place lies in. */
 	thermalCellAt(asked: HoursAsked, lat: number, lon: number) {
 		return this.#call('thermalCellAt', { asked, lat, lon });
+	}
+
+	/** The forecast wind at each place in one hour: the take-offs' fans. */
+	thermalWindsAt(asked: HoursAsked, hour: number, places: Coordinate[]) {
+		return this.#call('thermalWindsAt', { asked, hour, places });
 	}
 
 	/** Every day of the map at the square of a place, side by side. */
@@ -913,7 +935,7 @@ export class CoreClient {
 		return this.#call('unread', undefined);
 	}
 
-	/** The lists were seen, up to these cursors; each left out for up to the newest. */
+	/** The lists were seen, up to these cursors, "" for up to the newest; one left out keeps its mark. */
 	unreadSeen(seen: { notifications?: string; alarms?: string }) {
 		return this.#call('unreadSeen', {
 			notifications: seen.notifications,

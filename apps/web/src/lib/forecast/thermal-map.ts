@@ -142,6 +142,17 @@ export function isDue(
 	return nowMs - fetchedMs >= KEEP_MS;
 }
 
+/** A level of the wind: its height above the sea, or above the model's ground, or neither for the ground. */
+export interface WindLevel {
+	heightM?: number;
+	aboveGroundM?: number;
+}
+
+/** Whether a level of the map is the one chosen. */
+export function isLevel(level: WindLevel, chosen: WindLevel): boolean {
+	return level.heightM === chosen.heightM && level.aboveGroundM === chosen.aboveGroundM;
+}
+
 /**
  * What to ask the server for, for the layer and the height the pilot chose
  * on the day shown: nothing where the map has no hours (a server without
@@ -153,24 +164,33 @@ export function hoursAsked(
 	map: Pick<ThermalMap, 'layers' | 'levels'> | undefined,
 	day: Pick<ThermalMapDay, 'date'> | undefined,
 	layer: string,
-	heightM: number | undefined
+	heightM: number | undefined,
+	aboveGroundM?: number
 ): HoursAsked | undefined {
 	if (!map || !day || map.layers.length === 0) return undefined;
 	const chosen = map.layers.find((one) => one.layer === layer) ?? map.layers[0];
-	const level = chosen.hasLevels
-		? map.levels.find((one) => one.heightM !== undefined && one.heightM === heightM)
-		: undefined;
+	const wanted = { heightM, aboveGroundM };
+	const level =
+		chosen.hasLevels && (heightM !== undefined || aboveGroundM !== undefined)
+			? map.levels.find((one) =>
+					isLevel({ heightM: one.heightM, aboveGroundM: one.aboveGroundM }, wanted)
+				)
+			: undefined;
 	return {
 		date: day.date,
 		layer: chosen.layer as ThermalHoursLayer,
-		...(level?.heightM === undefined ? {} : { heightM: level.heightM })
+		...(level?.heightM === undefined ? {} : { heightM: level.heightM }),
+		...(level?.aboveGroundM === undefined ? {} : { aboveGroundM: level.aboveGroundM })
 	};
 }
 
 /** Whether two askings are for the same answer. */
 export function sameAsked(one: HoursAsked | undefined, other: HoursAsked | undefined): boolean {
 	return (
-		one?.date === other?.date && one?.layer === other?.layer && one?.heightM === other?.heightM
+		one?.date === other?.date &&
+		one?.layer === other?.layer &&
+		one?.heightM === other?.heightM &&
+		one?.aboveGroundM === other?.aboveGroundM
 	);
 }
 

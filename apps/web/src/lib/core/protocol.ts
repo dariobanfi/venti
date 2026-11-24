@@ -124,6 +124,7 @@ import type {
 	StationAir,
 	StationDay,
 	ThermalMapHourSquare,
+	ThermalMapWind,
 	ThermalMapHoursView,
 	ThermalMapShapes,
 	ThermalStripDay,
@@ -195,6 +196,7 @@ import type { SitesSource } from './sites-source';
 import type { Box, TakeoffsSource } from './takeoffs-source';
 import type { RadarColours, RadarSource } from './radar-source';
 import type { HoursAsked, ThermalMapSource } from './thermal-map-source';
+import type { RegionDay, RegionOutlines, RegionsSource } from './regions-source';
 import type { AccessWanted, ProgramView, TokensSource } from './tokens-source';
 import type { AgreementRead, AgreementSaid, AgreementSource } from './agreement-source';
 import type { FoehnSource } from './foehn-source';
@@ -406,7 +408,13 @@ export interface Calls {
 	 * public flights. Nothing if this site has no server.
 	 */
 	ranking: {
-		given: { season?: string; near?: Coordinate; month?: string; search?: FlightSearch };
+		given: {
+			season?: string;
+			near?: Coordinate;
+			month?: string;
+			search?: FlightSearch;
+			pilotCountry?: string;
+		};
 		answer: SeasonRanking | undefined;
 	};
 	/** The chips of a search of public flights, one a choice, in the core's words. */
@@ -535,8 +543,17 @@ export interface Calls {
 		given: { asked: HoursAsked; lat: number; lon: number };
 		answer: number | undefined;
 	};
+	/** The forecast wind at each place in one hour of hours read before: the take-offs' fans. */
+	thermalWindsAt: {
+		given: { asked: HoursAsked; hour: number; places: Coordinate[] };
+		answer: (ThermalMapWind | undefined)[];
+	};
 	/** Every day of the map at the square of a place, side by side. */
 	thermalStrip: { given: Coordinate; answer: ThermalStripDay[] };
+	/** The regions of the forecast by region, again when a forecast names another set (`version`). */
+	regionOutlines: { given: string | undefined; answer: RegionOutlines | undefined };
+	/** A day of the forecast by region, for the day and hour by hour. */
+	regionDay: { given: string; answer: RegionDay | undefined };
 	/**
 	 * The rain radar's layers and their frames, as the server has them now.
 	 * Nothing if this site has no server.
@@ -887,6 +904,7 @@ export interface Answering {
 	terrain: TerrainSource;
 	today: TodaySource;
 	thermals: ThermalMapSource;
+	regions: RegionsSource;
 	radar: RadarSource;
 	routeWeather: RouteWeatherSource;
 	glideReach: GlideReachSource;
@@ -919,6 +937,7 @@ export async function answer<Name extends CallName>(
 		terrain,
 		today,
 		thermals,
+		regions,
 		radar,
 		routeWeather,
 		glideReach,
@@ -993,8 +1012,8 @@ export async function answer<Name extends CallName>(
 		liveAges: (asked) => live.ages(asked),
 		publicFlights: (asked) => community.flights(asked),
 		pilotPage: ({ handle, after }) => community.pilot(handle, after),
-		ranking: ({ season, near, month, search }) =>
-			community.ranking(season, near, undefined, month, search),
+		ranking: ({ season, near, month, search, pilotCountry }) =>
+			community.ranking(season, near, undefined, month, search, pilotCountry),
 		searchChips: (search) => searchChips(search),
 		searchChoices: () => searchChoices(),
 		searchRefused: (search) => searchRefused(search),
@@ -1027,7 +1046,10 @@ export async function answer<Name extends CallName>(
 		thermalHourShapes: ({ asked, hour }) => thermals.shapes(asked, hour),
 		thermalHourSquare: ({ asked, cell, hour }) => thermals.square(asked, cell, hour),
 		thermalCellAt: ({ asked, lat, lon }) => thermals.cellAt(asked, lat, lon),
+		thermalWindsAt: ({ asked, hour, places }) => thermals.windsAt(asked, hour, places),
 		thermalStrip: (place) => thermals.strip(place.lat, place.lon),
+		regionOutlines: (version) => regions.outlines(version),
+		regionDay: (date) => regions.day(date),
 		radar: () => radar.radar(),
 		radarAgain: () => radar.again(),
 		radarPicture: ({ path, above, colours }) => radar.picture(path, above, colours),

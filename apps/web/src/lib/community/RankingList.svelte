@@ -11,6 +11,7 @@
 	import type { RankedPilot } from '#lib/core/index.ts';
 	import { flightFormat, format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
+	import Flag from './Flag.svelte';
 	import PilotFace from './PilotFace.svelte';
 	import { distance, shape } from './words';
 
@@ -36,7 +37,10 @@
 			<div class="who">
 				<div class="head">
 					<span class="name">
-						<a href={pilotHref(pilot.handle)}>{pilot.name}</a>
+						<span class="named">
+							<Flag code={pilot.country} />
+							<a href={pilotHref(pilot.handle)}>{pilot.name}</a>
+						</span>
 						<span class="counted">{pilot.counted}</span>
 					</span>
 					<span class="points numeric">
@@ -128,6 +132,14 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.125rem;
+	}
+
+	/* The pilot's flag before the name, as rows of flights have it. */
+	.named {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-1);
+		min-width: 0;
 	}
 
 	.name a {

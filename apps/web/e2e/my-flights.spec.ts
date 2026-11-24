@@ -53,7 +53,7 @@ test('a visitor who is not signed in is asked to, and the logbook’s address le
 
 	// A file dropped without an account is not kept anywhere: the page says to sign in.
 	await dropFiles(page, [mixed[0]]);
-	const notice = page.getByRole('dialog', { name: 'Sign in to bring in flights' });
+	const notice = page.getByRole('dialog', { name: 'Sign in to import flights' });
 	await expect(notice).toBeVisible();
 	await notice.getByRole('button', { name: 'OK' }).click();
 
@@ -80,13 +80,13 @@ test('flights are brought in with the file picker, several at once, and listed b
 
 	// The button opens the browser's file picker. Any file can be chosen.
 	const picker = page.waitForEvent('filechooser');
-	await page.getByRole('button', { name: 'Bring in flights' }).first().click();
+	await page.getByRole('button', { name: 'Import flights' }).first().click();
 	const chooser = await picker;
 	expect(chooser.isMultiple()).toBe(true);
 	await chooser.setFiles(asUploads(mixed));
 
 	// The file that is not a flight is named, with the reason.
-	const notice = page.getByRole('dialog', { name: '1 file could not be brought in' });
+	const notice = page.getByRole('dialog', { name: '1 file could not be imported' });
 	await expect(notice).toBeVisible();
 	await expect(notice).toContainText('notes.txt: ');
 	await keep('13-import-notice');
@@ -111,7 +111,7 @@ test('flights are brought in with the file picker, several at once, and listed b
 		.locator('input[type=file]')
 		.setInputFiles(asUploads([{ ...mixed[0], name: 'copy.igc' }]));
 	const known = page.getByRole('dialog', { name: 'Already on your account' });
-	await expect(known).toContainText('This flight was brought in before. Nothing was added.');
+	await expect(known).toContainText('This flight was imported before. Nothing was added.');
 	await known.getByRole('button', { name: 'OK' }).click();
 	await expect(flightRows(page)).toHaveCount(3);
 
@@ -146,13 +146,18 @@ test('flights are brought in by dropping files on the page, and found from Fligh
 		return transfer;
 	});
 	await page.dispatchEvent('body', 'dragenter', { dataTransfer: transfer });
-	await expect(page.getByText('Drop flight files to bring them in')).toBeVisible();
+	await expect(page.getByText('Drop flight files to import them')).toBeVisible();
 	await keep('15-drop');
 	await page.dispatchEvent('body', 'dragleave', { dataTransfer: transfer });
-	await expect(page.getByText('Drop flight files to bring them in')).toBeHidden();
+	await expect(page.getByText('Drop flight files to import them')).toBeHidden();
 
-	// Several flights dropped at once stay on the screen they were dropped on.
+	// Several flights dropped at once stay on the screen they were dropped on,
+	// and the page says how many it added, as the phones do.
 	await dropFiles(page, [mixed[0], mixed[1]]);
+	const added = page.getByRole('dialog', { name: '2 flights added' });
+	await expect(added).toContainText('They are on your account.');
+	await added.getByRole('button', { name: 'OK' }).click();
+	await expect(added).toBeHidden();
 
 	// The navigation has no logbook: the pilot's flights are under Flights, as "Mine".
 	const sections = page.getByRole('navigation', { name: 'Sections' });
@@ -176,7 +181,7 @@ test('flights are brought in by dropping files on the page, and found from Fligh
 
 	// Only a file that is not a flight: nothing is added, and the page says why.
 	await dropFiles(page, [mixed[2]]);
-	const notice = page.getByRole('dialog', { name: '1 file could not be brought in' });
+	const notice = page.getByRole('dialog', { name: '1 file could not be imported' });
 	await expect(notice).toContainText('notes.txt: ');
 	await notice.getByRole('button', { name: 'OK' }).click();
 

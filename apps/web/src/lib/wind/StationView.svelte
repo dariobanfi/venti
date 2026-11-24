@@ -203,7 +203,7 @@
 			<h3 id="history-heading">
 				{#if chosenDate && dayPhase.is === 'ready'}{text.day(
 						dayPhase.day.startUnixS
-					)}{:else if chosenDate}A past day{:else}Last 24 hours{/if}
+					)}{:else if chosenDate}Day{:else}Last 24 hours{/if}
 			</h3>
 			{#if days && !noHistory}
 				<!-- What the picker reaches back to is its own help: said under

@@ -188,8 +188,8 @@ export function rows(
 		},
 		{
 			id: 'freezing',
-			name: '0 °C',
-			detail: 'at m',
+			name: '0 °C level',
+			detail: 'm',
 			cells: hours.map((hour) => number(hour.freezingLevelM, hundreds))
 		}
 	];

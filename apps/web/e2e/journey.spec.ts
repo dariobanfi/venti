@@ -48,7 +48,7 @@ test('a pilot brings the sample flight in, inspects it and deletes it', async ({
 	await signUp(page);
 	await page.getByRole('link', { name: 'My flights' }).click();
 	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Bring in flights' }).first()).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Import flights' }).first()).toBeVisible();
 	await keep('02-logbook-empty');
 
 	// A single flight brought in opens straight away.
@@ -60,7 +60,7 @@ test('a pilot brings the sample flight in, inspects it and deletes it', async ({
 	await expect(metric(totals, 'Airtime')).toHaveText('0:29 h');
 	// The flight in one number: its scored distance, in the hero style.
 	await expect(page.getByLabel('Distance: 12.0 kilometres')).toBeVisible();
-	await expect(page.getByRole('heading', { name: 'Free flight, 4 Jul 2026' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Free flight · 4 Jul 2026' })).toBeVisible();
 	await expect(metric(totals, 'Highest')).toHaveText('2117 m');
 	await expect(metric(totals, 'Best climb')).toHaveText('+2.4 m/s');
 	await expect(page.getByRole('img', { name: /Track colours/ })).toBeVisible();

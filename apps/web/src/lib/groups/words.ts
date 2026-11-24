@@ -11,7 +11,7 @@ import type { CommunityMember } from '#lib/core/index.ts';
 
 /** What the board says to a pilot who is signed out. */
 export const NEEDS_ACCOUNT =
-	'Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, then join a group near you or make one.';
+	'Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, then make a group or join one.';
 
 /** What the screens say on a site that has no server. */
 export const NO_SERVER =
@@ -59,7 +59,7 @@ export function question(asking: Asking): { title: string; message: string; conf
 		case 'delete':
 			return {
 				title: 'Delete this group?',
-				message: 'The group goes for every member, with its chat and its plans.',
+				message: 'The group goes for every member, with its messages and plans.',
 				confirm: 'Delete the group'
 			};
 		case 'remove':

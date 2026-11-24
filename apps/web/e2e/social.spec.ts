@@ -136,6 +136,13 @@ test('the demo pilot sees whom they follow, their feed and what they were told',
 	await expect(told.getByRole('listitem')).not.toHaveCount(0);
 	await expect(told).toContainText(/Lena Probe \(@lena\) follows you/);
 	await expect(told).toContainText(/cheered your flight/);
+	// The newest on top, as on the phones: the development mode's Lena
+	// followed at 17:35 and cheered at 18:20, so the cheer stands above.
+	const lines = await told.getByRole('listitem').allTextContents();
+	const cheered = lines.findIndex((line) => line.includes('Lena Probe (@lena) cheered'));
+	const followed = lines.findIndex((line) => line.includes('Lena Probe (@lena) follows you'));
+	expect(cheered).toBeGreaterThanOrEqual(0);
+	expect(cheered).toBeLessThan(followed);
 	await keep('274-notifications');
 
 	// The alarms' page has the row that lets this browser be told. A test

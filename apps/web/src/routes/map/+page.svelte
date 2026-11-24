@@ -1377,7 +1377,7 @@
 			? [
 					{
 						key: 'flights',
-						name: 'My flights',
+						name: named.myFlights || 'My flights',
 						icon: 'track',
 						on: myFlights,
 						onchange: setMyFlights
@@ -1386,7 +1386,7 @@
 			: []),
 		{
 			key: 'thermal-map',
-			name: 'Thermal map',
+			name: named.thermalMap || 'Thermal map',
 			icon: 'thermal',
 			on: thermalMap,
 			onchange: setThermalMap
@@ -1629,9 +1629,9 @@
 				<!-- The sites' filter: its choices while they are open, and else,
 				     while a filter is on, what it is and what it leaves. -->
 				{#if sites && filtering}
-					<aside class="forecast-pane" aria-label="Filter sites">
+					<aside class="forecast-pane" aria-label={named.filterSites || 'Filter the sites'}>
 						<header class="pane-head">
-							<h2>Filter sites</h2>
+							<h2>{named.filterSites || 'Filter the sites'}</h2>
 							<button
 								type="button"
 								aria-label={app.said?.common.close}
@@ -2091,7 +2091,7 @@
 {#if sites}
 	<Sheet
 		open={filtering && !wide.current}
-		title="Filter sites"
+		title={named.filterSites || 'Filter the sites'}
 		half
 		onclose={() => (filtering = false)}
 	>

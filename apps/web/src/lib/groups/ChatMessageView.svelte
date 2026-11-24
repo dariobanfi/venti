@@ -44,10 +44,10 @@
 			items.push({ label: 'Remove', icon: 'trash', destructive: true, onselect: onremove });
 		}
 		if (!message.isMine) {
-			items.push({ label: 'Report', icon: 'warning', onselect: () => onreport() });
+			items.push({ label: 'Report this message', icon: 'warning', onselect: () => onreport() });
 			message.pictures.forEach((_, index) =>
 				items.push({
-					label: message.pictures.length > 1 ? `Report picture ${index + 1}` : 'Report picture',
+					label: message.pictures.length > 1 ? `Report picture ${index + 1}` : 'Report the picture',
 					icon: 'warning',
 					onselect: () => onreport(index)
 				})

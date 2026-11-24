@@ -638,8 +638,8 @@ test('the take-offs are fans over their wind directions, coloured by the forecas
 		)
 		.toBeGreaterThan(0);
 	// The key says what the colours mean.
-	await expect(card(page).locator('.fans')).toContainText('Take-off fits');
-	await expect(card(page).locator('.fans')).toContainText('Does not fit');
+	await expect(card(page).locator('.fans')).toContainText('wind fits');
+	await expect(card(page).locator('.fans')).toContainText('doesn’t fit');
 	await mapDrawn();
 	await keep('300-map-take-off-fans');
 	await page.emulateMedia({ colorScheme: 'dark' });

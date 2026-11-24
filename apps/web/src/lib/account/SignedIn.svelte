@@ -42,6 +42,8 @@
 
 	/** The core's words around follows, cheers and comments: the row's name. */
 	const said = $derived(getApp().social?.words);
+	// The alarms' row is named in the core's words, as the alarms' page is.
+	$effect(() => void app.alerts?.words().catch(() => {}));
 
 	/** Every country, by name, for the picker. */
 	const everyCountry = countries();
@@ -262,6 +264,48 @@
 	{/if}
 </section>
 
+{#if account.googleWords && (signedIn.googleEmail || account.googleSignIn)}
+	{@const words = account.googleWords}
+	<section class="group" aria-labelledby="account-google">
+		<h2 class="group-title" id="account-google">Google</h2>
+		<div class="group-card">
+			{#if signedIn.googleEmail}
+				<p class="group-row google-email">{signedIn.googleEmail}</p>
+				<button
+					class="group-row"
+					type="button"
+					disabled={account.busy || signedIn.needsSignIn}
+					onclick={unlinkGoogle}
+				>
+					{words.unlinkGoogle}
+				</button>
+			{:else}
+				<button
+					class="group-row"
+					type="button"
+					disabled={account.busy || signedIn.needsSignIn}
+					onclick={() => goToGoogle('link')}
+				>
+					{words.linkGoogle}
+				</button>
+			{/if}
+		</div>
+		{#if googleRefusal}
+			<p class="group-note refusal" role="alert">{googleRefusal}</p>
+		{/if}
+	</section>
+{/if}
+
+<!-- The pilot's flights are the account's: the website keeps none of its own. -->
+<section class="group" aria-label="Logbook">
+	<div class="group-card">
+		<a class="group-row" href={myFlightsHref()}>
+			<span>My flights</span>
+			<span class="chevron"><Icon name="forward" /></span>
+		</a>
+	</div>
+</section>
+
 <!-- Who sees the pilot's flights: every word is the core's. -->
 {#if visibilityWords}
 	<section class="group" aria-label="Who sees your flights">
@@ -338,38 +382,6 @@
 	oncancel={() => (asking = undefined)}
 />
 
-{#if account.googleWords && (signedIn.googleEmail || account.googleSignIn)}
-	{@const words = account.googleWords}
-	<section class="group" aria-labelledby="account-google">
-		<h2 class="group-title" id="account-google">Google</h2>
-		<div class="group-card">
-			{#if signedIn.googleEmail}
-				<p class="group-row google-email">{signedIn.googleEmail}</p>
-				<button
-					class="group-row"
-					type="button"
-					disabled={account.busy || signedIn.needsSignIn}
-					onclick={unlinkGoogle}
-				>
-					{words.unlinkGoogle}
-				</button>
-			{:else}
-				<button
-					class="group-row"
-					type="button"
-					disabled={account.busy || signedIn.needsSignIn}
-					onclick={() => goToGoogle('link')}
-				>
-					{words.linkGoogle}
-				</button>
-			{/if}
-		</div>
-		{#if googleRefusal}
-			<p class="group-note refusal" role="alert">{googleRefusal}</p>
-		{/if}
-	</section>
-{/if}
-
 {#if signedIn.needsSignIn}
 	<section class="group" aria-label="Session">
 		<p class="group-card group-row group-warning" role="alert">
@@ -379,16 +391,19 @@
 	</section>
 {/if}
 
-<!-- What else the account holds. The row's name is the core's, as the page's title is. -->
+<!-- What else the account holds, in the phones' order. The rows' names are the core's, as the pages' titles are. -->
 <section class="group" aria-label="Access">
 	<div class="group-card">
-		<!-- The pilot's flights are the account's: the website keeps none of its own. -->
-		<a class="group-row" href={myFlightsHref()}>
-			<span>My flights</span>
-			<span class="chevron"><Icon name="forward" /></span>
-		</a>
+		{#await account.programsForm() then programs}
+			<a class="group-row" href={programsHref()}>
+				<span>{programs.title}</span>
+				<span class="chevron"><Icon name="forward" /></span>
+			</a>
+		{:catch}
+			<!-- Without the core's words there is no row. -->
+		{/await}
 		<a class="group-row" href={alertsHref()}>
-			<span>Alerts</span>
+			<span>{app.alerts?.said?.title ?? 'Alerts'}</span>
 			<span class="trailing">
 				{#if unread && unread.alarms > 0}
 					<span class="badge numeric" aria-label="{unread.alarms} new">{unread.alarms}</span>
@@ -410,14 +425,6 @@
 				</span>
 			</a>
 		{/if}
-		{#await account.programsForm() then programs}
-			<a class="group-row" href={programsHref()}>
-				<span>{programs.title}</span>
-				<span class="chevron"><Icon name="forward" /></span>
-			</a>
-		{:catch}
-			<!-- Without the core's words there is no row. -->
-		{/await}
 	</div>
 </section>
 
@@ -464,7 +471,9 @@
 			<h2 id="delete-title">Delete your account?</h2>
 			<p id="delete-message">
 				The account and every flight on Venti are deleted at once and for good, and your shared
-				links stop working. Enter your password to go on.
+				links stop working. {signedIn.googleEmail
+					? 'Enter your password, or confirm with Google, to go on.'
+					: 'Enter your password to go on.'}
 			</p>
 			<!-- For the browser's password manager, which fills a password in for a name. -->
 			<input
@@ -489,7 +498,6 @@
 				bind:value={password}
 			/>
 			{#if signedIn.googleEmail && deleting}
-				<p class="with-google">An account linked to Google may confirm with Google instead.</p>
 				{#if account.googleWords}
 					<div class="with-google-button">
 						<GoogleButton
@@ -689,11 +697,7 @@
 	.with-google-button {
 		display: flex;
 		flex-direction: column;
-	}
-
-	.with-google {
 		margin-block: var(--space-3) var(--space-2);
-		color: var(--text-secondary);
 	}
 
 	.refusal {

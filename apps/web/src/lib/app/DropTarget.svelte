@@ -1,6 +1,6 @@
 <!--
 	Makes the whole page a place to drop files, whichever screen is showing:
-	flight files everywhere, brought in as uploads to the account, and
+	flight files everywhere, imported as uploads to the account, and
 	airspace files on the screen that lists them.
 	While files are dragged over it, the page says what dropping them will do.
 -->
@@ -54,7 +54,7 @@
 	<div class="veil">
 		<p class="glass">
 			<Icon name="plus" />
-			{forAirspace ? 'Drop airspace files to bring them in' : 'Drop flight files to bring them in'}
+			{forAirspace ? 'Drop airspace files to bring them in' : 'Drop flight files to import them'}
 		</p>
 	</div>
 {/if}

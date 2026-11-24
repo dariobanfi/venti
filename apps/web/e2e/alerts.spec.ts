@@ -123,5 +123,15 @@ test('a wind alarm is made from a station’s page, its fault shown and put righ
 	await expect(list).toContainText('Wind at Patscherkofel from N, at least 12 km/h');
 	await expect(page.getByText('Nothing has fired in the last 30 days.')).toBeVisible();
 	await keep('245-alerts-new');
+
+	// Deleting it asks first, in the core's words, as on the phones.
+	await list.getByRole('button').first().click();
+	const changing = page.getByRole('dialog', { name: 'Change the alarm' });
+	await changing.getByRole('button', { name: 'Delete alarm' }).click();
+	const asked = page.getByRole('alertdialog', { name: 'Delete this alarm?' });
+	await expect(changing).toBeVisible();
+	await asked.getByRole('button', { name: 'Delete alarm' }).click();
+	await expect(changing).toBeHidden();
+	await expect(list.getByRole('listitem')).toHaveCount(0);
 	expect(problems).toEqual([]);
 });

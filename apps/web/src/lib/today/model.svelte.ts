@@ -232,5 +232,5 @@ export class TodayModel {
 
 function words(error: unknown): string {
 	const said = error instanceof Error ? error.message : String(error);
-	return isInWords(error) ? said : `Today’s forecast could not be fetched. ${said}`;
+	return isInWords(error) ? said : `The forecast could not be read. ${said}`;
 }

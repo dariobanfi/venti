@@ -7,7 +7,7 @@
  */
 
 /** While the server's figures are asked for. */
-export const COUNTING = 'Counting your flights…';
+export const COUNTING = 'Counting your flights';
 
 /** With nothing to say yet: the line `docs/design.md` gives. */
 export const NOTHING_YET =

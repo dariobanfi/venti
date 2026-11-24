@@ -35,10 +35,10 @@ export function className(
 	return classes?.find((one) => one.kind === kind)?.name;
 }
 
-/** The glider as its pilot's file names it, with its class beside it: "Sample Wing · EN B". */
+/** The glider's class, then the glider as its pilot's file names it, as on the phones: "EN B · Sample Wing". */
 export function gliderLine(flight: PublicFlight, classes?: GliderClasses): string | undefined {
 	const known = className(flight.gliderClass, classes);
-	if (flight.glider && known) return `${flight.glider} · ${known}`;
+	if (flight.glider && known) return `${known} · ${flight.glider}`;
 	return flight.glider ?? known;
 }
 

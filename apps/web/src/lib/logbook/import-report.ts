@@ -1,7 +1,10 @@
+import { format } from '#lib/design/format.ts';
+
 /**
  * What happened to a batch of imported files, and what to tell the pilot
- * about it. The wording follows the iPhone app's (`LogbookModel.swift`);
- * on the website a file brought in is an upload to the account.
+ * about it. The wording is the phones' (`LogbookModel.swift`,
+ * `ImportReport.kt`); on the website an imported file is an upload to the
+ * account, so it says "on your account" where the phones name the device.
  */
 
 export interface ImportFailure {
@@ -34,8 +37,8 @@ export function emptyReport(): ImportReport {
 const FAILURES_SHOWN = 4;
 
 /**
- * What the pilot should be told, if anything. A clean import needs no
- * message: the new flights appear in the list.
+ * What the pilot should be told, if anything. One new flight needs no
+ * message: it opens. A batch says in a sentence what it did.
  */
 export function importNotice(report: ImportReport): Notice | undefined {
 	const { added, alreadyThere, failures } = report;
@@ -49,8 +52,8 @@ export function importNotice(report: ImportReport): Notice | undefined {
 		return {
 			title:
 				failures.length === 1
-					? '1 file could not be brought in'
-					: `${failures.length} files could not be brought in`,
+					? '1 file could not be imported'
+					: `${failures.length} files could not be imported`,
 			lines
 		};
 	}
@@ -59,23 +62,39 @@ export function importNotice(report: ImportReport): Notice | undefined {
 			title: 'Already on your account',
 			lines: [
 				alreadyThere.length === 1
-					? 'This flight was brought in before. Nothing was added.'
-					: 'These flights were brought in before. Nothing was added.'
+					? 'This flight was imported before. Nothing was added.'
+					: 'These flights were imported before. Nothing was added.'
 			]
 		};
+	}
+	if (added.length > 1 || (added.length > 0 && alreadyThere.length > 0)) {
+		const before =
+			alreadyThere.length === 0
+				? ''
+				: alreadyThere.length === 1
+					? ' 1 was on your account already.'
+					: ` ${format().count(alreadyThere.length)} were on your account already.`;
+		return {
+			title:
+				added.length === 1 ? '1 flight added' : `${format().count(added.length)} flights added`,
+			lines: [`${added.length === 1 ? 'It is' : 'They are'} on your account.${before}`]
+		};
+	}
+	if (added.length === 0 && alreadyThere.length === 0) {
+		return { title: 'No flights found', lines: ['There was no flight file among what you chose.'] };
 	}
 	return undefined;
 }
 
 /** What deleting a flight means, to be read before it is done. */
-export function deletionWarning(count = 1): string {
-	const files = count === 1 ? 'It is' : 'They are';
-	return `${files} deleted from your Venti account and your other devices at once. This cannot be undone.`;
+export function deletionWarning(flights = 1): string {
+	const files = flights === 1 ? 'Its file is' : 'Their files are';
+	return `${files} removed from Venti and from your other devices. This cannot be undone.`;
 }
 
 /**
  * The flight to open straight after an import: the new one, if the import
- * brought exactly one and nothing went wrong.
+ * added exactly one and nothing went wrong.
  */
 export function flightToShow(report: ImportReport): string | undefined {
 	return report.failures.length === 0 && report.added.length === 1 ? report.added[0] : undefined;

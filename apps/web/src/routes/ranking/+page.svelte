@@ -159,29 +159,7 @@
 			</div>
 		{/if}
 
-		<div class="asked">
-			<label class="pilots" class:on={pilotsFrom !== ''}>
-				<span class="visually-hidden">Pilots from</span>
-				<Flag code={pilotsFrom || undefined} />
-				<select
-					aria-label="Pilots from"
-					value={pilotsFrom}
-					onchange={(event) => choosePilots(event.currentTarget.value)}
-				>
-					<option value="">Global</option>
-					{#if ownCountry}
-						<option value={ownCountry}>{countryName(ownCountry)}</option>
-					{/if}
-					<optgroup label="Every country">
-						{#each everyCountry as country (country.code)}
-							<option value={country.code}>{country.name}</option>
-						{/each}
-					</optgroup>
-				</select>
-			</label>
-			<SearchFilter {search} onsearch={find} />
-		</div>
-
+		<!-- The phones' order: the years, the months, then the filters. -->
 		{#if ranking.months.length > 0}
 			<div class="months" role="group" aria-label="Months of {ranking.season}">
 				<!-- The whole year first, in the core's words: "All of 2026". -->
@@ -212,6 +190,29 @@
 				{/each}
 			</div>
 		{/if}
+
+		<div class="asked">
+			<label class="pilots" class:on={pilotsFrom !== ''}>
+				<span class="visually-hidden">Pilots from</span>
+				<Flag code={pilotsFrom || undefined} />
+				<select
+					aria-label="Pilots from"
+					value={pilotsFrom}
+					onchange={(event) => choosePilots(event.currentTarget.value)}
+				>
+					<option value="">Global</option>
+					{#if ownCountry}
+						<option value={ownCountry}>{countryName(ownCountry)}</option>
+					{/if}
+					<optgroup label="Every country">
+						{#each everyCountry as country (country.code)}
+							<option value={country.code}>{country.name}</option>
+						{/each}
+					</optgroup>
+				</select>
+			</label>
+			<SearchFilter {search} onsearch={find} />
+		</div>
 
 		{#if ranking.pilots.length > 0}
 			<!-- The ranking's heading is the period's title, as the core has it. -->

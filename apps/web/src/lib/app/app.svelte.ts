@@ -408,8 +408,8 @@ export class App {
 		if (!this.myFlights || files.length === 0) return;
 		if (!this.account?.signedIn) {
 			this.notice = {
-				title: 'Sign in to bring in flights',
-				lines: ['Your flights are kept on your Venti account. Sign in, then bring them in.']
+				title: 'Sign in to import flights',
+				lines: ['Your flights are kept on your Venti account. Sign in, then import them.']
 			};
 			return;
 		}

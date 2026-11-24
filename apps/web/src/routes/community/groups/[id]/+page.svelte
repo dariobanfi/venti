@@ -21,6 +21,7 @@
 	import ReportSheet from '#lib/community/ReportSheet.svelte';
 	import { reportedGroup } from '#lib/community/report.ts';
 	import type { ChatMessage, CommunityDetail } from '#lib/core/index.ts';
+	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import Icon from '#lib/design/Icon.svelte';
 	import { PICTURES_AT_MOST } from '#lib/groups/chat.ts';
 	import { ChatModel } from '#lib/groups/chat.svelte.ts';
@@ -181,7 +182,11 @@
 		}
 	}
 
+	/** The message the pilot asked to remove, until they say yes. */
+	let removing = $state.raw<ChatMessage>();
+
 	async function remove(message: ChatMessage) {
+		removing = undefined;
 		try {
 			await chat?.remove(message);
 		} catch (error) {
@@ -224,7 +229,7 @@
 		<p class="quiet" role="status">Opening…</p>
 	{:else if !signedIn}
 		<div class="group-card words">
-			<p>A group and its chat are for pilots with an account on Venti.</p>
+			<p>Groups are shared on Venti with an account. Sign in under Settings, Account.</p>
 			<a class="button-plain" href={accountHref()}>Sign in</a>
 		</div>
 	{:else if !detail}
@@ -260,7 +265,7 @@
 					{/if}
 					{#if group.myRole !== 'none' && group.myRole !== 'invited'}
 						<button class="button-plain" type="button" onclick={() => (settings = true)}>
-							<Icon name="settings" /> Settings
+							<Icon name="settings" /> About the group
 						</button>
 					{/if}
 					{#if group.myRole !== 'owner'}
@@ -310,7 +315,7 @@
 										groups={app.groups}
 										{myName}
 										imInWord={said?.imIn}
-										onremove={() => remove(message)}
+										onremove={() => (removing = message)}
 										onreport={(picture) => report(message, picture)}
 										onchanged={() => chat?.refresh()}
 									/>
@@ -331,7 +336,7 @@
 											<button
 												type="button"
 												class="off"
-												aria-label="Leave out {file.name}"
+												aria-label="Take the photo out: {file.name}"
 												onclick={() => (files = files.filter((_, at) => at !== index))}
 											>
 												<Icon name="close" />
@@ -341,9 +346,9 @@
 								</ul>
 							{/if}
 							<div class="row">
-								<label class="add" title="Add pictures">
+								<label class="add" title="Add photos">
 									<Icon name="plus" />
-									<span class="visually-hidden">Add pictures</span>
+									<span class="visually-hidden">Add photos</span>
 									<input
 										type="file"
 										accept={PICTURE_KINDS}
@@ -404,6 +409,15 @@
 			message={reporting}
 			title={reporting?.picture ? 'Report this picture' : 'Report this message'}
 			onclose={() => (reporting = undefined)}
+		/>
+		<ConfirmDialog
+			open={removing !== undefined}
+			title="Remove this message?"
+			message="It keeps its place in the chat, without its words, pictures and links."
+			confirm="Remove"
+			destructive
+			onconfirm={() => removing && remove(removing)}
+			oncancel={() => (removing = undefined)}
 		/>
 	{/if}
 </div>

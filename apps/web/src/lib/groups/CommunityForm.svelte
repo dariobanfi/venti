@@ -57,14 +57,14 @@
 			kind = editing?.isPublic === false ? PRIVATE : PUBLIC;
 			hasHome = Boolean(editing?.center) || !editing;
 			centre = editing?.center ?? FIRST_REGION;
-			radiusKm = Math.round(editing?.radiusKm ?? 20);
+			radiusKm = clamp(editing?.radiusKm ?? 20);
 			place = editing?.place ?? '';
 			saving = false;
 			problem = undefined;
 		});
 	});
 
-	const clamp = (km: number) => Math.min(100, Math.max(1, Math.round(km)));
+	const clamp = (km: number) => Math.min(100, Math.max(5, Math.round(km / 5) * 5));
 
 	async function save(event: SubmitEvent) {
 		event.preventDefault();
@@ -105,13 +105,9 @@
 		</section>
 
 		<section class="group">
-			<label class="group-title" for="{id}-about">Description</label>
+			<label class="group-title" for="{id}-about">What the group is about</label>
 			<div class="group-card">
-				<textarea
-					id="{id}-about"
-					rows="3"
-					placeholder="What the group is about"
-					bind:value={description}></textarea>
+				<textarea id="{id}-about" rows="3" bind:value={description}></textarea>
 			</div>
 		</section>
 
@@ -120,8 +116,8 @@
 				<Segmented label="Who finds it" options={[PUBLIC, PRIVATE]} bind:value={kind} />
 				<p class="group-note">
 					{kind === PUBLIC
-						? 'Anyone on Venti finds the group, reads it and joins it.'
-						: 'Only those you or your admins invite by handle come in.'}
+						? 'Anyone signed in finds, reads and joins it.'
+						: 'Only its members read it; you and its admins invite pilots by handle.'}
 				</p>
 			</section>
 		{/if}
@@ -129,13 +125,13 @@
 		<section class="group">
 			<div class="group-card">
 				<label class="group-row toggle">
-					<span>Home area</span>
+					<span>Home</span>
 					<input type="checkbox" role="switch" bind:checked={hasHome} />
 				</label>
 				{#if hasHome}
 					<label class="field">
-						<span>Place</span>
-						<input name="place" autocomplete="off" placeholder="Inn valley" bind:value={place} />
+						<span>The place, such as Inn valley</span>
+						<input name="place" autocomplete="off" bind:value={place} />
 					</label>
 				{/if}
 			</div>
@@ -158,10 +154,11 @@
 				</div>
 				<div class="radius">
 					<label for="{id}-radius">Radius</label>
-					<input id="{id}-radius" type="range" min="1" max="100" step="1" bind:value={radiusKm} />
-					<output class="numeric" for="{id}-radius">{radiusKm} km</output>
+					<input id="{id}-radius" type="range" min="5" max="100" step="5" bind:value={radiusKm} />
+					<output class="numeric" for="{id}-radius">{radiusKm} km around</output>
 				</div>
 			{/if}
+			<p class="group-note">Pilots near it find the group.</p>
 			{#if problem}
 				<p class="group-note refusal" role="alert">{problem}</p>
 			{/if}
@@ -169,7 +166,7 @@
 
 		<div class="submit">
 			<button class="button-prominent" type="submit" disabled={saving || name.trim() === ''}>
-				{saving ? 'Saving…' : editing ? 'Save' : 'Make the group'}
+				{saving ? 'Saving…' : 'Save'}
 			</button>
 		</div>
 	</form>

@@ -106,9 +106,7 @@ test('today says when Venti cannot be reached, and asks again', async ({
 		down ? route.fulfill({ status: 503, body: '' }) : route.continue()
 	);
 	await page.goto('/');
-	await expect(
-		page.getByRole('heading', { name: 'Today’s forecast could not be fetched' })
-	).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'The forecast could not be read' })).toBeVisible();
 	await keep('98-today-unreachable');
 	down = false;
 	await page

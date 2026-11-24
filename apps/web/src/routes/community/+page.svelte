@@ -95,6 +95,8 @@
 	/* What the pilot was told: the newest lines, the rest on its own page. */
 	const TOLD_LINES = 5;
 	let told = $state.raw<Notifications>();
+	/** The core hands the lines over the oldest first; the newest stand on top, as on the phones. */
+	const newestFirst = <T,>(lines: readonly T[]): T[] => [...lines].reverse();
 	let toldProblem = $state.raw<string>();
 	let askedTold = $state(0);
 	$effect(() => {
@@ -242,7 +244,9 @@
 							{/if}
 						</header>
 						{#if feed.problem && followed.length === 0}
-							<p class="quiet">{feed.problem}</p>
+							<p class="quiet" role="alert">
+								{[said?.feedFailed, feed.problem].filter(Boolean).join(' ')}
+							</p>
 							<button class="button-plain again" type="button" onclick={() => social?.againFeed()}>
 								{app.said?.common.tryAgain ?? 'Try again'}
 							</button>
@@ -329,7 +333,7 @@
 							<p class="quiet">{told.emptyLine}</p>
 						{:else}
 							<ul class="group-card" aria-label={said.notificationsTitle}>
-								{#each told.lines.slice(0, TOLD_LINES) as line (`${line.atUnixS}:${line.handle}:${line.flightId ?? ''}:${line.commentId ?? ''}:${line.about}`)}
+								{#each newestFirst(told.lines).slice(0, TOLD_LINES) as line (`${line.atUnixS}:${line.handle}:${line.flightId ?? ''}:${line.commentId ?? ''}:${line.about}`)}
 									<li>
 										<a
 											class="group-row told"

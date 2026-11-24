@@ -32,12 +32,14 @@ test('a pilot finds the Rosenheimer Eagles, joins them and writes in their chat'
 	await openCommunity(page);
 
 	// In no group yet; the groups near are listed, and a search by place finds more.
-	await expect(page.getByText('Join a group near you, or make one.')).toBeVisible();
 	await expect(
-		page.getByRole('list', { name: 'Groups near you' }).getByRole('listitem').first()
+		page.getByText('You are in no group yet. Join one near you, or make one.')
+	).toBeVisible();
+	await expect(
+		page.getByRole('list', { name: 'Near you' }).getByRole('listitem').first()
 	).toBeVisible();
 	await page.getByRole('searchbox', { name: 'Search by name or place' }).fill('Rosenheim');
-	const found = page.getByRole('list', { name: 'Groups found' });
+	const found = page.getByRole('list', { name: 'Found' });
 	const eagles = found.getByRole('listitem', { name: 'Rosenheimer Eagles' });
 	await expect(eagles).toContainText('Rosenheim and the Chiemgau');
 	await keep('302-groups-found');
@@ -61,6 +63,20 @@ test('a pilot finds the Rosenheimer Eagles, joins them and writes in their chat'
 	await expect(field).toHaveValue('');
 	await expect(messages.getByRole('listitem').last()).toContainText('Going up at noon, anyone?');
 	await expect(messages.getByRole('listitem').last()).toContainText('You');
+
+	// Removing a message asks first, in the phones' words, and leaves its place.
+	await field.fill('Wrong group, sorry.');
+	await page.getByRole('button', { name: 'Send' }).click();
+	const wrong = messages.getByRole('listitem').last();
+	await expect(wrong).toContainText('Wrong group, sorry.');
+	await wrong.getByRole('button', { name: 'More about this message' }).click();
+	await page.getByRole('menuitem', { name: 'Remove' }).click();
+	const removing = page.getByRole('alertdialog', { name: 'Remove this message?' });
+	await expect(removing).toContainText(
+		'It keeps its place in the chat, without its words, pictures and links.'
+	);
+	await removing.getByRole('button', { name: 'Remove' }).click();
+	await expect(messages).not.toContainText('Wrong group, sorry.');
 
 	// The website's own addresses of a site and of an open plan, pasted, become cards.
 	const origin = new URL(page.url()).origin;
@@ -121,9 +137,11 @@ test('a pilot makes a private group and invites a pilot by handle', async ({
 	await page.getByRole('button', { name: 'New group' }).click();
 	const form = page.getByRole('dialog', { name: 'New group' });
 	await form.getByRole('textbox', { name: 'Name' }).fill('Hausberg-Runde');
-	await form.getByRole('textbox', { name: 'Description' }).fill('Who goes up after work.');
+	await form
+		.getByRole('textbox', { name: 'What the group is about' })
+		.fill('Who goes up after work.');
 	await form.getByRole('radio', { name: 'Private' }).check();
-	await form.getByRole('textbox', { name: 'Place' }).fill('Musterberg');
+	await form.getByRole('textbox', { name: 'The place, such as Inn valley' }).fill('Musterberg');
 	// The map of the home, whole and opened on it, once drawn.
 	await expect(form.locator('[aria-busy="false"]')).toBeVisible();
 	await keep('305-new-group');
@@ -135,17 +153,18 @@ test('a pilot makes a private group and invites a pilot by handle', async ({
 			askedForGroup.push(path);
 		}
 	});
-	await form.getByRole('button', { name: 'Make the group' }).click();
+	await form.getByRole('button', { name: 'Save' }).click();
 
 	await expect(page.getByRole('heading', { level: 1, name: 'Hausberg-Runde' })).toBeVisible();
 	await expect(page.getByText('Private ·')).toBeVisible();
 	await expect(page.getByText('No messages yet.')).toBeVisible();
 	expect(askedForGroup).toEqual([]);
 
-	// The owner invites a pilot by handle, from the settings.
-	await page.getByRole('button', { name: 'Settings' }).click();
-	const settings = page.getByRole('dialog', { name: 'Group settings' });
-	await settings.getByRole('textbox', { name: 'Invite' }).fill('@mara');
+	// The owner invites a pilot by handle, from "About the group".
+	await page.getByRole('button', { name: 'About the group' }).click();
+	const settings = page.getByRole('dialog', { name: 'About the group' });
+	await expect(settings.getByText('By the handle on their pilot’s page.')).toBeVisible();
+	await settings.getByRole('textbox', { name: 'Invite by handle' }).fill('@mara');
 	await settings.getByRole('button', { name: 'Invite' }).click();
 	await expect(settings.getByRole('status')).toHaveText('Invited to Hausberg-Runde.');
 	await keep('306-group-settings');

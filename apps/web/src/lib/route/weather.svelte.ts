@@ -60,6 +60,9 @@ export class RouteWeatherModel {
 	speedKmh = $state(DEFAULT_SPEED_KMH);
 	/** The glide ratio in still air. */
 	glide = $state(DEFAULT_GLIDE);
+	/** Whether the core is being asked, with no answer yet. */
+	asking = $state(false);
+	#last?: { places: readonly RoutePlace[]; days: readonly { date: string }[] };
 	/** What the core says of the route, once it has answered. */
 	along = $state.raw<RouteAlong>();
 	/** Why there is no forecast along it, or no answer at all, in words. */
@@ -96,6 +99,7 @@ export class RouteWeatherModel {
 	 */
 	async show(places: readonly RoutePlace[], days: readonly { date: string }[] = []): Promise<void> {
 		const mine = ++this.#asked;
+		this.#last = { places, days };
 		const day = days.find((one) => one.date === this.date) ?? days[0];
 		const date = day?.date ?? dateOf(this.#now());
 		const asked: RouteWeatherAsked = {
@@ -111,8 +115,10 @@ export class RouteWeatherModel {
 		if (places.length < 2) {
 			this.along = undefined;
 			this.problem = undefined;
+			this.asking = false;
 			return;
 		}
+		this.asking = true;
 		try {
 			const answer = await this.#ask(asked);
 			if (mine !== this.#asked) return;
@@ -122,6 +128,13 @@ export class RouteWeatherModel {
 			if (mine !== this.#asked) return;
 			this.along = undefined;
 			this.problem = error instanceof Error ? error.message : String(error);
+		} finally {
+			if (mine === this.#asked) this.asking = false;
 		}
+	}
+
+	/** Asks again about the route last asked about, after a problem. */
+	again(): Promise<void> {
+		return this.#last ? this.show(this.#last.places, this.#last.days) : Promise.resolve();
 	}
 }

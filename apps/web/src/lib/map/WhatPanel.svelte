@@ -88,8 +88,8 @@
 	const fanKey = $derived(
 		fans
 			? [
-					{ fit: 'fits' as const, words: 'Take-off fits' },
-					{ fit: 'misfits' as const, words: 'Does not fit' }
+					{ fit: 'fits' as const, words: 'wind fits' },
+					{ fit: 'misfits' as const, words: 'doesn’t fit' }
 				]
 			: []
 	);
@@ -184,7 +184,7 @@
 		...levels,
 		...key.steps,
 		...(key.veil ? [key.veil] : []),
-		...fanKey.map((one) => ({ colour: fitColour(one.fit), words: one.words }))
+		...fanKey.map((one) => ({ colour: fitColour(one.fit), words: `Take-off: ${one.words}` }))
 	]);
 
 	/** What stands behind the "i": the notes of what is shown, without the project's own caveats. */
@@ -230,8 +230,8 @@
 			<button
 				class="round"
 				type="button"
-				aria-label={radar.playing ? 'Stop' : 'Play'}
-				title={radar.playing ? 'Stop' : 'Play'}
+				aria-label={radar.playing ? 'Stop' : 'Play the radar pictures'}
+				title={radar.playing ? 'Stop' : 'Play the radar pictures'}
 				onclick={() => (radar.playing ? radar.stop() : void radar.play())}
 			>
 				<Icon name={radar.playing ? 'pause' : 'play'} />
@@ -298,6 +298,7 @@
 	<!-- The take-offs' fans in the wind shown: a small fan of each colour and its words. -->
 	{#if fanKey.length > 0}
 		<div class="fans" aria-hidden="true">
+			<span>Take-off:</span>
 			{#each fanKey as one (one.fit)}
 				<span>
 					<svg viewBox="0 0 16 16" width="16" height="16">

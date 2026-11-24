@@ -40,9 +40,9 @@
 		flight.takenDown
 			? 'Taken down'
 			: flight.sharing.visibility === 'public'
-				? 'Public'
+				? 'Everyone'
 				: flight.sharing.visibility === 'unlisted'
-					? 'With a link'
+					? 'Anyone with the link'
 					: undefined
 	);
 </script>

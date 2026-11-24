@@ -69,7 +69,7 @@
 			freeTriangle: score.closed ? 'Closed triangle' : 'Triangle',
 			faiTriangle: score.closed ? 'Closed FAI triangle' : 'FAI triangle'
 		}[score.kind];
-		return `${kind}, ${day}`;
+		return `${kind} · ${day}`;
 	});
 
 	/** The replay's speeds in words. */

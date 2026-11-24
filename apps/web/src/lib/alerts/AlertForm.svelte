@@ -18,6 +18,7 @@
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import type { AlertDraft, AlertFaultView } from '#lib/core/index.ts';
 	import ChipTick from '#lib/design/ChipTick.svelte';
+	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import type { AlertsModel } from './model.svelte';
 
@@ -172,7 +173,11 @@
 		}
 	}
 
+	/** Whether the core's question before deleting is open. */
+	let confirmingDelete = $state(false);
+
 	async function remove() {
+		confirmingDelete = false;
 		if (!id || sending) return;
 		sending = true;
 		refusal = undefined;
@@ -407,7 +412,12 @@
 
 			<div class="submit">
 				{#if id}
-					<button class="remove" type="button" disabled={sending} onclick={remove}>
+					<button
+						class="remove"
+						type="button"
+						disabled={sending}
+						onclick={() => (confirmingDelete = true)}
+					>
 						{words.delete}
 					</button>
 				{/if}
@@ -416,6 +426,15 @@
 		</form>
 	{/if}
 </Sheet>
+
+<ConfirmDialog
+	open={confirmingDelete}
+	title={words?.deleteQuestion ?? ''}
+	confirm={words?.delete ?? ''}
+	destructive
+	onconfirm={remove}
+	oncancel={() => (confirmingDelete = false)}
+/>
 
 <style>
 	.summary {

@@ -198,7 +198,8 @@
 
 	{#if weather && whole}
 		<!-- The weather along the route: the core's, once it has it. -->
-		<section class="weather" aria-label="The weather along the route">
+		<section class="weather" aria-labelledby="route-weather-title">
+			<h3 class="weather-title" id="route-weather-title">Weather along the route</h3>
 			{@render weather()}
 		</section>
 	{/if}

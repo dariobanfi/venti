@@ -61,7 +61,7 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 	}
 	await expect(legs).toHaveCount(2);
 	await expect(words).toContainText('km along the route. Flown like this it scores as');
-	await expect(card.getByRole('heading', { level: 3 })).toBeVisible();
+	await expect(card.getByRole('heading', { level: 3 }).first()).toBeVisible();
 	// The weather along it: the core's line for the whole route, at the
 	// planner's 20 km/h, and a line for each place and leg, unfolded at
 	// first on a wide screen and folded on a phone.
@@ -98,7 +98,9 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 	// Back to the start: the core finds the triangle, closed.
 	await card.getByRole('button', { name: 'Back to the start' }).click();
 	await expect(legs).toHaveCount(3);
-	await expect(card.getByRole('heading', { level: 3 })).toHaveText(/^Closed (FAI )?triangle$/);
+	await expect(card.getByRole('heading', { level: 3 }).first()).toHaveText(
+		/^Closed (FAI )?triangle$/
+	);
 	await expect(card.getByText('Points', { exact: true })).toBeVisible();
 	await keep('214-route-triangle');
 

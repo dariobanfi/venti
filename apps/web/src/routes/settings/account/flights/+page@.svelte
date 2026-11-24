@@ -1,7 +1,7 @@
 <!--
 	My flights: the pilot's flights on the Venti account, by day, the newest
 	first. The website keeps no logbook of its own (owner decision 20): a
-	pilot who is not signed in is asked to, and bringing a file in is an
+	pilot who is not signed in is asked to, and importing a file is an
 	upload to the account.
 
 	It is the account's page, reached from the account and from Flights by
@@ -62,7 +62,7 @@
 		{#if flights?.phase.is === 'loaded'}
 			<button class="import" type="button" onclick={() => picker?.click()}>
 				<Icon name="plus" />
-				<span>Bring in flights</span>
+				<span>Import flights</span>
 			</button>
 		{/if}
 	</header>
@@ -75,8 +75,7 @@
 
 	{#if flights?.progress}
 		<p class="status" role="status">
-			Bringing in {Math.min(flights.progress.done + 1, flights.progress.of)} of {flights.progress
-				.of}…
+			Importing {flights.progress.done} of {flights.progress.of}
 		</p>
 	{/if}
 
@@ -112,12 +111,12 @@
 			<span class="symbol"><Icon name="book" /></span>
 			<h2>No flights yet</h2>
 			<p>
-				Bring in the IGC files your vario or flight app recorded.
+				Import the IGC files your vario or flight app recorded. They stay on your account.
 				<span class="with-mouse">Or drag them onto this page.</span>
 			</p>
 			<div class="actions">
 				<button class="button-prominent" type="button" onclick={() => picker?.click()}>
-					Bring in flights
+					Import flights
 				</button>
 			</div>
 		</div>

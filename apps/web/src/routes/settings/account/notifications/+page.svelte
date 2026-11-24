@@ -79,7 +79,7 @@
 		<p class="group-card group-row none">{told.emptyLine}</p>
 	{:else}
 		<ul class="group-card" aria-label={said?.notificationsTitle}>
-			{#each told.lines as line (`${line.atUnixS}:${line.handle}:${line.flightId ?? ''}:${line.commentId ?? ''}:${line.about}`)}
+			{#each [...told.lines].reverse() as line (`${line.atUnixS}:${line.handle}:${line.flightId ?? ''}:${line.commentId ?? ''}:${line.about}`)}
 				<li>
 					<a
 						class="group-row told"

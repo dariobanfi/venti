@@ -75,8 +75,8 @@ test('signed out, the open plans near the region’s middle, a plan’s page, an
 	await expect(page.getByRole('button', { name: 'Report this plan' })).toHaveCount(0);
 	await keep('276b-open-plan-signed-out');
 
-	// Saying "I'm in" needs an account: it leads to one.
-	await page.getByRole('main').getByRole('link', { name: "I'm in" }).click();
+	// Saying "I'm in" needs an account: it leads to one, in the phones' words.
+	await page.getByRole('main').getByRole('link', { name: 'Sign in to say you are in' }).click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Account' })).toBeVisible();
 
 	// A plan that is not there says so in the core's words.

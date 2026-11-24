@@ -11,6 +11,7 @@
 	import { untrack } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import type { ThermalMapDay } from '#lib/core/index.ts';
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import type { RouteWeatherModel } from './weather.svelte';
 
@@ -21,6 +22,8 @@
 	}
 
 	let { weather, days }: Props = $props();
+
+	const app = getApp();
 
 	const along = $derived(weather.along);
 	const wide = new MediaQuery('min-width: 56rem', false);
@@ -64,13 +67,13 @@
 			</span>
 		</div>
 		<label class="setting">
-			<span>Speed, km/h</span>
+			<span>Speed over the ground</span>
 			<input
 				type="number"
 				inputmode="decimal"
 				min="5"
 				max="80"
-				step="1"
+				step="5"
 				value={weather.speedKmh}
 				onchange={(event) => number(event, (value) => (weather.speedKmh = value))}
 			/>
@@ -80,8 +83,8 @@
 			<input
 				type="number"
 				inputmode="decimal"
-				min="2"
-				max="20"
+				min="4"
+				max="14"
 				step="0.5"
 				value={weather.glide}
 				onchange={(event) => number(event, (value) => (weather.glide = value))}
@@ -91,6 +94,11 @@
 
 	{#if weather.problem}
 		<p class="problem" role="alert">{weather.problem}</p>
+		<button class="button-plain again" type="button" onclick={() => weather.again()}>
+			{app.said?.common.tryAgain ?? 'Try again'}
+		</button>
+	{:else if weather.asking && !along}
+		<p class="lesser" role="status">Asking Venti for the weather along the route.</p>
 	{/if}
 	{#if along}
 		<p class="whole" role="status" data-route-weather>{along.words}</p>
@@ -182,6 +190,10 @@
 
 	.problem {
 		color: var(--danger);
+	}
+
+	.again {
+		align-self: flex-start;
 	}
 
 	/* A row to press, as high as a finger needs, reaching into the gaps

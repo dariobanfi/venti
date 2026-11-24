@@ -372,7 +372,7 @@ test('the sites are filtered by a wind: what fits, what stands apart, and what i
 	// that opens the choices again: a pane at the map's side on a wide
 	// screen, a sheet of half the screen on a narrow one.
 	await page.getByRole('button', { name: /^Take-offs from 1500 m up/ }).click();
-	const pane = page.getByRole(wide ? 'complementary' : 'dialog', { name: 'Filter sites' });
+	const pane = page.getByRole(wide ? 'complementary' : 'dialog', { name: 'Filter the sites' });
 	await pane
 		.getByRole('radiogroup', { name: 'Take-offs from' })
 		.getByText('Any', { exact: true })

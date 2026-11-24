@@ -298,7 +298,7 @@
 		{:else if shown.phase === 'failed'}
 			<div class="nothing">
 				<Icon name="warning" />
-				<h2>Today’s forecast could not be fetched</h2>
+				<h2>The forecast could not be read</h2>
 				<p>{shown.problem}</p>
 				<button class="button-plain" type="button" onclick={() => today?.again()}>
 					{app.said?.common.tryAgain}
@@ -307,14 +307,15 @@
 		{:else if shown.phase === 'loaded' && shown.places.length === 0}
 			<div class="nothing">
 				<Icon name="pin" />
-				<h2>No take-offs near</h2>
+				<h2>No take-offs {shown.nearTitle.charAt(0).toLowerCase()}{shown.nearTitle.slice(1)}</h2>
 				<p>
-					{shown.nearTitle} of {shown.nearYou ? 'your position' : 'this place'} the flying sites’ source
-					knows no take-off, and none is kept as yours.
+					{shown.nearYou
+						? 'Venti knows no take-off around where you are.'
+						: 'These would be the take-offs around this place. Venti knows none there yet.'}
 				</p>
 			</div>
 		{:else if shown.phase !== 'loaded'}
-			<p class="waiting" role="status">Looking for the take-offs around…</p>
+			<p class="waiting" role="status">Reading the forecast</p>
 		{:else}
 			{#if foehn?.view?.todayLine}
 				<!-- Foehn near these take-offs: one line, only when the core has one. -->
@@ -378,9 +379,7 @@
 												{:else}
 													<span class="lesser">
 														{place.problem ??
-															(place.outlook
-																? 'No forecast for this day'
-																: 'Fetching the forecast…')}
+															(place.outlook ? 'No forecast for this day' : 'Reading the forecast')}
 													</span>
 												{/if}
 											</td>
@@ -516,7 +515,7 @@
 													{:else if place.outlook}
 														No forecast for this day
 													{:else}
-														Fetching the forecast…
+														Reading the forecast
 													{/if}
 													{#if place.distanceM !== undefined}
 														· {text.kilometres(place.distanceM)} km away

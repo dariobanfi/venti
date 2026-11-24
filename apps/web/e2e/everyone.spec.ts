@@ -266,7 +266,7 @@ test('a take-off’s country and its pilot’s are flags, and a glider’s class
 	await expect(first).toContainText('Jonas Beispiel');
 	await expect(first.getByRole('img', { name: 'Germany' })).toBeVisible();
 	await expect(first.getByRole('img', { name: 'Austria' })).toBeVisible();
-	await expect(first).toContainText('Sample Wing · EN B');
+	await expect(first).toContainText('EN B · Sample Wing');
 	await keep('92-everyone-countries');
 });
 

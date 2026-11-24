@@ -206,7 +206,7 @@ test('a new account brings a flight in, shares it with a link, and is deleted ag
 	await page.getByRole('menuitem', { name: 'Delete flight' }).click();
 	const asking = page.getByRole('alertdialog', { name: 'Delete this flight?' });
 	await expect(asking).toContainText(
-		'deleted from your Venti account and your other devices at once'
+		'Its file is removed from Venti and from your other devices. This cannot be undone.'
 	);
 	await asking.getByRole('button', { name: 'Delete flight' }).click();
 	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
@@ -463,11 +463,11 @@ test('who sees the pilot’s flights is the account’s, and a flight takes a gl
 	await keep('111b-account-who-sees');
 	// My flights reads them again: the row says so beside the time, and the glider still reads.
 	await page.goto('/settings/account/flights/');
-	await expect(row.locator('.seen')).toHaveText('Public');
+	await expect(row.locator('.seen')).toHaveText('Everyone');
 	await expect(row.locator('.glider')).toContainText('Sample Wing');
 	await keep('111d-my-flights-public');
 	await page.goto(`/pilots/${handle}/`);
-	await expect(page.getByRole('main')).toContainText('Sample Wing · EN C');
+	await expect(page.getByRole('main')).toContainText('EN C · Sample Wing');
 
 	// And private again, at once: gone from the pilot's public page.
 	await page.goto('/settings/account/');

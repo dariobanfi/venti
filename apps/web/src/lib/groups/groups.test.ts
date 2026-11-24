@@ -206,7 +206,7 @@ describe('what is asked before something is done to a group', () => {
 		expect(DELETE_PLAN.message).toBe('It goes for everyone in the group, with who was in.');
 		expect(question({ about: 'delete' })).toEqual({
 			title: 'Delete this group?',
-			message: 'The group goes for every member, with its chat and its plans.',
+			message: 'The group goes for every member, with its messages and plans.',
 			confirm: 'Delete the group'
 		});
 		expect(question({ about: 'remove', member: mara })).toMatchObject({

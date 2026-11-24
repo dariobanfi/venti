@@ -2,7 +2,7 @@
 	One open plan, for everyone flying from its area: everything it says,
 	who posted it, who is in, and the pilot's own word on it, "I'm in" or
 	"I'm out". Its author changes and deletes it; another pilot who is
-	signed in reports it. Signed out, it reads the same and "I'm in" leads
+	signed in reports it. Signed out, it reads the same and "Sign in to say you are in" leads
 	to the account. Which plan is in the address: `?id=`.
 
 	The plan is read from the server when the page opens and after every
@@ -200,7 +200,7 @@
 					</button>
 				{:else}
 					<a class="group-row" href={accountHref()}>
-						I'm in
+						Sign in to say you are in
 						<Icon name="forward" />
 					</a>
 				{/if}

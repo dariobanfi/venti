@@ -157,14 +157,8 @@
 						</label>
 						{#if isNew}
 							<label class="field">
-								<span>Name</span>
-								<input
-									name="name"
-									autocomplete="name"
-									placeholder="Shown to others"
-									aria-label="Name shown to others"
-									bind:value={displayName}
-								/>
+								<span>Name shown to others</span>
+								<input name="name" autocomplete="name" bind:value={displayName} />
 							</label>
 						{/if}
 						<label class="field">

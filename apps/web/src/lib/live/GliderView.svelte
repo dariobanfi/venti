@@ -45,6 +45,16 @@
      its glider from a moment before. -->
 {#if glider && !problem}
 	<div class="glider">
+		<!-- Above the rows, as on the phones. -->
+		{#if onfollowonmap && !glider.landed && !glider.quiet}
+			<div class="card">
+				<button class="link" type="button" aria-pressed={onMap} onclick={onfollowonmap}>
+					{FOLLOW_ON_THE_MAP}
+					{#if onMap}<Icon name="check" />{/if}
+				</button>
+			</div>
+		{/if}
+
 		<section>
 			<dl class="card">
 				<div class="row">
@@ -88,15 +98,6 @@
 			</dl>
 			<p class="footnote">{CAUTION}</p>
 		</section>
-
-		{#if onfollowonmap && !glider.landed && !glider.quiet}
-			<div class="card">
-				<button class="link" type="button" aria-pressed={onMap} onclick={onfollowonmap}>
-					{FOLLOW_ON_THE_MAP}
-					{#if onMap}<Icon name="check" />{/if}
-				</button>
-			</div>
-		{/if}
 
 		<section>
 			<div class="card">

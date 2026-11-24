@@ -1,5 +1,7 @@
 <!--
-	A group's settings, for its members (owner decision 26): muting it;
+	"About the group", in the phones' order and words: its members, then
+	for its owner and admins inviting, changing and the picture, then muting
+	and leaving. For its members (owner decision 26): muting it;
 	for its owner and admins, changing its name, description and home and
 	its picture, inviting a pilot by handle and removing members who are no
 	admins; for its owner alone, making members admins, switching the group
@@ -135,17 +137,17 @@
 			items.push(
 				member.role === 'admin'
 					? {
-							label: 'Make a member',
+							label: 'Make a member again',
 							icon: 'person',
 							onselect: () => act(() => core.setCommunityAdmin(group.id, member.handle, false))
 						}
 					: {
-							label: 'Make an admin',
+							label: 'Make admin',
 							icon: 'key',
 							onselect: () => act(() => core.setCommunityAdmin(group.id, member.handle, true))
 						},
 				{
-					label: 'Hand the group on',
+					label: `Make ${member.name} the owner`,
 					icon: 'forward',
 					onselect: () => ask({ about: 'handOn', member })
 				}
@@ -163,27 +165,33 @@
 	}
 </script>
 
-<Sheet {open} title="Group settings" {onclose}>
+<Sheet {open} title="About the group" {onclose}>
 	<div class="settings">
-		<section class="group first">
-			<div class="group-card">
-				<label class="group-row toggle">
-					<span>{said?.mute ?? 'Mute'}</span>
-					<input
-						type="checkbox"
-						role="switch"
-						checked={group.muted}
-						disabled={working}
-						onchange={(event) => mute(event.currentTarget.checked)}
-					/>
-				</label>
-			</div>
-			<p class="group-note">A muted group sends nothing to your phones.</p>
+		<section class="group first" aria-labelledby="{id}-members">
+			<h3 class="group-title" id="{id}-members">Members</h3>
+			<ul class="group-card" aria-labelledby="{id}-members">
+				{#each detail.members as member (member.handle)}
+					{@const actions = detail.canModerate && !member.isMe ? memberActions(member) : []}
+					<li class="member">
+						<PilotFace name={member.name} />
+						<span class="pair">
+							<span>{memberName(member)}</span>
+							<span class="lesser">@{member.handle}</span>
+						</span>
+						{#if member.roleWords}
+							<span class="group-value">{member.roleWords}</span>
+						{/if}
+						{#if actions.length > 0}
+							<Menu label="More about {member.name}" items={actions} />
+						{/if}
+					</li>
+				{/each}
+			</ul>
 		</section>
 
 		{#if detail.canModerate}
 			<section class="group">
-				<h3 class="group-title" id="{id}-invite">{said?.invite ?? 'Invite'}</h3>
+				<h3 class="group-title" id="{id}-invite">Invite by handle</h3>
 				<form class="invite" onsubmit={invite}>
 					<input
 						class="text-field"
@@ -196,9 +204,9 @@
 						{said?.invite ?? 'Invite'}
 					</button>
 				</form>
-				{#if invited}
-					<p class="group-note" role="status">{invited}</p>
-				{/if}
+				<p class="group-note" role={invited ? 'status' : undefined}>
+					{invited ?? 'By the handle on their pilot’s page.'}
+				</p>
 			</section>
 
 			<section class="group">
@@ -207,7 +215,7 @@
 						Change name, description and home
 					</button>
 					<label class="group-row file">
-						<span>{group.picturePath ? 'New picture' : 'Give it a picture'}</span>
+						<span>{group.picturePath ? 'Change the picture' : 'Give it a picture'}</span>
 						<input type="file" accept={PICTURE_KINDS} onchange={picture} />
 					</label>
 					{#if group.picturePath}
@@ -235,29 +243,32 @@
 						</label>
 					{/if}
 				</div>
+				<p class="group-note">
+					{group.isPublic
+						? 'Anyone signed in finds, reads and joins a public group.'
+						: 'Only members read a private group; you and its admins invite pilots into it.'}
+				</p>
 			</section>
 		{/if}
 
-		<section class="group" aria-labelledby="{id}-members">
-			<h3 class="group-title" id="{id}-members">Members</h3>
-			<ul class="group-card" aria-labelledby="{id}-members">
-				{#each detail.members as member (member.handle)}
-					{@const actions = detail.canModerate && !member.isMe ? memberActions(member) : []}
-					<li class="member">
-						<PilotFace name={member.name} />
-						<span class="pair">
-							<span>{memberName(member)}</span>
-							<span class="lesser">@{member.handle}</span>
-						</span>
-						{#if member.roleWords}
-							<span class="group-value">{member.roleWords}</span>
-						{/if}
-						{#if actions.length > 0}
-							<Menu label="More about {member.name}" items={actions} />
-						{/if}
-					</li>
-				{/each}
-			</ul>
+		<section class="group">
+			<div class="group-card">
+				<label class="group-row toggle">
+					<span>{said?.mute ?? 'Mute'}</span>
+					<input
+						type="checkbox"
+						role="switch"
+						checked={group.muted}
+						disabled={working}
+						onchange={(event) => mute(event.currentTarget.checked)}
+					/>
+				</label>
+			</div>
+			<p class="group-note">
+				{group.isPublic
+					? 'A public group’s messages reach your phone only where they mention you.'
+					: 'Each new message reaches your phone unless the group is muted.'}
+			</p>
 		</section>
 
 		{#if problem}
@@ -271,7 +282,7 @@
 					type="button"
 					onclick={() => ask({ about: 'leave', asOwner: isOwner, isPublic: group.isPublic })}
 				>
-					Leave the group
+					{said?.leave ?? 'Leave'}
 				</button>
 				{#if isOwner}
 					<button
@@ -283,6 +294,9 @@
 					</button>
 				{/if}
 			</div>
+			{#if isOwner}
+				<p class="group-note">Choose a member to hand the group on to them before you leave.</p>
+			{/if}
 		</section>
 	</div>
 </Sheet>

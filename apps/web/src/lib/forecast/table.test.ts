@@ -171,7 +171,7 @@ describe('the rows of a forecast table', () => {
 			['Cloud', '% of sky'],
 			['Rain', 'mm'],
 			['Temperature', '°C at 2 m'],
-			['0 °C', 'at m']
+			['0 °C level', 'm']
 		]);
 		expect(table[0].cells[0]).toEqual({ is: 'wind', wind: wind({ label: '40', band: 'strong' }) });
 		expect(table[2].cells[0]).toEqual({ is: 'wind', wind: wind() });
@@ -185,7 +185,7 @@ describe('the rows of a forecast table', () => {
 		expect(row('Cloud')[0]).toEqual({ is: 'cloud', percent: 60 });
 		expect(row('Rain').map((cell) => cell.is === 'number' && cell.text)).toEqual([DRY, DRY, '1.3']);
 		expect(row('Temperature')[0]).toEqual({ is: 'number', text: '3' });
-		expect(row('0 °C')[0]).toEqual({ is: 'number', text: '1800' });
+		expect(row('0 °C level')[0]).toEqual({ is: 'number', text: '1800' });
 		// An hour without convective cloud shows none; the row is there for the one that has.
 		expect(row('Cloud base')).toEqual([
 			{ is: 'empty' },

@@ -393,9 +393,10 @@
 	{/if}
 
 	<div class="card">
-		{#if onplan}
-			<!-- The phones have it beside "Start flight", which a browser has not. -->
-			<button class="row link" type="button" onclick={onplan}>Plan route</button>
+		<!-- The phones' order: the forecast, the alarm, keeping; then the web's own. -->
+		<button class="row link" type="button" onclick={onforecast}>Forecast for this place</button>
+		{#if site.kind === 'takeoff' || site.uses.includes('takeoff')}
+			<AlertMe look="row" start={() => dayDraft(site)} />
 		{/if}
 		<button
 			class="row link"
@@ -410,10 +411,10 @@
 		{#if keepProblem}
 			<p class="row said" role="alert">{keepProblem}</p>
 		{/if}
-		{#if site.kind === 'takeoff' || site.uses.includes('takeoff')}
-			<AlertMe look="row" start={() => dayDraft(site)} />
+		{#if onplan}
+			<!-- The phones have it beside "Start flight", which a browser has not. -->
+			<button class="row link" type="button" onclick={onplan}>Plan route</button>
 		{/if}
-		<button class="row link" type="button" onclick={onforecast}>Forecast for this place</button>
 		{#if flightsHref}
 			<a class="row link" href={flightsHref}>Flights from here</a>
 		{/if}

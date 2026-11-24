@@ -24,7 +24,7 @@ const MUSTERGRUPPE = {
 const PASSWORD = 'correct horse battery staple';
 
 const NEEDS_ACCOUNT =
-	'Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, then join a group near you or make one.';
+	'Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, then make a group or join one.';
 
 const field = (page: Page, name: string) => page.getByRole('textbox', { name });
 
@@ -138,27 +138,27 @@ async function intoMustergruppe(page: Page, handle: string): Promise<void> {
 	await accept(page, MUSTERGRUPPE.name);
 }
 
-/** Accepts an invite into a group on Community, which opens the group's page. */
+/** Joins a group the pilot was invited into on Community, which opens the group's page. */
 async function accept(page: Page, name: string): Promise<void> {
 	await page
 		.getByRole('list', { name: 'Invites' })
 		.getByRole('listitem')
 		.filter({ hasText: name })
-		.getByRole('button', { name: 'Accept' })
+		.getByRole('button', { name: 'Join' })
 		.click();
 	await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
 }
 
 /** Opens a group's settings from its page. */
 async function settingsOf(page: Page): Promise<Locator> {
-	await page.getByRole('button', { name: 'Settings', exact: true }).click();
-	return page.getByRole('dialog', { name: 'Group settings' });
+	await page.getByRole('button', { name: 'About the group', exact: true }).click();
+	return page.getByRole('dialog', { name: 'About the group' });
 }
 
 /** Leaves the group whose page is open, from its settings. */
 async function leaveTheGroup(page: Page): Promise<void> {
 	const settings = await settingsOf(page);
-	await settings.getByRole('button', { name: 'Leave the group' }).click();
+	await settings.getByRole('button', { name: 'Leave', exact: true }).click();
 	await page
 		.getByRole('alertdialog', { name: 'Leave this group?' })
 		.getByRole('button', { name: 'Leave the group' })
@@ -219,7 +219,7 @@ test('a pilot makes a private group, invites a pilot by handle, and plans a flyi
 
 	// Without a group there is nobody to plan with, and the board says so.
 	await openBoard(page);
-	await expect(page.getByText('You are in no group yet.')).toBeVisible();
+	await expect(page.getByText('You are in no group yet. In a group')).toBeVisible();
 	await expect(page.getByRole('button', { name: 'New plan' })).toBeHidden();
 	await keep('75-plans-no-group');
 
@@ -227,13 +227,13 @@ test('a pilot makes a private group, invites a pilot by handle, and plans a flyi
 	// core refuses before it is asked.
 	await page.getByRole('button', { name: 'New group' }).click();
 	const naming = page.getByRole('dialog', { name: 'New group' });
-	await expect(naming.getByRole('button', { name: 'Make the group' })).toBeDisabled();
+	await expect(naming.getByRole('button', { name: 'Save' })).toBeDisabled();
 	await naming.getByRole('textbox', { name: 'Name' }).fill('x'.repeat(61));
-	await naming.getByRole('button', { name: 'Make the group' }).click();
+	await naming.getByRole('button', { name: 'Save' }).click();
 	await expect(naming.getByRole('alert')).toHaveText("A group's name has room for 60 characters.");
 	await naming.getByRole('textbox', { name: 'Name' }).fill('Hausberg-Runde');
 	await naming.getByRole('radio', { name: 'Private' }).check();
-	await naming.getByRole('button', { name: 'Make the group' }).click();
+	await naming.getByRole('button', { name: 'Save' }).click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Hausberg-Runde' })).toBeVisible();
 	const groupPage = new URL(page.url()).pathname;
 
@@ -243,7 +243,7 @@ test('a pilot makes a private group, invites a pilot by handle, and plans a flyi
 	const other = await others.newPage();
 	const mira = await signUp(other, 'Mira Member');
 	const settings = await settingsOf(page);
-	await settings.getByRole('textbox', { name: 'Invite' }).fill(`@${mira}`);
+	await settings.getByRole('textbox', { name: 'Invite by handle' }).fill(`@${mira}`);
 	await settings.getByRole('button', { name: 'Invite' }).click();
 	await expect(settings.getByRole('status')).toHaveText('Invited to Hausberg-Runde.');
 	await keep('76-group-invite');
@@ -396,14 +396,14 @@ test('a pilot makes a private group, invites a pilot by handle, and plans a flyi
 
 	// Handing the group on is asked about first, with what it means.
 	await owning.getByRole('button', { name: 'More about Mira Member' }).click();
-	await page.getByRole('menuitem', { name: 'Hand the group on' }).click();
+	await page.getByRole('menuitem', { name: 'Make Mira Member the owner' }).click();
 	const handing = page.getByRole('alertdialog', { name: 'Hand the group to Mira Member?' });
 	await expect(handing).toContainText('You stay in the group as a member');
 	await handing.getByRole('button', { name: 'Hand on' }).click();
 	await expect(her.getByText('Owner', { exact: true })).toBeVisible();
 	await expect(himself.getByText('Owner', { exact: true })).toBeHidden();
 	// From here on he is a member like any other: nothing of the owner's is offered.
-	await expect(owning.getByRole('textbox', { name: 'Invite' })).toBeHidden();
+	await expect(owning.getByRole('textbox', { name: 'Invite by handle' })).toBeHidden();
 	await expect(owning.getByRole('button', { name: 'Delete the group' })).toBeHidden();
 	await expect(owning.getByRole('button', { name: /^More about/ })).toBeHidden();
 	await owning.getByRole('button', { name: 'Done' }).click();
@@ -425,13 +425,13 @@ test('a pilot makes a private group, invites a pilot by handle, and plans a flyi
 	await page.reload();
 	await expect(page.getByRole('heading', { level: 1, name: 'Hausberg-Runde' })).toBeHidden();
 	await openBoard(page);
-	await expect(page.getByText('You are in no group yet.')).toBeVisible();
+	await expect(page.getByText('You are in no group yet. In a group')).toBeVisible();
 
 	// She deletes the group: asked about first, and then it is gone for her too.
 	await hers.getByRole('button', { name: 'Delete the group' }).click();
 	const ending = other.getByRole('alertdialog', { name: 'Delete this group?' });
 	await expect(ending).toContainText(
-		'The group goes for every member, with its chat and its plans.'
+		'The group goes for every member, with its messages and plans.'
 	);
 	await ending.getByRole('button', { name: 'Delete the group' }).click();
 	await expect(other.getByRole('heading', { level: 1, name: 'Community' })).toBeVisible();
@@ -456,14 +456,14 @@ test('a pilot is invited into a group, sees who is in it, and leaves it again', 
 	await expect(members.filter({ hasText: 'Mara Muster' })).toContainText('@mara');
 	await expect(members.filter({ hasText: 'Jonas Beispiel' })).toBeVisible();
 	await expect(members.filter({ hasText: 'Test Pilot (you)' })).toBeVisible();
-	await expect(settings.getByRole('textbox', { name: 'Invite' })).toBeHidden();
+	await expect(settings.getByRole('textbox', { name: 'Invite by handle' })).toBeHidden();
 	await expect(settings.getByRole('button', { name: 'Delete the group' })).toBeHidden();
 	await expect(settings.getByRole('button', { name: /^More about/ })).toBeHidden();
 	await keep('81-group-member');
 	await settings.getByRole('button', { name: 'Done' }).click();
 
 	// Leaving asks first, with what it means.
-	await (await settingsOf(page)).getByRole('button', { name: 'Leave the group' }).click();
+	await (await settingsOf(page)).getByRole('button', { name: 'Leave', exact: true }).click();
 	const leaving = page.getByRole('alertdialog', { name: 'Leave this group?' });
 	await expect(leaving).toContainText('You come back in only when invited again.');
 	await leaving.getByRole('button', { name: 'Leave the group' }).click();

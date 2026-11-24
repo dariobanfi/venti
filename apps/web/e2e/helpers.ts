@@ -445,7 +445,7 @@ export async function addSampleFlight(page: Page): Promise<void> {
 export async function dropFiles(
 	page: Page,
 	files: { name: string; text: string }[],
-	says = 'Drop flight files to bring them in'
+	says = 'Drop flight files to import them'
 ): Promise<void> {
 	const transfer = await page.evaluateHandle((files) => {
 		const transfer = new DataTransfer();

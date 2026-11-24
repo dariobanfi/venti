@@ -1,7 +1,7 @@
 /**
  * The pilot's own flights as the screens see them: the account's, on the
  * Venti server. The website keeps no logbook of its own (owner decision 20):
- * a pilot signs in to see or bring in flights, and bringing a file in is an
+ * a pilot signs in to see or import flights, and importing a file is an
  * upload to the account.
  *
  * The model holds the pages read so far, newest first, for the screens to

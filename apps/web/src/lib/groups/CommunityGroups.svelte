@@ -91,7 +91,7 @@
 
 <section class="part span-12" id="groups" aria-labelledby="{id}-groups">
 	<header>
-		<h2 id="{id}-groups">{said?.yours ?? 'Your groups'}</h2>
+		<h2 id="{id}-groups">{said?.title ?? 'Groups'}</h2>
 		<button class="more" type="button" onclick={() => (making = true)}>New group</button>
 	</header>
 
@@ -102,7 +102,7 @@
 					<span class="words">{invite.words}</span>
 					<span class="buttons">
 						<button class="button-plain" type="button" onclick={() => answer(invite, true)}>
-							Accept
+							{said?.join ?? 'Join'}
 						</button>
 						<button class="button-plain" type="button" onclick={() => answer(invite, false)}>
 							Decline
@@ -118,7 +118,7 @@
 
 	{#if model.mine}
 		{#if model.mine.length === 0}
-			<p class="quiet">Join a group near you, or make one.</p>
+			<p class="quiet">You are in no group yet. Join one near you, or make one.</p>
 		{:else}
 			<ul class="cards" aria-label={said?.yours ?? 'Your groups'}>
 				{#each model.mine as group (group.id)}
@@ -136,7 +136,7 @@
 
 <section class="part span-12" aria-labelledby="{id}-near">
 	<header>
-		<h2 id="{id}-near">{text.trim() ? 'Groups found' : 'Groups near you'}</h2>
+		<h2 id="{id}-near">{text.trim() ? 'Found' : (said?.nearYou ?? 'Near you')}</h2>
 	</header>
 	<input
 		class="text-field search"
@@ -151,7 +151,7 @@
 	{:else if found && found.length === 0 && !finding}
 		<p class="quiet">{said?.noneFound ?? 'No group here yet.'}</p>
 	{:else if found}
-		<ul class="cards" aria-label={text.trim() ? 'Groups found' : 'Groups near you'}>
+		<ul class="cards" aria-label={text.trim() ? 'Found' : (said?.nearYou ?? 'Near you')}>
 			{#each found as one (one.group.id)}
 				<GroupCard
 					group={one.group}

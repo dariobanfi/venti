@@ -210,10 +210,10 @@ test('the radar layer shows both layers at the newest moment with its time, the 
 
 	// Played, the moments run once and stop at the newest. No picture is
 	// asked for again: they are kept for the visit.
-	await card(page).getByRole('button', { name: 'Play' }).click();
+	await card(page).getByRole('button', { name: 'Play the radar pictures' }).click();
 	await expect(strip(page)).toHaveAttribute('aria-valuenow', String(stops.length - 1));
 	await expect(card(page)).toContainText(said(newest.time));
-	await expect(card(page).getByRole('button', { name: 'Play' })).toBeVisible();
+	await expect(card(page).getByRole('button', { name: 'Play the radar pictures' })).toBeVisible();
 
 	// Along the line into the forecast: the model's rain of an hour, and
 	// none of the radar's pictures on the map.
